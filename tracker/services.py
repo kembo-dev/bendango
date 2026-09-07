@@ -193,11 +193,21 @@ def get_llm_config() -> dict:
     if not isinstance(configured_models, list):
         configured_models = [str(configured_models)] if configured_models else []
 
-    models = configured_models or env_models
-    default_model = (configured.get("default_model") or (models[0] if models else os.environ.get("LLM_MODEL")) or "google.gemma-3-12b-it").strip()
+    # An explicit LLM_MODELS environment variable is treated as a runtime
+    # override. This is useful in deployment and prevents a stale settings
+    # default from masking the model list injected by the environment.
+    if env_models:
+        models = env_models + [m for m in configured_models if m not in env_models]
+        default_model = env_models[0]
+    else:
+        models = configured_models
+        default_model = (
+            configured.get("default_model")
+            or os.environ.get("LLM_MODEL")
+            or (models[0] if models else None)
+            or "google.gemma-3-12b-it"
+        ).strip()
 
-    if env_models and models and (models[0] != env_models[0]):
-        models = env_models + [m for m in models if m not in env_models]
     if default_model and default_model not in models:
         models.insert(0, default_model)
     if not models:
