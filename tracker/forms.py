@@ -32,6 +32,6 @@ class SearchOrScrapeForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        default_model = get_llm_config().get("default_model") or "google.gemma-3-12b-it"
+        default_model = get_llm_config()["default_model"]
         self.fields["model_name"].initial = default_model
         self.fields["model_name"].help_text = f"Modèle actif : {default_model}"
