@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, bendango-v2-fixes]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: "ci-secret-key"
+      LLM_PROVIDER: "ollama"
+      LLM_MODEL: "google.gemma-3-12b-it"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Check migrations are committed
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run tests
+        run: python manage.py test --verbosity=2
