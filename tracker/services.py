@@ -285,7 +285,9 @@ def process_url_and_save(
         return None, "Impossible de récupérer le contenu de la page web."
     if _is_not_found_page(html):
         return None, "Page introuvable ou URL produit inexistante."
-    if not _has_exploitable_product_structure(html):
+    # Search-discovered URLs are filtered aggressively. For a URL supplied
+    # directly by the user, attempt extraction first and validate the output.
+    if expected_query and not _has_exploitable_product_structure(html):
         return None, "Page sans structure de produit exploitable."
 
     extracted = extract_with_llm(html, model_name)
