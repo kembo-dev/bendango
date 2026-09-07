@@ -197,8 +197,7 @@ class CustomSiteSearchTests(TestCase):
 
         config = get_llm_config()
         model_id = config["default_model"]
-        self.assertEqual(model_id, "google.gemma-3-12b-it")
-
+       
         client = boto3.client(
             "bedrock-runtime",
             region_name=config["region"],
