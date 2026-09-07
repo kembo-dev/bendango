@@ -5,11 +5,11 @@ from dataclasses import dataclass
 
 ACCESSORY_TOKENS = {
     "case", "coque", "cover", "housse", "screen", "protector", "protection",
-    "verre", "tempered", "chargeur", "charger", "cable", "câble", "adapter",
-    "adaptateur", "earbuds", "ecouteurs", "écouteurs", "support", "holder",
+    "verre", "tempered", "chargeur", "charger", "cable", "adapter",
+    "adaptateur", "earbuds", "ecouteurs", "support", "holder",
 }
 
-CAPACITY_PATTERN = re.compile(r"\b(\d{2,4})\s*(gb|go|tb|to)\b", re.IGNORECASE)
+CAPACITY_PATTERN = re.compile(r"\b(\d{1,4})\s*(gb|go|tb|to)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,11 @@ def normalize_product_text(value: str | None) -> str:
 
 def _capacity_tokens(value: str) -> set[str]:
     normalized = normalize_product_text(value)
-    return {f"{amount}{unit}" for amount, unit in CAPACITY_PATTERN.findall(normalized)}
+    capacities = set()
+    for amount, unit in CAPACITY_PATTERN.findall(normalized):
+        canonical_unit = "gb" if unit.lower() in {"gb", "go"} else "tb"
+        capacities.add(f"{int(amount)}{canonical_unit}")
+    return capacities
 
 
 def product_match_score(product_name: str, query: str | None) -> MatchResult:
