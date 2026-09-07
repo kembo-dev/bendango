@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 
@@ -8,6 +9,13 @@ ACCESSORY_TOKENS = {
     "screen", "verre", "chargeur", "charger", "cable", "câble", "adapter",
     "adaptateur", "support", "holder", "bracelet", "strap", "battery", "batterie",
 }
+
+
+@dataclass(frozen=True)
+class ProductMatchResult:
+    is_match: bool
+    score: float
+    reason: str
 
 
 def normalize_product_name(value: str) -> str:
@@ -64,5 +72,32 @@ def product_match_score(query: str, candidate: str) -> float:
     return round(max(0.0, min(score, 1.0)), 4)
 
 
+def match_product(query: str, candidate: str, threshold: float = 0.82) -> ProductMatchResult:
+    """Return a structured match result for callers that need diagnostics.
+
+    This keeps the numeric product_match_score() API available while supporting
+    V2 service code that expects `.is_match`, `.score` and `.reason`.
+    """
+    left = normalize_product_name(query)
+    right = normalize_product_name(candidate)
+
+    if not left or not right:
+        return ProductMatchResult(False, 0.0, "nom produit ou requête vide")
+
+    if _is_accessory(left) != _is_accessory(right):
+        return ProductMatchResult(False, 0.0, "accessoire détecté")
+
+    left_variants = _variant_tokens(left)
+    right_variants = _variant_tokens(right)
+    if left_variants and right_variants and left_variants.isdisjoint(right_variants):
+        score = product_match_score(query, candidate)
+        return ProductMatchResult(False, score, "variante produit incompatible")
+
+    score = product_match_score(query, candidate)
+    if score >= threshold:
+        return ProductMatchResult(True, score, "correspondance suffisante")
+    return ProductMatchResult(False, score, "similarité insuffisante")
+
+
 def is_confident_product_match(query: str, candidate: str, threshold: float = 0.82) -> bool:
-    return product_match_score(query, candidate) >= threshold
+    return match_product(query, candidate, threshold=threshold).is_match
