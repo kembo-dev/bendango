@@ -36,6 +36,16 @@ class Product(models.Model):
 
 class PriceListing(models.Model):
     """Dernière offre connue d'un produit chez un marchand."""
+
+    EXTRACTION_SOURCES = [
+        ('jsonld', 'JSON-LD'),
+        ('meta', 'Meta tags'),
+        ('llm', 'LLM'),
+        ('html', 'HTML fallback'),
+        ('cache', 'Cached listing'),
+        ('unknown', 'Unknown'),
+    ]
+
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='listings')
     retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
     url = models.URLField(max_length=2048)
@@ -44,6 +54,8 @@ class PriceListing(models.Model):
     normalized_price = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
     normalized_currency = models.CharField(max_length=10, default='USD')
     confidence_score = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    match_score = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    extraction_source = models.CharField(max_length=20, choices=EXTRACTION_SOURCES, default='unknown')
     in_stock = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
     scraped_at = models.DateTimeField(auto_now=True)
@@ -64,6 +76,8 @@ class PriceListing(models.Model):
             raise ValidationError({'price': 'Le prix doit être strictement positif.'})
         if self.confidence_score is not None and not (0 <= self.confidence_score <= 1):
             raise ValidationError({'confidence_score': 'Le score de confiance doit être compris entre 0 et 1.'})
+        if self.match_score is not None and not (0 <= self.match_score <= 1):
+            raise ValidationError({'match_score': 'Le score de matching doit être compris entre 0 et 1.'})
 
     def save(self, *args, **kwargs):
         from tracker.currency import normalize_to_usd
