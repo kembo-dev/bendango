@@ -15,6 +15,9 @@ from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -56,6 +59,34 @@ else:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
+
+# LLM / AI configuration
+
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [part.strip() for part in value.split(',') if part.strip()]
+
+
+LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'bedrock')
+LLM_MODELS = _split_csv(os.environ.get('LLM_MODELS'))
+if LLM_MODELS:
+    LLM_DEFAULT_MODEL = LLM_MODELS[0]
+else:
+    LLM_DEFAULT_MODEL = os.environ.get('LLM_MODEL') or 'google.gemma-3-12b-it'
+    LLM_MODELS = [LLM_DEFAULT_MODEL]
+
+LLM_CONFIG = {
+    'provider': LLM_PROVIDER,
+    'default_model': LLM_DEFAULT_MODEL,
+    'models': LLM_MODELS,
+    'region': os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION') or 'us-east-1',
+    'access_key_id': os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('BEDROCK_ACCESS_KEY_ID') or '',
+    'secret_access_key': os.environ.get('AWS_SECRET_ACCESS_KEY') or os.environ.get('BEDROCK_SECRET_ACCESS_KEY') or '',
+    'session_token': os.environ.get('AWS_SESSION_TOKEN') or os.environ.get('BEDROCK_SESSION_TOKEN') or '',
+    'bearer_token': os.environ.get('AWS_BEARER_TOKEN_BEDROCK') or '',
+    'base_url': os.environ.get('OPENAI_BASE_URL') or '',
+}
 
 # Application definition
 
@@ -148,6 +179,7 @@ STATIC_URL = 'static/'
 
 # Recherche par défaut
 DEFAULT_SEARCH_COUNTRY = os.environ.get('DEFAULT_SEARCH_COUNTRY', 'RDC')
+LOCAL_SEARCH_DOMAINS = _split_csv(os.environ.get('LOCAL_SEARCH_DOMAINS')) or ['drcmart.com', 'mobile-rdc.com']
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

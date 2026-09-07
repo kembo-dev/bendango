@@ -1,5 +1,7 @@
 from django import forms
 
+from .services import get_llm_config
+
 
 class SearchOrScrapeForm(forms.Form):
     site = forms.CharField(
@@ -24,7 +26,12 @@ class SearchOrScrapeForm(forms.Form):
         ),
     )
     model_name = forms.CharField(
-        label="Modèle Ollama",
-        initial="qwen2.5-coder:7b",
+        label="Modèle LLM",
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        default_model = get_llm_config().get("default_model") or "google.gemma-3-12b-it"
+        self.fields["model_name"].initial = default_model
+        self.fields["model_name"].help_text = f"Modèle actif : {default_model}"

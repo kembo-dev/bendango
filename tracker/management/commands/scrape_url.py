@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from tracker.models import Product, Retailer, PriceListing
+from tracker.services import get_llm_config
 
 
 # 1. Définition du schéma de sortie Pydantic (inchangé)
@@ -38,13 +39,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--model",
             type=str,
-            default="qwen2.5-coder:7b",
-            help="Modèle Ollama à utiliser (par défaut: qwen2.5-coder:7b)",
+            default=None,
+            help="Modèle à utiliser (ex: us.meta.llama3-1-70b-instruct-v1:0 pour Bedrock, ou qwen2.5-coder:7b pour Ollama)",
         )
 
     def handle(self, *args, **options):
         url = options["url"]
-        model_name = options["model"]
+        default_model = get_llm_config().get("default_model")
+        model_name = options["model"] or default_model
 
         self.stdout.write(self.style.NOTICE(f"Début du traitement pour : {url}"))
 
