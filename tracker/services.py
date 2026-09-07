@@ -225,12 +225,32 @@ def extract_with_bedrock(html_snippet: str, model_name: str) -> ExtractedProduct
 def extract_with_llm(html_snippet: str, model_name: str | None = None) -> ExtractedProductData | None:
     config = get_llm_config()
     selected_model = (model_name or config["default_model"]).strip()
-    try:
-        if config["provider"] == "bedrock":
-            return extract_with_bedrock(html_snippet, selected_model)
-        return extract_with_ollama(html_snippet, selected_model)
-    except Exception:
+
+    if config["provider"] == "bedrock":
+        try:
+            result = extract_with_bedrock(html_snippet, selected_model)
+            if result is not None:
+                return result
+        except Exception:
+            pass
+
+        try:
+            if ollama is not None:
+                result = extract_with_ollama(html_snippet, selected_model)
+                if result is not None:
+                    return result
+        except Exception:
+            pass
+
         return _fallback_extract_html(html_snippet)
+
+    try:
+        result = extract_with_ollama(html_snippet, selected_model)
+        if result is not None:
+            return result
+    except Exception:
+        pass
+    return _fallback_extract_html(html_snippet)
 
 
 def _is_relevant_product_match(product_name: str, query: str | None) -> bool:
@@ -297,7 +317,9 @@ def process_url_and_save(
     product_name = (extracted.product_name or "").strip()
     currency = normalize_currency_code(extracted.currency)
     price = Decimal(str(extracted.price)).quantize(Decimal("0.01"))
-    if not product_name or product_name.lower() in {"unknown", "inconnu", "n/a", "na"} or not (0 < price <= 20000):
+    invalid_name = not product_name or product_name.lower() in {"unknown", "inconnu", "n/a", "na"}
+    invalid_currency = not currency or currency.lower() in {"unknown", "inconnu", "n/a", "na"}
+    if invalid_name or invalid_currency or not (0 < price <= 20000):
         return None, "Données extraites invalides ou page non exploitable."
 
     host = (parsed.netloc or "").lower().removeprefix("www.")
