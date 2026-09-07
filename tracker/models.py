@@ -27,11 +27,14 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+
 class PriceListing(models.Model):
     """Relevé de prix d'un produit sur un site spécifique à un instant T"""
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='listings')
     retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
-    url = models.URLField(max_length=500)
+    # Les URLs e-commerce contiennent souvent des paramètres de tracking très longs.
+    # 2048 évite de rejeter des URLs valides tout en conservant la validation URL de Django.
+    url = models.URLField(max_length=2048)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=10, default='EUR')
     in_stock = models.BooleanField(default=True)
