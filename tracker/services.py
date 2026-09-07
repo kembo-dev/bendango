@@ -24,6 +24,7 @@ except ImportError:  # pragma: no cover
     ollama = None
 
 from tracker.currency import normalize_currency_code
+from tracker.extractors import extract_structured_product
 from tracker.models import PriceListing, Product, Retailer
 from tracker.product_matching import match_product
 
@@ -131,6 +132,7 @@ def fetch_and_clean_html(url: str) -> str | None:
         text = response.content.decode("utf-8", errors="replace")
 
     soup = BeautifulSoup(text, "html.parser")
+    # Keep <script> nodes so JSON-LD remains available to the structured extractor.
     for element in soup(["style", "svg", "noscript", "header", "footer", "nav"]):
         element.decompose()
     target = soup.find("body") or soup
@@ -233,6 +235,33 @@ def extract_with_llm(html_snippet: str, model_name: str | None = None) -> Extrac
         return _fallback_extract_html(html_snippet)
 
 
+def _structured_to_extracted(html: str) -> ExtractedProductData | None:
+    structured = extract_structured_product(html)
+    if structured is None:
+        return None
+    return ExtractedProductData(
+        product_name=structured.product_name,
+        price=float(structured.price),
+        currency=structured.currency,
+        in_stock=structured.in_stock,
+        sku_or_ean=structured.sku_or_ean,
+    )
+
+
+def _cached_listing_for_url(url: str, expected_query: str | None = None):
+    listing = (
+        PriceListing.objects.select_related("product", "retailer")
+        .filter(url=url, is_active=True)
+        .order_by("-scraped_at")
+        .first()
+    )
+    if listing is None:
+        return None
+    if expected_query and not match_product(expected_query, listing.product.name).is_match:
+        return None
+    return listing
+
+
 def _is_relevant_product_match(product_name: str, query: str | None) -> bool:
     if not query:
         return True
@@ -280,24 +309,39 @@ def process_url_and_save(
     if _is_category_or_listing_url(url):
         return None, "URL de liste ou catégorie non exploitable pour un produit unique."
 
+    cached_listing = _cached_listing_for_url(url, expected_query=expected_query)
     html = fetch_and_clean_html(url)
     if not html:
+        if cached_listing:
+            return cached_listing, None
         return None, "Impossible de récupérer le contenu de la page web."
+
     if _is_not_found_page(html):
+        # Do not discard a previously known offer solely because the current
+        # fetch is blocked, localized differently, or temporarily returns a 404.
+        if cached_listing:
+            return cached_listing, None
         return None, "Page introuvable ou URL produit inexistante."
-    # Search-discovered URLs are filtered aggressively. For a URL supplied
-    # directly by the user, attempt extraction first and validate the output.
-    if expected_query and not _has_exploitable_product_structure(html):
+
+    extracted = _structured_to_extracted(html)
+    if extracted is None and expected_query and not _has_exploitable_product_structure(html):
+        if cached_listing:
+            return cached_listing, None
         return None, "Page sans structure de produit exploitable."
 
-    extracted = extract_with_llm(html, model_name)
+    if extracted is None:
+        extracted = extract_with_llm(html, model_name)
     if not extracted:
-        return None, "L'extraction LLM a échoué."
+        if cached_listing:
+            return cached_listing, None
+        return None, "L'extraction a échoué."
 
     product_name = (extracted.product_name or "").strip()
     currency = normalize_currency_code(extracted.currency)
     price = Decimal(str(extracted.price)).quantize(Decimal("0.01"))
     if not product_name or product_name.lower() in {"unknown", "inconnu", "n/a", "na"} or not (0 < price <= 20000):
+        if cached_listing:
+            return cached_listing, None
         return None, "Données extraites invalides ou page non exploitable."
 
     host = (parsed.netloc or "").lower().removeprefix("www.")
@@ -305,6 +349,8 @@ def process_url_and_save(
     if expected_query and host not in allowed:
         match = match_product(expected_query, product_name)
         if not match.is_match:
+            if cached_listing:
+                return cached_listing, None
             return None, f"Produit non pertinent ({match.reason}, score={match.score:.2f})."
 
     base_url = f"{parsed.scheme}://{parsed.netloc}"
@@ -320,6 +366,8 @@ def process_url_and_save(
         product = None
         if extracted.sku_or_ean:
             product = Product.objects.filter(sku_or_ean=extracted.sku_or_ean).first()
+        if not product and cached_listing:
+            product = cached_listing.product
         if not product:
             product = Product.objects.filter(name__iexact=product_name).first()
         if not product:
@@ -327,10 +375,13 @@ def process_url_and_save(
 
         listing = PriceListing.objects.filter(product=product, retailer=retailer, url=url).first()
         if listing is None:
-            listing = PriceListing(product=product, retailer=retailer, url=url)
+            listing = cached_listing or PriceListing(product=product, retailer=retailer, url=url)
+        listing.product = product
+        listing.retailer = retailer
         listing.price = price
         listing.currency = currency
         listing.in_stock = extracted.in_stock
+        listing.is_active = True
         listing.save()
 
     return listing, None
