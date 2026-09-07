@@ -9,7 +9,7 @@ def _comparison_price(item):
 
 
 def _decorate_listing_for_display(listing):
-    history = list(listing.history.order_by('-observed_at')[:2])
+    history = list(listing.history.order_by('-captured_at')[:2])
     listing.history_count = listing.history.count()
     listing.previous_observation = history[1] if len(history) > 1 else None
     listing.price_change = None
