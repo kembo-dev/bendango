@@ -34,3 +34,12 @@ def normalize_to_usd(amount, currency: str):
     if value <= 0 or not rate:
         return None
     return (value / rate).quantize(Decimal("0.01"))
+
+
+def normalize_currency(amount, currency: str):
+    """Backward-compatible alias used by older service code.
+
+    Bendango's canonical comparison currency is USD, so this helper delegates
+    to normalize_to_usd(). New code should prefer normalize_to_usd directly.
+    """
+    return normalize_to_usd(amount, currency)
