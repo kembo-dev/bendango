@@ -66,15 +66,41 @@ class PriceListing(models.Model):
             raise ValidationError({'confidence_score': 'Le score de confiance doit être compris entre 0 et 1.'})
 
     def save(self, *args, **kwargs):
+        from tracker.currency import normalize_to_usd
+
+        previous = None
+        if self.pk:
+            previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'in_stock').first()
+
+        self.currency = (self.currency or '').upper()
+        self.normalized_currency = 'USD'
+        self.normalized_price = normalize_to_usd(self.price, self.currency)
         self.full_clean()
-        return super().save(*args, **kwargs)
+        result = super().save(*args, **kwargs)
+
+        changed = (
+            previous is None
+            or previous['price'] != self.price
+            or previous['currency'] != self.currency
+            or previous['in_stock'] != self.in_stock
+        )
+        if changed:
+            PriceHistory.objects.create(
+                listing=self,
+                price=self.price,
+                currency=self.currency,
+                normalized_price=self.normalized_price,
+                normalized_currency=self.normalized_currency,
+                in_stock=self.in_stock,
+            )
+        return result
 
     def __str__(self):
         return f"{self.product.name} - {self.retailer.name}: {self.price} {self.currency}"
 
 
 class PriceHistory(models.Model):
-    """Snapshot immuable créé lors d'un relevé de prix."""
+    """Snapshot immuable créé lorsque le prix, la devise ou le stock change."""
     listing = models.ForeignKey(PriceListing, on_delete=models.CASCADE, related_name='history')
     price = models.DecimalField(max_digits=14, decimal_places=2)
     currency = models.CharField(max_length=10)
