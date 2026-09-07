@@ -407,7 +407,9 @@ def cleanup_stale_listings(days: int = 30, product_id: int | None = None) -> int
     queryset = PriceListing.objects.filter(scraped_at__lt=cutoff)
     if product_id is not None:
         queryset = queryset.filter(product_id=product_id)
-    return queryset.delete()[0]
+    listing_count = queryset.count()
+    queryset.delete()
+    return listing_count
 
 
 def _get_sort_rank(item):
