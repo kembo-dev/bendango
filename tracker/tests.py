@@ -710,7 +710,7 @@ class SearchResultDisplayTests(TestCase):
         self.assertIsNone(listing)
         self.assertIn("non pertinent", error.lower())
 
-    @patch("tracker.services.extract_with_ollama")
+    @patch("tracker.services._extract_llm_only")
     @patch("tracker.services.fetch_and_clean_html")
     def test_process_url_and_save_defaults_for_missing_extraction_values(self, mock_fetch, mock_extract):
         mock_fetch.return_value = "<html><body>ok</body></html>"
