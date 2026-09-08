@@ -6,6 +6,7 @@ from decimal import Decimal, InvalidOperation
 from bs4 import BeautifulSoup
 
 from tracker.currency import normalize_currency_code
+from tracker.product_matching import match_product
 
 
 @dataclass(frozen=True)
@@ -157,7 +158,7 @@ def extract_meta_product(html: str) -> StructuredProductData | None:
 
 
 def _currency_from_text(text: str) -> str:
-    if re.search(r"\b(?:CDF|FC|CDF)\b|₣", text, re.I):
+    if re.search(r"\b(?:CDF|FC)\b|₣", text, re.I):
         return "CDF"
     if "$" in text or re.search(r"\bUSD\b", text, re.I):
         return "USD"
@@ -171,7 +172,6 @@ def _price_candidates_from_node(node) -> list[Decimal]:
     if node is None:
         return values
 
-    # WooCommerce normally marks the current sale price inside <ins>.
     sale_nodes = node.select("ins .woocommerce-Price-amount, ins .amount, ins")
     for sale_node in sale_nodes:
         price = _decimal_price(sale_node.get_text(" ", strip=True))
@@ -180,9 +180,7 @@ def _price_candidates_from_node(node) -> list[Decimal]:
     if values:
         return values
 
-    for price_node in node.select(
-        ".woocommerce-Price-amount, .amount, [itemprop='price'], .price"
-    ):
+    for price_node in node.select(".woocommerce-Price-amount, .amount, [itemprop='price'], .price"):
         raw = price_node.get("content") or price_node.get_text(" ", strip=True)
         price = _decimal_price(raw)
         if price is not None:
@@ -191,7 +189,6 @@ def _price_candidates_from_node(node) -> list[Decimal]:
 
 
 def extract_woocommerce_product(html: str) -> StructuredProductData | None:
-    """Extract the primary WooCommerce product without reading related cards."""
     if not html:
         return None
 
@@ -204,7 +201,6 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
     )
     name = name_node.get_text(" ", strip=True) if name_node else ""
     if not name or name in {"…", "..."}:
-        # Some themes visually hide the H1; og:title still gives a trustworthy name.
         meta_title = soup.find("meta", attrs={"property": "og:title"})
         name = meta_title.get("content", "").strip() if meta_title else ""
     if not name:
@@ -221,7 +217,6 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
 
     price_values = _price_candidates_from_node(primary)
     if not price_values:
-        # Last-resort local scan, deliberately scoped to the primary product block.
         text = primary.get_text(" ", strip=True)
         for raw in re.findall(r"(?:USD\s*)?(\d[\d\s.,]*)\s*(?:\$|USD|CDF|FC|€)", text, re.I):
             price = _decimal_price(raw)
@@ -231,8 +226,6 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
     if not price_values:
         return None
 
-    # The first explicit current price is preferred. This avoids picking prices
-    # from related products elsewhere on the page.
     price = price_values[0]
     primary_text = primary.get_text(" ", strip=True)
     currency = normalize_currency_code(_currency_from_text(primary_text))
@@ -258,9 +251,81 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
     )
 
 
-def extract_structured_product(html: str) -> StructuredProductData | None:
+def extract_matching_product_card(html: str, query: str) -> StructuredProductData | None:
+    """Recover a matching product from Shopify/search/collection cards.
+
+    Useful when a stale product URL renders a 404 or recommendation template but
+    the storefront still exposes the requested product elsewhere in the HTML.
+    """
+    if not html or not query:
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+    best = None
+    best_score = 0.0
+
+    links = soup.select("a[href*='/products/']")
+    for link in links:
+        title = link.get_text(" ", strip=True)
+        if not title:
+            title = link.get("title", "").strip()
+        if not title:
+            continue
+
+        match = match_product(query, title, threshold=0.72)
+        if not match.is_match or match.score <= best_score:
+            continue
+
+        card = link
+        for _ in range(5):
+            parent = getattr(card, "parent", None)
+            if parent is None:
+                break
+            card = parent
+            text = card.get_text(" ", strip=True)
+            if re.search(r"(?:\$|USD|CDF|FC|€)\s*\d|\d[\d\s.,]*\s*(?:\$|USD|CDF|FC|€)", text, re.I):
+                break
+
+        card_text = card.get_text(" ", strip=True)
+        price_matches = re.findall(
+            r"(?:\$|USD|CDF|FC|€)\s*([0-9][0-9\s.,]*)|([0-9][0-9\s.,]*)\s*(?:\$|USD|CDF|FC|€)",
+            card_text,
+            re.I,
+        )
+        prices = []
+        for left, right in price_matches:
+            price = _decimal_price(left or right)
+            if price is not None:
+                prices.append(price)
+        if not prices:
+            continue
+
+        # Shopify sale cards generally display the current price first, followed
+        # by the compare-at price. Choose the smallest positive value defensively.
+        price = min(prices)
+        currency = normalize_currency_code(_currency_from_text(card_text))
+        image = ""
+        image_node = card.find("img") if hasattr(card, "find") else None
+        if image_node:
+            image = (image_node.get("src") or image_node.get("data-src") or "").strip()
+
+        best = StructuredProductData(
+            product_name=title,
+            price=price,
+            currency=currency,
+            in_stock=True,
+            image_url=image,
+            source="html",
+        )
+        best_score = match.score
+
+    return best
+
+
+def extract_structured_product(html: str, query: str | None = None) -> StructuredProductData | None:
     return (
         extract_jsonld_product(html)
         or extract_meta_product(html)
         or extract_woocommerce_product(html)
+        or (extract_matching_product_card(html, query) if query else None)
     )
