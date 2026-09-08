@@ -23,6 +23,7 @@ try:
 except ImportError:  # pragma: no cover
     ollama = None
 
+from tracker.catalog import find_fresh_cached_listings
 from tracker.currency import normalize_currency_code
 from tracker.extractors import extract_structured_product
 from tracker.models import PriceListing, Product, Retailer
@@ -414,6 +415,12 @@ def search_and_scrape_product(product_query: str, site_filter: str = "all", mode
     site_filters = [] if site_filter == "all" else [p.strip() for p in site_filter.split(",") if p.strip()]
     for site in site_filters:
         ensure_retailer_for_site(site)
+
+    cache_hosts = [normalize_site_filter(site)[0] for site in site_filters]
+    cached_results = find_fresh_cached_listings(product_query, site_hosts=cache_hosts)
+    if cached_results:
+        return cached_results, []
+
     search_terms = []
     if site_filters:
         for site in site_filters:
@@ -425,7 +432,7 @@ def search_and_scrape_product(product_query: str, site_filter: str = "all", mode
     urls = []
     for term in search_terms:
         try:
-            found = _collect_search_urls(term, max_results)
+            found = _collect_search_urls(term, max_results=max_results)
         except Exception as exc:
             return [], [f"Erreur lors de la recherche : {exc}"]
         for url in found:
