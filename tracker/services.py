@@ -170,6 +170,17 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
     cached=_cached_listing_for_url(url,expected_query);html=fetch_and_clean_html(url)
     if not html:return (cached,None) if cached else (None,"Impossible de récupérer le contenu de la page web.")
     if _is_not_found_page(html):_deactivate_listing_for_url(url);return None,"Page introuvable ou URL produit inexistante."
+
+    # Detect a clear structured product mismatch before the general structure
+    # guard. Otherwise a valid product page for the wrong item is misreported
+    # as "sans structure de produit exploitable".
+    if expected_query:
+        raw_structured=extract_structured_product(html,query=None)
+        if raw_structured is not None:
+            preliminary_match=match_product(expected_query,raw_structured.product_name)
+            if not preliminary_match.is_match:
+                return None,f"Produit non pertinent ({preliminary_match.reason}, score={preliminary_match.score:.2f})."
+
     extracted,source=_structured_to_extracted(html,query=expected_query)
     if extracted is None and expected_query and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
