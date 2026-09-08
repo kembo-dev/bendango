@@ -15,11 +15,11 @@ from pydantic import BaseModel, Field
 
 try:
     import boto3
-except ImportError:  # pragma: no cover
+except ImportError:
     boto3 = None
 try:
     import ollama
-except ImportError:  # pragma: no cover
+except ImportError:
     ollama = None
 
 from tracker.catalog import find_fresh_cached_listings
@@ -28,6 +28,7 @@ from tracker.currency import normalize_currency_code
 from tracker.extractors import extract_structured_product
 from tracker.models import PriceListing, Retailer
 from tracker.product_matching import match_product
+from tracker.retailer_trust import refresh_retailer_trust
 from tracker.store_discovery import discover_product_urls
 
 
@@ -100,7 +101,7 @@ def _parse_fallback_price(raw):
 
 def _fallback_extract_html(html_snippet):
     soup=BeautifulSoup(html_snippet,"html.parser");title=soup.title.get_text(" ",strip=True) if soup.title else "";heading=" ".join(n.get_text(" ",strip=True) for n in soup.find_all(["h1","h2","h3"])[:3]);product_name=re.sub(r"\s+"," ",title or heading).strip();text=soup.get_text(" ",strip=True)
-    patterns=[r"(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))\s*(?:€|EUR|USD|CDF|FC|\$)",r"(?:€|EUR|USD|CDF|FC|\$)\s*(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))"]
+    patterns=[r"(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?)\s*(?:€|EUR|USD|CDF|FC|\$)",r"(?:€|EUR|USD|CDF|FC|\$)\s*(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?)"]
     raw=next((m.group(1) for p in patterns if (m:=re.search(p,text,flags=re.I))),None)
     if not raw:return None
     currency="CDF" if re.search(r"\bCDF\b|\bFC\b",text,re.I) else "USD" if re.search(r"\bUSD\b|\$",text,re.I) else "EUR";lower=text.lower();stock=not any(t in lower for t in ["rupture","épuisé","epuise","indisponible","out of stock","sold out"])
@@ -149,7 +150,6 @@ def _cached_listing_for_url(url,expected_query=None):
 
 
 def _deactivate_listing_for_url(url):return PriceListing.objects.filter(url=url,is_active=True).update(is_active=False)
-
 def _is_not_found_page(html):return bool(html) and any(m in html.lower() for m in ["404 page introuvable","page introuvable","not found","page not found","could not find this page","we couldn't find this page"])
 
 def _has_exploitable_product_structure(html):
@@ -184,6 +184,7 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
         else:product,canonical=get_or_create_canonical_product(name,sku_or_ean=extracted.sku_or_ean);canonical_score=canonical.score
         listing=PriceListing.objects.filter(product=product,retailer=retailer,url=url).first() or cached or PriceListing(product=product,retailer=retailer,url=url)
         listing.product=product;listing.retailer=retailer;listing.price=price;listing.currency=currency;listing.in_stock=extracted.in_stock;listing.is_active=True;listing.extraction_source=source or "unknown";listing.match_score=Decimal(str(round(min(match_score,canonical_score),4)));listing.confidence_score=_confidence_for(source,match_score,bool(extracted.sku_or_ean));listing.save()
+        refresh_retailer_trust(retailer)
     return listing,None
 
 
@@ -197,12 +198,9 @@ def _is_homepage_url(url):
 
 
 def _is_category_or_listing_url(url):
-    path=(urlparse(url).path or "").lower()
-    return ".oembed" in path or path.endswith("/oembed") or any(t in path for t in ("/categorie/","/category/","/categories/","/collections/","/collection/","/shop/","/search/","/ads/","/annonces/","/market/","/en/ads/"))
-
+    path=(urlparse(url).path or "").lower();return ".oembed" in path or path.endswith("/oembed") or any(t in path for t in ("/categorie/","/category/","/categories/","/collections/","/collection/","/shop/","/search/","/ads/","/annonces/","/market/","/en/ads/"))
 def _is_comparator_url(url):
     combined=f"{urlparse(url).netloc} {urlparse(url).path}".lower();return any(t in combined for t in ["comparateur","comparaison","compare","comparison","meilleur-prix","best-price","price-comparison","pricecomparison"])
-
 def _is_low_quality_source_url(url):
     parsed=urlparse(url);host=parsed.netloc.lower().removeprefix("www.");path=parsed.path.lower();blocked=("facebook.com","fb.com","instagram.com","tiktok.com","x.com","twitter.com","pinterest.com","youtube.com","youtu.be","reddit.com","quora.com","wikipedia.org","archive.org","web.archive.org","linkedin.com","discord.com","discord.gg","telegram.org","t.me","whatsapp.com")
     if any(host==b or host.endswith("."+b) for b in blocked):return True
@@ -223,10 +221,8 @@ def cleanup_stale_listings(days=30,product_id=None):
     cutoff=timezone.now()-timezone.timedelta(days=days);q=PriceListing.objects.filter(scraped_at__lt=cutoff,is_active=True)
     if product_id is not None:q=q.filter(product_id=product_id)
     return q.update(is_active=False)
-
 def _get_sort_rank(item):
     normalized=getattr(item,"normalized_price",None);price=normalized if normalized is not None else getattr(item,"price",0);return (0 if getattr(item,"in_stock",True) else 1,float(price))
-
 def _deduplicate_results(results):
     deduped={}
     for item in results:
@@ -237,7 +233,6 @@ def _deduplicate_results(results):
 
 
 def _known_merchant_domains(limit=20):
-    """Use accumulated merchant knowledge as fallback, never as a discovery allowlist."""
     domains=[]
     for base_url in Retailer.objects.filter(is_active=True).order_by("-trust_score").values_list("base_url",flat=True)[:limit]:
         host=urlparse(base_url).netloc.lower().removeprefix("www.")
@@ -250,30 +245,20 @@ def search_and_scrape_product(product_query,site_filter="all",model_name=None,ma
     for site in site_filters:ensure_retailer_for_site(site)
     cache_hosts=[normalize_site_filter(site)[0] for site in site_filters];cached=find_fresh_cached_listings(product_query,site_hosts=cache_hosts)
     if cached:return cached,[]
-
-    if site_filters:
-        search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters]
-    else:
-        # Open-web discovery first. No merchant is privileged or required.
-        search_terms=[f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix']
-
+    search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters] if site_filters else [f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix']
     urls=[];search_errors=[];candidate_limit=max(max_results*4,12)
     for term in search_terms:
         try:found=_collect_search_urls(term,max_results=candidate_limit)
         except Exception as exc:search_errors.append(str(exc));continue
         for url in found:
             if url not in urls:urls.append(url)
-        # Do not stop after the first search engine hit: diversify merchants.
         if len(urls)>=candidate_limit:break
-
     allowed_hosts=[normalize_site_filter(site)[0] for site in site_filters]
     for url in urls:
         listing,error=process_url_and_save(url,model_name=selected,expected_query=product_query,allowed_hosts=allowed_hosts)
         if listing:results.append(listing)
         elif error and error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
         if len(_deduplicate_results(results))>=max_results and not site_filters:break
-
-    # If open-web candidates were poor, search merchant domains learned from the DB.
     if len(_deduplicate_results(results))<max_results:
         fallback_domains=cache_hosts or _known_merchant_domains()
         if fallback_domains:
@@ -285,7 +270,6 @@ def search_and_scrape_product(product_query,site_filter="all",model_name=None,ma
                 if listing:results.append(listing)
                 elif error and error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
                 if len(_deduplicate_results(results))>=max_results:break
-
     results=_deduplicate_results(results);results.sort(key=_get_sort_rank)
     if results:return results,[]
     if search_errors and not urls:return [],["La recherche web n'a retourné aucune page marchande exploitable pour ce produit."]
