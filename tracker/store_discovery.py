@@ -17,27 +17,26 @@ def _headers() -> dict[str, str]:
 
 
 def _search_urls_for_domain(domain: str, query: str) -> list[str]:
-    domain = domain.lower().removeprefix("www.")
+    """Try common storefront search patterns without vendor-specific rules."""
     encoded = quote_plus(query)
-    if domain.endswith("drcmart.com"):
-        return [f"https://www.drcmart.com/search?q={encoded}&type=product"]
-    if domain.endswith("mobile-rdc.com"):
-        return [f"https://mobile-rdc.com/?s={encoded}&post_type=product"]
-    return [f"https://{domain}/?s={encoded}"]
+    base = f"https://{domain}"
+    return [
+        f"{base}/search?q={encoded}",
+        f"{base}/?s={encoded}&post_type=product",
+        f"{base}/?s={encoded}",
+    ]
 
 
-def _allowed_product_path(domain: str, path: str) -> bool:
-    domain = domain.lower().removeprefix("www.")
+def _looks_like_product_path(path: str) -> bool:
     path = path.lower()
-    if domain.endswith("drcmart.com"):
-        return "/products/" in path
-    if domain.endswith("mobile-rdc.com"):
-        return "/produit/" in path
-    return any(token in path for token in ("/product/", "/products/", "/produit/", "/produits/"))
+    return any(token in path for token in (
+        "/product/", "/products/", "/produit/", "/produits/",
+        "/item/", "/items/", "/p/",
+    ))
 
 
 def discover_product_urls(query: str, domains: list[str], max_results: int = 3) -> list[str]:
-    """Search known merchant storefronts directly when external search fails."""
+    """Search already-known merchant domains as a secondary fallback only."""
     if not query:
         return []
 
@@ -52,7 +51,7 @@ def discover_product_urls(query: str, domains: list[str], max_results: int = 3) 
 
         for search_url in _search_urls_for_domain(domain, query):
             try:
-                response = session.get(search_url, timeout=15, allow_redirects=True)
+                response = session.get(search_url, timeout=12, allow_redirects=True)
                 response.raise_for_status()
             except requests.RequestException:
                 continue
@@ -64,13 +63,14 @@ def discover_product_urls(query: str, domains: list[str], max_results: int = 3) 
                 host = parsed.netloc.lower().removeprefix("www.")
                 if host != domain and not host.endswith("." + domain):
                     continue
-                if not _allowed_product_path(domain, parsed.path):
+                if not _looks_like_product_path(parsed.path):
                     continue
 
+                image = link.find("img")
                 title = " ".join([
                     link.get("title", ""),
                     link.get_text(" ", strip=True),
-                    (link.find("img").get("alt", "") if link.find("img") else ""),
+                    (image.get("alt", "") if image else ""),
                 ]).strip()
                 if not title:
                     continue
