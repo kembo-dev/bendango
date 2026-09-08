@@ -28,6 +28,7 @@ from tracker.currency import normalize_currency_code
 from tracker.extractors import extract_structured_product
 from tracker.models import PriceListing, Product, Retailer
 from tracker.product_matching import match_product
+from tracker.store_discovery import discover_product_urls
 
 
 class ExtractedProductData(BaseModel):
@@ -125,8 +126,6 @@ def fetch_and_clean_html(url: str) -> str | None:
     for element in soup(["style", "svg", "noscript", "header", "footer", "nav"]):
         element.decompose()
 
-    # Keep the document head: JSON-LD, canonical URLs and OpenGraph/product
-    # metadata often live there and are essential for structured extraction.
     return str(soup)[:120000]
 
 
@@ -434,19 +433,33 @@ def search_and_scrape_product(product_query: str, site_filter: str = "all", mode
     else:
         search_terms.extend(f"site:{domain} {product_query} {country} prix" for domain in local_domains)
         search_terms.extend([f"{product_query} {country} acheter prix", f"{product_query} acheter prix", f"{product_query} prix"])
+
     urls = []
+    search_errors = []
     for term in search_terms:
         try:
             found = _collect_search_urls(term, max_results=max_results)
         except Exception as exc:
-            return [], [f"Erreur lors de la recherche : {exc}"]
+            search_errors.append(str(exc))
+            continue
         for url in found:
             if url not in urls:
                 urls.append(url)
         if not site_filters and urls:
             break
+
     if not urls:
+        discovery_domains = cache_hosts or local_domains
+        try:
+            urls = discover_product_urls(product_query, discovery_domains, max_results=max_results)
+        except Exception as exc:
+            search_errors.append(str(exc))
+
+    if not urls:
+        if search_errors:
+            return [], ["Aucune URL produit trouvée via les moteurs de recherche ou les boutiques connues."]
         return [], ["Aucune page exploitable n'a été trouvée pour ce produit."]
+
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
     for url in urls:
         listing, error = process_url_and_save(url, model_name=selected_model, expected_query=product_query, allowed_hosts=allowed_hosts)
@@ -454,6 +467,7 @@ def search_and_scrape_product(product_query: str, site_filter: str = "all", mode
             results.append(listing)
         elif error:
             errors.append(f"{url}: {error}")
+
     results = _deduplicate_results(results)
     results.sort(key=_get_sort_rank)
     return (results, []) if results else ([], errors or ["Aucune page exploitable n'a été trouvée pour ce produit."])
