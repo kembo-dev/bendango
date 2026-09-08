@@ -1,62 +1,81 @@
 from __future__ import annotations
 
-from collections import defaultdict
-
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from tracker.catalog_matching import has_variant_conflict
 from tracker.models import PriceHistory, PriceListing, Product
-from tracker.product_matching import match_product, normalize_product_name
-
-
-VARIANT_TOKENS = {"pro", "max", "plus", "ultra", "mini", "lite", "fe", "se"}
-
-
-def _variant_tokens(name: str) -> set[str]:
-    return set(normalize_product_name(name).split()) & VARIANT_TOKENS
+from tracker.product_matching import match_product
 
 
 def _compatible(left: Product, right: Product, threshold: float = 0.88) -> bool:
     if left.sku_or_ean and right.sku_or_ean and left.sku_or_ean != right.sku_or_ean:
         return False
-    if _variant_tokens(left.name) != _variant_tokens(right.name):
+    if has_variant_conflict(left.name, right.name):
         return False
     result = match_product(left.name, right.name, threshold=threshold)
     return result.is_match and result.score >= threshold
 
 
 def _choose_canonical(products: list[Product]) -> Product:
-    return sorted(
-        products,
-        key=lambda p: (
-            0 if p.sku_or_ean else 1,
-            -p.listings.count(),
-            len(p.name),
-            p.id,
-        ),
-    )[0]
+    return sorted(products, key=lambda p: (0 if p.sku_or_ean else 1, -p.listings.count(), len(p.name), p.id))[0]
+
+
+def _copy_product_metadata(target: Product, source: Product):
+    fields = []
+    for field in ("sku_or_ean", "brand", "model", "category", "image_url"):
+        if not getattr(target, field) and getattr(source, field):
+            setattr(target, field, getattr(source, field));fields.append(field)
+    merged_attributes = dict(source.attributes or {})
+    merged_attributes.update(target.attributes or {})
+    if merged_attributes != (target.attributes or {}):
+        target.attributes = merged_attributes;fields.append("attributes")
+    if fields:
+        target.save(update_fields=[*fields, "updated_at"])
 
 
 def _merge_listing_into(target_product: Product, listing: PriceListing) -> tuple[int, int]:
-    existing = PriceListing.objects.filter(
-        product=target_product,
-        retailer=listing.retailer,
-        url=listing.url,
-    ).exclude(pk=listing.pk).first()
-
+    existing = PriceListing.objects.filter(product=target_product, retailer=listing.retailer, url=listing.url).exclude(pk=listing.pk).first()
     if not existing:
-        listing.product = target_product
-        listing.save(update_fields=["product"])
+        PriceListing.objects.filter(pk=listing.pk).update(product=target_product)
         return 1, 0
 
-    # Keep the freshest listing record and move history to it.
-    keeper, duplicate = (listing, existing) if listing.scraped_at >= existing.scraped_at else (existing, listing)
-    if keeper.product_id != target_product.id:
-        keeper.product = target_product
-        keeper.save(update_fields=["product"])
-    PriceHistory.objects.filter(listing=duplicate).update(listing=keeper)
-    duplicate.delete()
+    # Always keep the row already attached to the target product. This avoids
+    # violating the unique constraint while histories are being consolidated.
+    if listing.scraped_at > existing.scraped_at:
+        PriceListing.objects.filter(pk=existing.pk).update(
+            price=listing.price,
+            currency=listing.currency,
+            normalized_price=listing.normalized_price,
+            normalized_currency=listing.normalized_currency,
+            confidence_score=listing.confidence_score,
+            match_score=listing.match_score,
+            extraction_source=listing.extraction_source,
+            in_stock=listing.in_stock,
+            is_active=listing.is_active,
+            scraped_at=listing.scraped_at,
+        )
+    PriceHistory.objects.filter(listing=listing).update(listing=existing)
+    listing.delete()
     return 0, 1
+
+
+def _build_safe_groups(products: list[Product], threshold: float) -> list[list[Product]]:
+    groups = []
+    used = set()
+    for product in products:
+        if product.id in used:
+            continue
+        group = [product]
+        for candidate in products:
+            if candidate.id == product.id or candidate.id in used:
+                continue
+            if all(_compatible(candidate, member, threshold=threshold) for member in group):
+                group.append(candidate)
+        if len(group) > 1:
+            used.update(member.id for member in group)
+            groups.append(group)
+    return groups
 
 
 class Command(BaseCommand):
@@ -70,54 +89,27 @@ class Command(BaseCommand):
         apply_changes = options["apply"]
         threshold = options["threshold"]
         products = list(Product.objects.all().prefetch_related("listings"))
-        groups: list[list[Product]] = []
-        used: set[int] = set()
-
-        for product in products:
-            if product.id in used:
-                continue
-            group = [product]
-            for candidate in products:
-                if candidate.id == product.id or candidate.id in used:
-                    continue
-                if _compatible(product, candidate, threshold=threshold):
-                    group.append(candidate)
-            if len(group) > 1:
-                for member in group:
-                    used.add(member.id)
-                groups.append(group)
-
+        groups = _build_safe_groups(products, threshold)
         if not groups:
-            self.stdout.write(self.style.SUCCESS("Aucun doublon sûr détecté."))
-            return
+            self.stdout.write(self.style.SUCCESS("Aucun doublon sûr détecté."));return
 
         self.stdout.write(f"{len(groups)} groupe(s) de doublons sûrs détecté(s).")
         for group in groups:
             canonical = _choose_canonical(group)
             others = [p for p in group if p.id != canonical.id]
-            self.stdout.write("")
-            self.stdout.write(self.style.WARNING(f"Canonique #{canonical.id}: {canonical.name}"))
-            for duplicate in others:
-                self.stdout.write(f"  - #{duplicate.id}: {duplicate.name}")
+            self.stdout.write("");self.stdout.write(self.style.WARNING(f"Canonique #{canonical.id}: {canonical.name}"))
+            for duplicate in others:self.stdout.write(f"  - #{duplicate.id}: {duplicate.name}")
+            if not apply_changes:continue
 
-            if not apply_changes:
-                continue
-
-            moved = 0
-            collapsed = 0
+            moved = collapsed = 0
             with transaction.atomic():
                 for duplicate in others:
+                    _copy_product_metadata(canonical, duplicate)
                     for listing in list(duplicate.listings.all()):
                         moved_count, collapsed_count = _merge_listing_into(canonical, listing)
-                        moved += moved_count
-                        collapsed += collapsed_count
-                    if not canonical.sku_or_ean and duplicate.sku_or_ean:
-                        canonical.sku_or_ean = duplicate.sku_or_ean
-                        canonical.save(update_fields=["sku_or_ean", "updated_at"])
+                        moved += moved_count;collapsed += collapsed_count
                     duplicate.delete()
-
             self.stdout.write(self.style.SUCCESS(f"  fusion appliquée: {moved} offre(s) déplacée(s), {collapsed} doublon(s) d'offre fusionné(s)."))
 
         if not apply_changes:
-            self.stdout.write("")
-            self.stdout.write(self.style.NOTICE("Dry-run uniquement. Relancez avec --apply pour appliquer les fusions."))
+            self.stdout.write("");self.stdout.write(self.style.NOTICE("Dry-run uniquement. Relancez avec --apply pour appliquer les fusions."))
