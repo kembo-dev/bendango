@@ -4,14 +4,7 @@ from django.db import models
 
 class Retailer(models.Model):
     """Boutique ou site e-commerce."""
-
-    TRUST_LEVELS = [
-        ('verified', 'Vérifié'),
-        ('trusted', 'Fiable'),
-        ('standard', 'Standard'),
-        ('limited', 'À confirmer'),
-    ]
-
+    TRUST_LEVELS = [('verified', 'Vérifié'), ('trusted', 'Fiable'), ('standard', 'Standard'), ('limited', 'À confirmer')]
     name = models.CharField(max_length=100, unique=True)
     base_url = models.URLField(unique=True)
     trust_score = models.DecimalField(max_digits=5, decimal_places=4, default=0.60)
@@ -51,17 +44,7 @@ class Product(models.Model):
 
 class PriceListing(models.Model):
     """Dernière offre connue d'un produit chez un marchand."""
-
-    EXTRACTION_SOURCES = [
-        ('jsonld', 'JSON-LD'),
-        ('shopify', 'Shopify JSON'),
-        ('meta', 'Meta tags'),
-        ('llm', 'LLM'),
-        ('html', 'HTML fallback'),
-        ('cache', 'Cached listing'),
-        ('unknown', 'Unknown'),
-    ]
-
+    EXTRACTION_SOURCES = [('jsonld', 'JSON-LD'), ('shopify', 'Shopify JSON'), ('meta', 'Meta tags'), ('llm', 'LLM'), ('html', 'HTML fallback'), ('cache', 'Cached listing'), ('unknown', 'Unknown')]
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='listings')
     retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
     url = models.URLField(max_length=2048)
@@ -78,12 +61,7 @@ class PriceListing(models.Model):
 
     class Meta:
         ordering = ['price']
-        constraints = [
-            models.UniqueConstraint(
-                fields=['product', 'retailer', 'url'],
-                name='unique_listing_per_product_retailer_url',
-            )
-        ]
+        constraints = [models.UniqueConstraint(fields=['product', 'retailer', 'url'], name='unique_listing_per_product_retailer_url')]
         indexes = [models.Index(fields=['product', 'retailer', 'price'])]
 
     def clean(self):
@@ -97,32 +75,15 @@ class PriceListing(models.Model):
 
     def save(self, *args, **kwargs):
         from tracker.currency import normalize_to_usd
-
-        previous = None
-        if self.pk:
-            previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'in_stock').first()
-
+        previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'in_stock').first() if self.pk else None
         self.currency = (self.currency or '').upper()
         self.normalized_currency = 'USD'
         self.normalized_price = normalize_to_usd(self.price, self.currency)
         self.full_clean()
         result = super().save(*args, **kwargs)
-
-        changed = (
-            previous is None
-            or previous['price'] != self.price
-            or previous['currency'] != self.currency
-            or previous['in_stock'] != self.in_stock
-        )
+        changed = previous is None or previous['price'] != self.price or previous['currency'] != self.currency or previous['in_stock'] != self.in_stock
         if changed:
-            PriceHistory.objects.create(
-                listing=self,
-                price=self.price,
-                currency=self.currency,
-                normalized_price=self.normalized_price,
-                normalized_currency=self.normalized_currency,
-                in_stock=self.in_stock,
-            )
+            PriceHistory.objects.create(listing=self, price=self.price, currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency, in_stock=self.in_stock)
         return result
 
     def __str__(self):
@@ -145,3 +106,27 @@ class PriceHistory(models.Model):
 
     def __str__(self):
         return f"{self.listing_id}: {self.price} {self.currency} @ {self.recorded_at}"
+
+
+class SearchDiagnostic(models.Model):
+    """Résumé technique d'une recherche pour mesurer et améliorer la couverture."""
+    query = models.CharField(max_length=255, db_index=True)
+    site_filter = models.CharField(max_length=255, default='all')
+    search_terms_count = models.PositiveIntegerField(default=0)
+    candidate_urls_count = models.PositiveIntegerField(default=0)
+    processed_urls_count = models.PositiveIntegerField(default=0)
+    fallback_urls_count = models.PositiveIntegerField(default=0)
+    offers_count = models.PositiveIntegerField(default=0)
+    merchant_count = models.PositiveIntegerField(default=0)
+    target_merchants = models.PositiveIntegerField(default=1)
+    coverage_ratio = models.FloatField(default=0)
+    rejection_reasons = models.JSONField(default=dict, blank=True)
+    duration_ms = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['created_at', 'coverage_ratio'])]
+
+    def __str__(self):
+        return f"{self.query}: {self.merchant_count}/{self.target_merchants} marchands"
