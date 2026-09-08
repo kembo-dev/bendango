@@ -1,7 +1,13 @@
 from django.core.exceptions import ValidationError
 from django.shortcuts import render
+
 from .forms import SearchOrScrapeForm
+from .pricing import attach_price_history_stats
 from .services import process_url_and_save, search_and_scrape_product
+
+
+def _comparison_price(listing):
+    return float(listing.normalized_price if listing.normalized_price is not None else listing.price)
 
 
 def scrape_view(request):
@@ -24,7 +30,7 @@ def scrape_view(request):
             if query.startswith("http://") or query.startswith("https://"):
                 try:
                     listing, error = process_url_and_save(query, model_name)
-                except ValidationError as exc:
+                except ValidationError:
                     errors.append("Cette page est déjà enregistrée et a été mise à jour.")
                     listing = None
                     error = None
@@ -42,21 +48,23 @@ def scrape_view(request):
         if listings:
             listings = sorted(
                 listings,
-                key=lambda item: (0 if item.in_stock else 1, float(item.price)),
+                key=lambda item: (0 if item.in_stock else 1, _comparison_price(item)),
             )
+            listings = attach_price_history_stats(listings)
             best_listing = listings[0]
-            average_price = sum(float(item.price) for item in listings) / len(listings)
-            savings = average_price - float(best_listing.price)
+            normalized_prices = [_comparison_price(item) for item in listings]
+            average_price = sum(normalized_prices) / len(normalized_prices)
+            best_price = _comparison_price(best_listing)
+            savings = average_price - best_price
             savings_percent = (savings / average_price * 100) if average_price else 0
-            top_offers = listings[:3]
             summary = {
                 "best_listing": best_listing,
                 "average_price": average_price,
                 "savings": savings,
                 "savings_percent": savings_percent,
-                "currency": best_listing.currency,
+                "currency": best_listing.normalized_currency or "USD",
                 "offer_count": len(listings),
-                "top_offers": top_offers,
+                "top_offers": listings[:3],
             }
     else:
         form = SearchOrScrapeForm()
