@@ -1,168 +1,52 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comparateur de prix - Bendango</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light page-shell">
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="hero-panel text-center mb-4">
-                <div class="eyebrow">Bendango Compare</div>
-                <h1 class="mb-2">Comparez les prix intelligemment</h1>
-                <p class="mb-0">Trouvez les offres fiables, comparez les prix et découvrez aussi le produit sur d'autres plateformes.</p>
-            </div>
+<div class="container py-5"><div class="row justify-content-center"><div class="col-md-10">
+    <div class="hero-panel text-center mb-4"><div class="eyebrow">Bendango Compare</div><h1 class="mb-2">Comparez les prix intelligemment</h1><p class="mb-0">Trouvez les offres fiables, comparez les prix et découvrez aussi le produit sur d'autres plateformes.</p></div>
 
-            <form method="post" class="card p-4 shadow-sm premium-form">
-                {% csrf_token %}
-                <div class="row g-3 align-items-end">
-                    <div class="col-md-3">
-                        <div class="form-check form-switch mb-2">
-                            <input class="form-check-input" type="checkbox" id="toggle-site-filter">
-                            <label class="form-check-label fw-bold" for="toggle-site-filter">Limiter à un site</label>
-                        </div>
-                        <div id="site-field-group" class="d-none">
-                            <label class="form-label fw-bold">Site e-commerce ou URL</label>
-                            {{ form.site }}
-                            {% if form.site.help_text %}<div class="form-text">{{ form.site.help_text }}</div>{% endif %}
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Produit à rechercher</label>
-                        {{ form.query }}
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold">Modèle IA</label>
-                        {{ form.model_name }}
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary mt-4 w-100 btn-compare">Comparer les prix</button>
-            </form>
+    <form method="post" class="card p-4 shadow-sm premium-form">{% csrf_token %}
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="toggle-site-filter"><label class="form-check-label fw-bold" for="toggle-site-filter">Limiter à un site</label></div><div id="site-field-group" class="d-none"><label class="form-label fw-bold">Site e-commerce ou URL</label>{{ form.site }}{% if form.site.help_text %}<div class="form-text">{{ form.site.help_text }}</div>{% endif %}</div></div>
+            <div class="col-md-6"><label class="form-label fw-bold">Produit à rechercher</label>{{ form.query }}</div>
+            <div class="col-md-3"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
+        </div><button type="submit" class="btn btn-primary mt-4 w-100 btn-compare">Comparer les prix</button>
+    </form>
 
-            {% if errors and not listings %}
-            <div class="alert alert-warning mt-4" role="alert">
-                <div class="fw-semibold mb-2">Aucune offre marchande vérifiée</div>
-                {% for error in errors %}<div>{{ error }}</div>{% endfor %}
-            </div>
-            {% endif %}
+    {% if errors and not listings %}<div class="alert alert-warning mt-4"><div class="fw-semibold mb-2">Aucune offre marchande vérifiée</div>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
+    {% if request.method == 'POST' and not listings and not errors and not discovery_sources %}<div class="alert alert-info mt-4">Aucune offre valide n’a été trouvée. Essayez un nom de produit plus précis.</div>{% endif %}
 
-            {% if request.method == 'POST' and not listings and not errors and not discovery_sources %}
-            <div class="alert alert-info mt-4">Aucune offre valide n’a été trouvée. Essayez un nom de produit plus précis.</div>
-            {% endif %}
-
-            {% if listings %}
-            <div class="mt-4">
-                <div class="alert alert-success best-price-alert mb-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                    <div><span>🏆</span> <strong>Meilleure offre</strong></div>
-                    <span>{{ summary.best_listing.price }} {{ summary.best_listing.currency }} chez {{ summary.best_listing.retailer.name }}</span>
-                    <span class="badge text-bg-light">{{ summary.offer_count }} offre{{ summary.offer_count|pluralize }}</span>
-                </div>
-                <div class="alert alert-light border mb-3 d-flex justify-content-between gap-2 flex-wrap">
-                    <span class="summary-pill">Prix moyen normalisé : {{ summary.average_price|floatformat:2 }} {{ summary.currency }}</span>
-                    <span class="summary-pill">Économie : {{ summary.savings|floatformat:2 }} {{ summary.currency }}</span>
-                    <span class="summary-pill">-{{ summary.savings_percent|floatformat:0 }}% vs moyenne</span>
-                </div>
-
-                {% for listing in listings %}
-                <div class="card shadow-sm border-0 mb-3 result-card {% if forloop.first %}result-card-best{% endif %}">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
-                            <div>
-                                <div class="small text-muted text-uppercase fw-bold">{{ listing.retailer.name }}</div>
-                                <h3 class="h4 mb-1">{{ listing.product.name }}</h3>
-                                <div class="d-flex gap-2 flex-wrap mt-2">
-                                    {% if listing.in_stock %}<span class="badge text-bg-success">En stock</span>{% else %}<span class="badge text-bg-danger">Rupture</span>{% endif %}
-                                    <span class="badge text-bg-primary">Confiance {{ listing.confidence_score|floatformat:2 }}</span>
-                                    <span class="badge text-bg-secondary">{{ listing.get_extraction_source_display }}</span>
-                                    {% if listing.price_stats.is_price_drop %}<span class="badge text-bg-success">↓ Prix en baisse</span>{% endif %}
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <div class="fs-3 fw-bold text-primary">{{ listing.price }} {{ listing.currency }}</div>
-                                {% if listing.normalized_price %}<div class="small text-muted">≈ {{ listing.normalized_price }} {{ listing.normalized_currency }}</div>{% endif %}
-                            </div>
-                        </div>
-
-                        <div class="row g-2 mb-3">
-                            <div class="col-sm-4"><div class="metric"><small>Plus bas historique</small><strong>{{ listing.price_stats.lowest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div>
-                            <div class="col-sm-4"><div class="metric"><small>Plus haut historique</small><strong>{{ listing.price_stats.highest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div>
-                            <div class="col-sm-4"><div class="metric"><small>Variation</small><strong>{% if listing.price_stats.previous_price %}{{ listing.price_stats.change_percent|floatformat:1 }}%{% else %}Nouvelle offre{% endif %}</strong></div></div>
-                        </div>
-
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-3">
-                            <div class="small text-muted">Référence : {{ listing.product.sku_or_ean|default:"Non spécifiée" }} · Matching : {{ listing.match_score|floatformat:2 }}</div>
-                            <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm px-3">Voir l'offre</a>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-
-            {% if discovery_sources %}
-            <section class="mt-4 discovery-panel">
-                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
-                    <div>
-                        <div class="eyebrow mb-2">Découverte</div>
-                        <h2 class="h4 mb-1">Autres sources découvertes</h2>
-                        <p class="text-muted mb-0">Ces liens peuvent aider à trouver le produit ou un vendeur. Les prix éventuels sur ces plateformes ne sont pas vérifiés par Bendango.</p>
-                    </div>
-                    <span class="badge text-bg-light border">{{ discovery_sources|length }} source{{ discovery_sources|length|pluralize }}</span>
-                </div>
-                <div class="row g-3">
-                    {% for source in discovery_sources %}
-                    <div class="col-md-6">
-                        <div class="card h-100 discovery-card">
-                            <div class="card-body d-flex flex-column">
-                                <div class="d-flex justify-content-between gap-2 align-items-center mb-2">
-                                    <span class="badge rounded-pill text-bg-dark">{{ source.platform }}</span>
-                                    <span class="small text-muted">Source découverte</span>
-                                </div>
-                                <h3 class="h6">{{ source.title }}</h3>
-                                {% if source.snippet %}<p class="small text-muted flex-grow-1">{{ source.snippet }}</p>{% endif %}
-                                <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer nofollow" class="btn btn-outline-primary btn-sm align-self-start">Voir sur {{ source.platform }} ↗</a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </section>
-            {% endif %}
+    {% if listings %}<div class="mt-4">
+        <div class="recommendation-panel mb-3">
+            <div><div class="eyebrow mb-2">Recommandation Bendango</div><h2 class="h5 mb-1">🏆 Meilleure offre recommandée</h2><div class="text-muted small">Qualité du marchand, fiabilité de l'extraction et correspondance produit sont prises en compte.</div></div>
+            <div class="text-md-end"><div class="fs-4 fw-bold">{{ summary.recommended_listing.price }} {{ summary.recommended_listing.currency }}</div><div>chez <strong>{{ summary.recommended_listing.retailer.name }}</strong></div><span class="badge text-bg-success mt-1">Qualité {{ summary.recommended_listing.offer_quality_score|floatformat:2 }}</span></div>
         </div>
-    </div>
-</div>
+        <div class="alert alert-light border mb-3 d-flex justify-content-between gap-2 flex-wrap">
+            <span class="summary-pill">{{ summary.offer_count }} offre{{ summary.offer_count|pluralize }}</span>
+            <span class="summary-pill">Prix moyen : {{ summary.average_price|floatformat:2 }} {{ summary.currency }}</span>
+            {% if summary.same_recommended_and_cheapest %}<span class="summary-pill text-success fw-semibold">✓ La recommandation est aussi le prix le plus bas</span>{% else %}<span class="summary-pill">💰 Prix le plus bas : {{ summary.cheapest_listing.price }} {{ summary.cheapest_listing.currency }} chez {{ summary.cheapest_listing.retailer.name }}</span>{% endif %}
+        </div>
 
+        {% for listing in listings %}<div class="card shadow-sm border-0 mb-3 result-card {% if forloop.first %}result-card-best{% endif %}"><div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3"><div>
+                <div class="d-flex gap-2 align-items-center flex-wrap"><div class="small text-muted text-uppercase fw-bold">{{ listing.retailer.name }}</div>{% if listing.retailer.trust_level == 'verified' %}<span class="badge merchant-verified">✓ Marchand vérifié</span>{% elif listing.retailer.trust_level == 'trusted' %}<span class="badge text-bg-info">Marchand fiable</span>{% elif listing.retailer.trust_level == 'limited' %}<span class="badge text-bg-warning">Marchand à confirmer</span>{% else %}<span class="badge text-bg-light border text-dark">Marchand standard</span>{% endif %}</div>
+                <h3 class="h4 mb-1 mt-1">{{ listing.product.name }}</h3>
+                <div class="d-flex gap-2 flex-wrap mt-2">{% if forloop.first %}<span class="badge text-bg-success">🏆 Recommandée</span>{% endif %}{% if listing.pk == summary.cheapest_listing.pk %}<span class="badge text-bg-warning">💰 Prix le plus bas</span>{% endif %}{% if listing.in_stock %}<span class="badge text-bg-success">En stock</span>{% else %}<span class="badge text-bg-danger">Rupture</span>{% endif %}<span class="badge text-bg-primary">Qualité {{ listing.offer_quality_score|floatformat:2 }}</span><span class="badge text-bg-light border text-dark">Marchand {{ listing.retailer.trust_score|floatformat:2 }}</span><span class="badge text-bg-secondary">{{ listing.get_extraction_source_display }}</span>{% if listing.price_stats.is_price_drop %}<span class="badge text-bg-success">↓ Prix en baisse</span>{% endif %}</div>
+            </div><div class="text-end"><div class="fs-3 fw-bold text-primary">{{ listing.price }} {{ listing.currency }}</div>{% if listing.normalized_price %}<div class="small text-muted">≈ {{ listing.normalized_price }} {{ listing.normalized_currency }}</div>{% endif %}</div></div>
+            <div class="quality-bar mb-3"><div class="d-flex justify-content-between small mb-1"><span>Score qualité Bendango</span><strong>{{ listing.offer_quality_score|floatformat:2 }} / 1</strong></div><div class="progress" role="progressbar"><div class="progress-bar" style="width:{% widthratio listing.offer_quality_score 1 100 %}%"></div></div><div class="small text-muted mt-1">Extraction {{ listing.confidence_score|floatformat:2 }} · Matching {{ listing.match_score|floatformat:2 }} · Marchand {{ listing.retailer.trust_score|floatformat:2 }}</div></div>
+            <div class="row g-2 mb-3"><div class="col-sm-4"><div class="metric"><small>Plus bas historique</small><strong>{{ listing.price_stats.lowest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div><div class="col-sm-4"><div class="metric"><small>Plus haut historique</small><strong>{{ listing.price_stats.highest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div><div class="col-sm-4"><div class="metric"><small>Variation</small><strong>{% if listing.price_stats.previous_price %}{{ listing.price_stats.change_percent|floatformat:1 }}%{% else %}Nouvelle offre{% endif %}</strong></div></div></div>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-3"><div class="small text-muted">Référence : {{ listing.product.sku_or_ean|default:"Non spécifiée" }}</div><a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm px-3">Voir l'offre</a></div>
+        </div></div>{% endfor %}
+    </div>{% endif %}
+
+    {% if discovery_sources %}<section class="mt-4 discovery-panel"><div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3"><div><div class="eyebrow mb-2">Découverte</div><h2 class="h4 mb-1">Autres sources découvertes</h2><p class="text-muted mb-0">Ces liens peuvent aider à trouver le produit ou un vendeur. Les prix éventuels sur ces plateformes ne sont pas vérifiés par Bendango.</p></div><span class="badge text-bg-light border">{{ discovery_sources|length }} source{{ discovery_sources|length|pluralize }}</span></div><div class="row g-3">{% for source in discovery_sources %}<div class="col-md-6"><div class="card h-100 discovery-card"><div class="card-body d-flex flex-column"><div class="d-flex justify-content-between gap-2 align-items-center mb-2"><span class="badge rounded-pill text-bg-dark">{{ source.platform }}</span><span class="small text-muted">Source découverte</span></div><h3 class="h6">{{ source.title }}</h3>{% if source.snippet %}<p class="small text-muted flex-grow-1">{{ source.snippet }}</p>{% endif %}<a href="{{ source.url }}" target="_blank" rel="noopener noreferrer nofollow" class="btn btn-outline-primary btn-sm align-self-start">Voir sur {{ source.platform }} ↗</a></div></div></div>{% endfor %}</div></section>{% endif %}
+</div></div></div>
 <style>
-.page-shell { background: linear-gradient(180deg,#f6f9ff 0%,#eef3fb 100%); min-height:100vh; }
-.hero-panel { padding:2rem 1.5rem 1.25rem; border-radius:24px; background:linear-gradient(135deg,rgba(13,110,253,.08),rgba(25,135,84,.08)); border:1px solid rgba(13,110,253,.08); }
-.eyebrow { display:inline-block; background:rgba(13,110,253,.08); color:#0d6efd; border-radius:999px; padding:.35rem .8rem; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; font-weight:700; margin-bottom:.75rem; }
-.hero-panel h1 { font-size:clamp(2rem,3vw,3rem); font-weight:800; color:#122033; }
-.hero-panel p { color:#4d5d73; }
-.premium-form { border:1px solid rgba(13,110,253,.1); border-radius:22px; background:rgba(255,255,255,.92); }
-.btn-compare { border-radius:12px; font-weight:700; padding:.9rem 1rem; }
-.result-card { border:1px solid rgba(13,110,253,.1)!important; border-radius:18px; }
-.result-card-best { border-color:rgba(25,135,84,.55)!important; box-shadow:0 .5rem 1.5rem rgba(25,135,84,.12)!important; }
-.best-price-alert { border:1px solid rgba(25,135,84,.25); background:linear-gradient(90deg,rgba(25,135,84,.15),rgba(25,135,84,.04)); color:#146c43; }
-.summary-pill { background:white; border:1px solid rgba(0,0,0,.08); border-radius:999px; padding:.3rem .8rem; font-size:.82rem; }
-.metric { height:100%; background:#f8f9fa; border:1px solid #e9ecef; border-radius:12px; padding:.7rem .85rem; display:flex; flex-direction:column; gap:.15rem; }
-.metric small { color:#6c757d; }
-.metric strong { color:#24364b; }
-.discovery-panel { padding:1.25rem; border-radius:20px; border:1px solid rgba(13,110,253,.12); background:rgba(255,255,255,.7); }
-.discovery-card { border:1px solid rgba(0,0,0,.08); border-radius:15px; transition:transform .15s ease, box-shadow .15s ease; }
-.discovery-card:hover { transform:translateY(-2px); box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08); }
+.page-shell{background:linear-gradient(180deg,#f6f9ff 0%,#eef3fb 100%);min-height:100vh}.hero-panel{padding:2rem 1.5rem 1.25rem;border-radius:24px;background:linear-gradient(135deg,rgba(13,110,253,.08),rgba(25,135,84,.08));border:1px solid rgba(13,110,253,.08)}.eyebrow{display:inline-block;background:rgba(13,110,253,.08);color:#0d6efd;border-radius:999px;padding:.35rem .8rem;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:.75rem}.hero-panel h1{font-size:clamp(2rem,3vw,3rem);font-weight:800;color:#122033}.hero-panel p{color:#4d5d73}.premium-form{border:1px solid rgba(13,110,253,.1);border-radius:22px;background:rgba(255,255,255,.92)}.btn-compare{border-radius:12px;font-weight:700;padding:.9rem 1rem}.recommendation-panel{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1.25rem 1.4rem;border-radius:18px;border:1px solid rgba(25,135,84,.28);background:linear-gradient(100deg,rgba(25,135,84,.14),rgba(255,255,255,.9))}.result-card{border:1px solid rgba(13,110,253,.1)!important;border-radius:18px}.result-card-best{border-color:rgba(25,135,84,.55)!important;box-shadow:0 .5rem 1.5rem rgba(25,135,84,.12)!important}.merchant-verified{background:#e8f7ef;color:#146c43;border:1px solid #b9e5cd}.summary-pill{background:white;border:1px solid rgba(0,0,0,.08);border-radius:999px;padding:.3rem .8rem;font-size:.82rem}.quality-bar{padding:.8rem 1rem;background:#f8fafc;border-radius:12px;border:1px solid #e9ecef}.quality-bar .progress{height:7px}.metric{height:100%;background:#f8f9fa;border:1px solid #e9ecef;border-radius:12px;padding:.7rem .85rem;display:flex;flex-direction:column;gap:.15rem}.metric small{color:#6c757d}.metric strong{color:#24364b}.discovery-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.7)}.discovery-card{border:1px solid rgba(0,0,0,.08);border-radius:15px;transition:transform .15s ease,box-shadow .15s ease}.discovery-card:hover{transform:translateY(-2px);box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08)}
 </style>
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const toggle=document.getElementById('toggle-site-filter');
-    const group=document.getElementById('site-field-group');
-    const input=document.getElementById('id_site');
-    function sync(){const visible=Boolean(toggle&&toggle.checked); if(group)group.classList.toggle('d-none',!visible); if(!visible&&input)input.value='';}
-    if(toggle&&group){toggle.addEventListener('change',sync);sync();}
-});
-</script>
-</body>
-</html>
+<script>document.addEventListener('DOMContentLoaded',function(){const toggle=document.getElementById('toggle-site-filter'),group=document.getElementById('site-field-group'),input=document.getElementById('id_site');function sync(){const visible=Boolean(toggle&&toggle.checked);if(group)group.classList.toggle('d-none',!visible);if(!visible&&input)input.value=''}if(toggle&&group){toggle.addEventListener('change',sync);sync()}});</script>
+</body></html>
