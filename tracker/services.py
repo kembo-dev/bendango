@@ -120,10 +120,14 @@ def fetch_and_clean_html(url: str) -> str | None:
         text = response.content.decode(encoding, errors="replace")
     except (LookupError, TypeError):
         text = response.content.decode("utf-8", errors="replace")
+
     soup = BeautifulSoup(text, "html.parser")
     for element in soup(["style", "svg", "noscript", "header", "footer", "nav"]):
         element.decompose()
-    return str(soup.find("body") or soup)[:80000]
+
+    # Keep the document head: JSON-LD, canonical URLs and OpenGraph/product
+    # metadata often live there and are essential for structured extraction.
+    return str(soup)[:120000]
 
 
 def _parse_fallback_price(raw: str) -> float:
@@ -204,16 +208,18 @@ def extract_with_llm(html_snippet: str, model_name: str | None = None) -> Extrac
     return _extract_llm_only(html_snippet, model_name) or _fallback_extract_html(html_snippet)
 
 
-def _structured_to_extracted(html: str) -> ExtractedProductData | None:
-    structured = extract_structured_product(html)
+def _structured_to_extracted(html: str, query: str | None = None) -> tuple[ExtractedProductData | None, str]:
+    structured = extract_structured_product(html, query=query)
     if structured is None:
-        return None
-    return ExtractedProductData(product_name=structured.product_name, price=float(structured.price), currency=structured.currency, in_stock=structured.in_stock, sku_or_ean=structured.sku_or_ean)
-
-
-def _detect_structured_source(html: str) -> str:
-    soup = BeautifulSoup(html, "html.parser")
-    return "jsonld" if soup.find("script", attrs={"type": "application/ld+json"}) else "meta"
+        return None, ""
+    extracted = ExtractedProductData(
+        product_name=structured.product_name,
+        price=float(structured.price),
+        currency=structured.currency,
+        in_stock=structured.in_stock,
+        sku_or_ean=structured.sku_or_ean,
+    )
+    return extracted, (structured.source or "unknown")
 
 
 def _confidence_for(source: str, match_score: float, has_sku: bool) -> Decimal:
@@ -271,8 +277,7 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
     if _is_not_found_page(html):
         return (cached_listing, None) if cached_listing else (None, "Page introuvable ou URL produit inexistante.")
 
-    extracted = _structured_to_extracted(html)
-    source = _detect_structured_source(html) if extracted else ""
+    extracted, source = _structured_to_extracted(html, query=expected_query)
     if extracted is None and expected_query and not _has_exploitable_product_structure(html):
         return (cached_listing, None) if cached_listing else (None, "Page sans structure de produit exploitable.")
     if extracted is None:
