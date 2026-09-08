@@ -48,18 +48,25 @@ def scrape_view(request):
             listings = attach_offer_quality(listings)
             listings = sorted(listings, key=offer_sort_key)
             listings = attach_price_history_stats(listings)
-            best_listing = listings[0]
+
+            recommended_listing = listings[0]
+            in_stock_listings = [item for item in listings if item.in_stock]
+            cheapest_listing = min(in_stock_listings or listings, key=_comparison_price)
+
             normalized_prices = [_comparison_price(item) for item in listings]
             average_price = sum(normalized_prices) / len(normalized_prices)
-            best_price = _comparison_price(best_listing)
-            savings = average_price - best_price
+            recommended_price = _comparison_price(recommended_listing)
+            savings = average_price - recommended_price
             savings_percent = (savings / average_price * 100) if average_price else 0
+
             summary = {
-                "best_listing": best_listing,
+                "recommended_listing": recommended_listing,
+                "cheapest_listing": cheapest_listing,
+                "same_recommended_and_cheapest": recommended_listing.pk == cheapest_listing.pk,
                 "average_price": average_price,
                 "savings": savings,
                 "savings_percent": savings_percent,
-                "currency": best_listing.normalized_currency or "USD",
+                "currency": recommended_listing.normalized_currency or "USD",
                 "offer_count": len(listings),
                 "top_offers": listings[:3],
             }
