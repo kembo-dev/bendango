@@ -17,6 +17,7 @@ class StructuredProductData:
     sku_or_ean: str | None = None
     brand: str = ""
     image_url: str = ""
+    source: str = "unknown"
 
 
 def _decimal_price(value) -> Decimal | None:
@@ -70,7 +71,6 @@ def _first_offer(offers):
 
 
 def extract_jsonld_product(html: str) -> StructuredProductData | None:
-    """Extract schema.org Product/Offer data before any script cleanup."""
     if not html:
         return None
 
@@ -117,13 +117,13 @@ def extract_jsonld_product(html: str) -> StructuredProductData | None:
                 sku_or_ean=str(sku).strip() if sku else None,
                 brand=str(brand).strip(),
                 image_url=str(image).strip(),
+                source="jsonld",
             )
 
     return None
 
 
 def extract_meta_product(html: str) -> StructuredProductData | None:
-    """Fallback to OpenGraph/product meta tags when JSON-LD is unavailable."""
     if not html:
         return None
     soup = BeautifulSoup(html, "html.parser")
@@ -152,8 +152,115 @@ def extract_meta_product(html: str) -> StructuredProductData | None:
         sku_or_ean=meta("product:retailer_item_id", "sku") or None,
         brand=meta("product:brand", "brand"),
         image_url=meta("og:image", "twitter:image"),
+        source="meta",
+    )
+
+
+def _currency_from_text(text: str) -> str:
+    if re.search(r"\b(?:CDF|FC|CDF)\b|₣", text, re.I):
+        return "CDF"
+    if "$" in text or re.search(r"\bUSD\b", text, re.I):
+        return "USD"
+    if "€" in text or re.search(r"\bEUR\b", text, re.I):
+        return "EUR"
+    return "USD"
+
+
+def _price_candidates_from_node(node) -> list[Decimal]:
+    values: list[Decimal] = []
+    if node is None:
+        return values
+
+    # WooCommerce normally marks the current sale price inside <ins>.
+    sale_nodes = node.select("ins .woocommerce-Price-amount, ins .amount, ins")
+    for sale_node in sale_nodes:
+        price = _decimal_price(sale_node.get_text(" ", strip=True))
+        if price is not None:
+            values.append(price)
+    if values:
+        return values
+
+    for price_node in node.select(
+        ".woocommerce-Price-amount, .amount, [itemprop='price'], .price"
+    ):
+        raw = price_node.get("content") or price_node.get_text(" ", strip=True)
+        price = _decimal_price(raw)
+        if price is not None:
+            values.append(price)
+    return values
+
+
+def extract_woocommerce_product(html: str) -> StructuredProductData | None:
+    """Extract the primary WooCommerce product without reading related cards."""
+    if not html:
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+    name_node = (
+        soup.select_one("h1.product_title")
+        or soup.select_one(".summary h1")
+        or soup.select_one("main h1")
+        or soup.find("h1")
+    )
+    name = name_node.get_text(" ", strip=True) if name_node else ""
+    if not name or name in {"…", "..."}:
+        # Some themes visually hide the H1; og:title still gives a trustworthy name.
+        meta_title = soup.find("meta", attrs={"property": "og:title"})
+        name = meta_title.get("content", "").strip() if meta_title else ""
+    if not name:
+        return None
+
+    primary = (
+        soup.select_one(".summary.entry-summary")
+        or soup.select_one(".summary")
+        or soup.select_one("div.product.type-product")
+        or soup.select_one("main")
+    )
+    if primary is None:
+        return None
+
+    price_values = _price_candidates_from_node(primary)
+    if not price_values:
+        # Last-resort local scan, deliberately scoped to the primary product block.
+        text = primary.get_text(" ", strip=True)
+        for raw in re.findall(r"(?:USD\s*)?(\d[\d\s.,]*)\s*(?:\$|USD|CDF|FC|€)", text, re.I):
+            price = _decimal_price(raw)
+            if price is not None:
+                price_values.append(price)
+
+    if not price_values:
+        return None
+
+    # The first explicit current price is preferred. This avoids picking prices
+    # from related products elsewhere on the page.
+    price = price_values[0]
+    primary_text = primary.get_text(" ", strip=True)
+    currency = normalize_currency_code(_currency_from_text(primary_text))
+    lowered = primary_text.lower()
+    in_stock = not any(token in lowered for token in ("rupture", "out of stock", "sold out", "indisponible"))
+
+    sku_node = primary.select_one(".sku, [itemprop='sku']")
+    sku = sku_node.get_text(" ", strip=True) if sku_node else None
+
+    image = ""
+    image_node = soup.select_one(".woocommerce-product-gallery img, .product img")
+    if image_node:
+        image = (image_node.get("data-large_image") or image_node.get("src") or "").strip()
+
+    return StructuredProductData(
+        product_name=name,
+        price=price,
+        currency=currency,
+        in_stock=in_stock,
+        sku_or_ean=sku or None,
+        image_url=image,
+        source="html",
     )
 
 
 def extract_structured_product(html: str) -> StructuredProductData | None:
-    return extract_jsonld_product(html) or extract_meta_product(html)
+    return (
+        extract_jsonld_product(html)
+        or extract_meta_product(html)
+        or extract_woocommerce_product(html)
+    )
