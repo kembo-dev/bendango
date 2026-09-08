@@ -109,12 +109,14 @@ def extract_meta_product(html: str) -> StructuredProductData | None:
     if not html:
         return None
     soup = BeautifulSoup(html, "html.parser")
+
     def meta(*keys):
         for key in keys:
             tag = soup.find("meta", attrs={"property": key}) or soup.find("meta", attrs={"name": key}) or soup.find("meta", attrs={"itemprop": key})
             if tag and tag.get("content"):
                 return tag.get("content").strip()
         return ""
+
     name = meta("og:title", "twitter:title", "name")
     price = _decimal_price(meta("product:price:amount", "og:price:amount", "price"))
     if not name or price is None:
@@ -189,19 +191,23 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
 
 
 def _query_from_document_url(html: str) -> str:
-    """Infer a product query from canonical/og URL on soft-404 Shopify pages."""
+    """Infer the requested product from canonical or OpenGraph URL."""
     soup = BeautifulSoup(html, "html.parser")
+    candidates = []
     canonical = soup.find("link", attrs={"rel": "canonical"})
-    url = canonical.get("href", "") if canonical else ""
-    if not url:
-        og_url = soup.find("meta", attrs={"property": "og:url"})
-        url = og_url.get("content", "") if og_url else ""
-    path = unquote(urlparse(url).path)
-    match = re.search(r"/products/([^/?#]+)", path, re.I)
-    if not match:
-        return ""
-    slug = match.group(1).replace("-", " ").replace("_", " ")
-    return re.sub(r"\s+", " ", slug).strip()
+    if canonical and canonical.get("href"):
+        candidates.append(canonical.get("href"))
+    og_url = soup.find("meta", attrs={"property": "og:url"})
+    if og_url and og_url.get("content"):
+        candidates.append(og_url.get("content"))
+
+    for url in candidates:
+        path = unquote(urlparse(url).path)
+        match = re.search(r"/products/([^/?#]+)", path, re.I)
+        if match:
+            slug = match.group(1).replace("-", " ").replace("_", " ")
+            return re.sub(r"\s+", " ", slug).strip()
+    return ""
 
 
 def extract_matching_product_card(html: str, query: str) -> StructuredProductData | None:
@@ -241,12 +247,28 @@ def extract_matching_product_card(html: str, query: str) -> StructuredProductDat
     return best
 
 
+def _candidate_matches_query(candidate: StructuredProductData | None, query: str) -> bool:
+    if candidate is None:
+        return False
+    if not query:
+        return True
+    return match_product(query, candidate.product_name, threshold=0.72).is_match
+
+
 def extract_structured_product(html: str, query: str | None = None) -> StructuredProductData | None:
-    jsonld = extract_jsonld_product(html)
-    meta = extract_meta_product(html)
-    woo = extract_woocommerce_product(html)
-    direct = jsonld or meta or woo
-    if direct:
-        return direct
     inferred_query = query or _query_from_document_url(html)
+
+    # On stale Shopify pages, generic JSON-LD/meta data may describe another
+    # recommendation or collection item. Never trust it if it conflicts with
+    # the requested product encoded in the document URL.
+    for candidate in (
+        extract_jsonld_product(html),
+        extract_meta_product(html),
+        extract_woocommerce_product(html),
+    ):
+        if candidate is None:
+            continue
+        if not inferred_query or _candidate_matches_query(candidate, inferred_query):
+            return candidate
+
     return extract_matching_product_card(html, inferred_query) if inferred_query else None
