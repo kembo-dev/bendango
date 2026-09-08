@@ -24,9 +24,10 @@ except ImportError:  # pragma: no cover
     ollama = None
 
 from tracker.catalog import find_fresh_cached_listings
+from tracker.catalog_matching import get_or_create_canonical_product
 from tracker.currency import normalize_currency_code
 from tracker.extractors import extract_structured_product
-from tracker.models import PriceListing, Product, Retailer
+from tracker.models import PriceListing, Retailer
 from tracker.product_matching import match_product
 from tracker.store_discovery import discover_product_urls
 
@@ -115,13 +116,11 @@ def fetch_and_clean_html(url: str) -> str | None:
             if attempt == 2:
                 return None
             time.sleep(1)
-
     encoding = response.encoding if isinstance(response.encoding, str) else "utf-8"
     try:
         text = response.content.decode(encoding, errors="replace")
     except (LookupError, TypeError):
         text = response.content.decode("utf-8", errors="replace")
-
     soup = BeautifulSoup(text, "html.parser")
     for element in soup(["style", "svg", "noscript", "header", "footer", "nav"]):
         element.decompose()
@@ -150,8 +149,8 @@ def _fallback_extract_html(html_snippet: str) -> ExtractedProductData | None:
     product_name = re.sub(r"\s+", " ", title or heading).strip()
     text = soup.get_text(" ", strip=True)
     patterns = [
-        r"(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))\s*(?:€|EUR|USD|CDF|FC)",
-        r"(?:€|EUR|USD|CDF|FC)\s*(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))",
+        r"(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))\s*(?:€|EUR|USD|CDF|FC|\$)",
+        r"(?:€|EUR|USD|CDF|FC|\$)\s*(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2}))",
     ]
     raw_price = next((m.group(1) for p in patterns if (m := re.search(p, text, flags=re.IGNORECASE))), None)
     if not raw_price:
@@ -210,18 +209,12 @@ def _structured_to_extracted(html: str, query: str | None = None) -> tuple[Extra
     structured = extract_structured_product(html, query=query)
     if structured is None:
         return None, ""
-    extracted = ExtractedProductData(
-        product_name=structured.product_name,
-        price=float(structured.price),
-        currency=structured.currency,
-        in_stock=structured.in_stock,
-        sku_or_ean=structured.sku_or_ean,
-    )
+    extracted = ExtractedProductData(product_name=structured.product_name, price=float(structured.price), currency=structured.currency, in_stock=structured.in_stock, sku_or_ean=structured.sku_or_ean)
     return extracted, (structured.source or "unknown")
 
 
 def _confidence_for(source: str, match_score: float, has_sku: bool) -> Decimal:
-    base = {"jsonld": 0.92, "meta": 0.84, "llm": 0.76, "html": 0.62, "cache": 0.70}.get(source, 0.55)
+    base = {"jsonld": 0.92, "shopify": 0.88, "meta": 0.84, "llm": 0.76, "html": 0.62, "cache": 0.70}.get(source, 0.55)
     score = base + (0.04 if has_sku else 0.0) + (0.04 * max(0.0, min(match_score, 1.0)))
     return Decimal(str(round(min(score, 0.99), 4)))
 
@@ -233,6 +226,10 @@ def _cached_listing_for_url(url: str, expected_query: str | None = None):
     if expected_query and not match_product(expected_query, listing.product.name).is_match:
         return None
     return listing
+
+
+def _deactivate_listing_for_url(url: str) -> int:
+    return PriceListing.objects.filter(url=url, is_active=True).update(is_active=False)
 
 
 def _is_relevant_product_match(product_name: str, query: str | None) -> bool:
@@ -275,7 +272,8 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
     if not html:
         return (cached_listing, None) if cached_listing else (None, "Impossible de récupérer le contenu de la page web.")
     if _is_not_found_page(html):
-        return (cached_listing, None) if cached_listing else (None, "Page introuvable ou URL produit inexistante.")
+        _deactivate_listing_for_url(url)
+        return None, "Page introuvable ou URL produit inexistante."
 
     extracted, source = _structured_to_extracted(html, query=expected_query)
     if extracted is None and expected_query and not _has_exploitable_product_structure(html):
@@ -294,13 +292,12 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
     if not product_name or product_name.lower() in {"unknown", "inconnu", "n/a", "na"} or price <= 0:
         return (cached_listing, None) if cached_listing else (None, "Données extraites invalides ou page non exploitable.")
 
-    host = (parsed.netloc or "").lower().removeprefix("www.")
-    allowed = {h.lower().removeprefix("www.") for h in (allowed_hosts or [])}
     match = match_product(expected_query, product_name) if expected_query else None
-    if match and host not in allowed and not match.is_match:
+    if match and not match.is_match:
         return (cached_listing, None) if cached_listing else (None, f"Produit non pertinent ({match.reason}, score={match.score:.2f}).")
     match_score = match.score if match else 1.0
 
+    host = (parsed.netloc or "").lower().removeprefix("www.")
     base_url = f"{parsed.scheme}://{parsed.netloc}"
     with transaction.atomic():
         retailer, _ = Retailer.objects.get_or_create(name=(host or "Site inconnu").capitalize(), defaults={"base_url": base_url})
@@ -308,13 +305,12 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
             retailer.base_url = base_url
             retailer.save(update_fields=["base_url"])
 
-        product = Product.objects.filter(sku_or_ean=extracted.sku_or_ean).first() if extracted.sku_or_ean else None
-        if not product and cached_listing:
+        if cached_listing:
             product = cached_listing.product
-        if not product:
-            product = Product.objects.filter(name__iexact=product_name).first()
-        if not product:
-            product = Product.objects.create(name=product_name, sku_or_ean=extracted.sku_or_ean)
+            canonical_score = 1.0
+        else:
+            product, canonical = get_or_create_canonical_product(product_name, sku_or_ean=extracted.sku_or_ean)
+            canonical_score = canonical.score
 
         listing = PriceListing.objects.filter(product=product, retailer=retailer, url=url).first() or cached_listing or PriceListing(product=product, retailer=retailer, url=url)
         listing.product = product
@@ -324,7 +320,7 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
         listing.in_stock = extracted.in_stock
         listing.is_active = True
         listing.extraction_source = source or "unknown"
-        listing.match_score = Decimal(str(round(match_score, 4)))
+        listing.match_score = Decimal(str(round(min(match_score, canonical_score), 4)))
         listing.confidence_score = _confidence_for(source, match_score, bool(extracted.sku_or_ean))
         listing.save()
     return listing, None
@@ -362,24 +358,16 @@ def _is_low_quality_source_url(url: str) -> bool:
     parsed = urlparse(url)
     host = parsed.netloc.lower().removeprefix("www.")
     path = parsed.path.lower()
-
     blocked_hosts = (
-        "facebook.com", "fb.com", "instagram.com", "tiktok.com", "x.com", "twitter.com",
-        "pinterest.com", "youtube.com", "youtu.be", "reddit.com", "quora.com",
-        "wikipedia.org", "archive.org", "web.archive.org", "linkedin.com",
-        "discord.com", "discord.gg", "telegram.org", "t.me", "whatsapp.com",
+        "facebook.com", "fb.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "pinterest.com", "youtube.com", "youtu.be", "reddit.com", "quora.com", "wikipedia.org", "archive.org", "web.archive.org", "linkedin.com", "discord.com", "discord.gg", "telegram.org", "t.me", "whatsapp.com",
     )
     if any(host == blocked or host.endswith("." + blocked) for blocked in blocked_hosts):
         return True
-
     blocked_extensions = (".txt", ".pdf", ".epub", ".doc", ".docx", ".xml", ".csv", ".zip")
     if path.endswith(blocked_extensions):
         return True
-
     combined = f"{host} {path}"
-    return any(token in combined for token in [
-        "/forum/", "/forums/", "/blog/", "/discussion/", "/topic/", "/wiki/", "/stream/"
-    ])
+    return any(token in combined for token in ["/forum/", "/forums/", "/blog/", "/discussion/", "/topic/", "/wiki/", "/stream/"])
 
 
 def _collect_search_urls(search_term: str, max_results: int) -> list[str]:
@@ -398,12 +386,10 @@ def _collect_search_urls(search_term: str, max_results: int) -> list[str]:
 
 def cleanup_stale_listings(days: int = 30, product_id: int | None = None) -> int:
     cutoff = timezone.now() - timezone.timedelta(days=days)
-    queryset = PriceListing.objects.filter(scraped_at__lt=cutoff)
+    queryset = PriceListing.objects.filter(scraped_at__lt=cutoff, is_active=True)
     if product_id is not None:
         queryset = queryset.filter(product_id=product_id)
-    listing_count = queryset.count()
-    queryset.delete()
-    return listing_count
+    return queryset.update(is_active=False)
 
 
 def _get_sort_rank(item):
