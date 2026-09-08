@@ -125,7 +125,6 @@ def fetch_and_clean_html(url: str) -> str | None:
     soup = BeautifulSoup(text, "html.parser")
     for element in soup(["style", "svg", "noscript", "header", "footer", "nav"]):
         element.decompose()
-
     return str(soup)[:120000]
 
 
@@ -268,6 +267,8 @@ def process_url_and_save(url: str, model_name: str | None = None, expected_query
         return None, "URL de page d'accueil non exploitable pour un produit."
     if _is_category_or_listing_url(url):
         return None, "URL de liste ou catégorie non exploitable pour un produit unique."
+    if _is_low_quality_source_url(url):
+        return None, "Source non marchande ignorée."
 
     cached_listing = _cached_listing_for_url(url, expected_query)
     html = fetch_and_clean_html(url)
@@ -349,9 +350,7 @@ def _is_category_or_listing_url(url: str) -> bool:
     if ".oembed" in path or path.endswith("/oembed"):
         return True
     collection_tokens = ("/categorie/", "/category/", "/categories/", "/collections/", "/collection/", "/shop/", "/search/", "/ads/", "/annonces/", "/market/", "/en/ads/")
-    if any(token in path for token in collection_tokens):
-        return True
-    return False
+    return any(token in path for token in collection_tokens)
 
 
 def _is_comparator_url(url: str) -> bool:
@@ -361,12 +360,26 @@ def _is_comparator_url(url: str) -> bool:
 
 def _is_low_quality_source_url(url: str) -> bool:
     parsed = urlparse(url)
-    host, path = parsed.netloc.lower().removeprefix("www."), parsed.path.lower()
-    social_hosts = ("tiktok.com", "instagram.com", "facebook.com", "fb.com", "x.com", "twitter.com", "pinterest.com")
-    social_paths = ("/shop/", "/products/", "/product/", "/items/", "/item/", "/marketplace/", "/p/", "/video/")
-    if any(host.endswith(h) for h in social_hosts) and any(token in path for token in social_paths):
-        return False
-    return any(token in f"{host} {path}" for token in ["forum", "blog", "discussion", "topic", "quora", "reddit", "youtube", "wikipedia", "linkedin", "discord", "telegram", "whatsapp"])
+    host = parsed.netloc.lower().removeprefix("www.")
+    path = parsed.path.lower()
+
+    blocked_hosts = (
+        "facebook.com", "fb.com", "instagram.com", "tiktok.com", "x.com", "twitter.com",
+        "pinterest.com", "youtube.com", "youtu.be", "reddit.com", "quora.com",
+        "wikipedia.org", "archive.org", "web.archive.org", "linkedin.com",
+        "discord.com", "discord.gg", "telegram.org", "t.me", "whatsapp.com",
+    )
+    if any(host == blocked or host.endswith("." + blocked) for blocked in blocked_hosts):
+        return True
+
+    blocked_extensions = (".txt", ".pdf", ".epub", ".doc", ".docx", ".xml", ".csv", ".zip")
+    if path.endswith(blocked_extensions):
+        return True
+
+    combined = f"{host} {path}"
+    return any(token in combined for token in [
+        "/forum/", "/forums/", "/blog/", "/discussion/", "/topic/", "/wiki/", "/stream/"
+    ])
 
 
 def _collect_search_urls(search_term: str, max_results: int) -> list[str]:
@@ -374,7 +387,11 @@ def _collect_search_urls(search_term: str, max_results: int) -> list[str]:
     with DDGS() as ddgs:
         for result in ddgs.text(search_term, max_results=max_results):
             url = str(result.get("href") or "").strip()
-            if url and not (_is_homepage_url(url) or _is_category_or_listing_url(url) or _is_comparator_url(url) or _is_low_quality_source_url(url)) and url not in urls:
+            if not url:
+                continue
+            if _is_homepage_url(url) or _is_category_or_listing_url(url) or _is_comparator_url(url) or _is_low_quality_source_url(url):
+                continue
+            if url not in urls:
                 urls.append(url)
     return urls
 
@@ -465,9 +482,9 @@ def search_and_scrape_product(product_query: str, site_filter: str = "all", mode
         listing, error = process_url_and_save(url, model_name=selected_model, expected_query=product_query, allowed_hosts=allowed_hosts)
         if listing:
             results.append(listing)
-        elif error:
+        elif error and error != "Source non marchande ignorée.":
             errors.append(f"{url}: {error}")
 
     results = _deduplicate_results(results)
     results.sort(key=_get_sort_rank)
-    return (results, []) if results else ([], errors or ["Aucune page exploitable n'a été trouvée pour ce produit."])
+    return (results, []) if results else ([], errors or ["Aucune page marchande exploitable n'a été trouvée pour ce produit."])
