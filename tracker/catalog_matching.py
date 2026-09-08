@@ -8,8 +8,10 @@ from tracker.product_matching import match_product, normalize_product_name
 
 
 VARIANT_TOKENS = {"pro", "max", "plus", "ultra", "mini", "lite", "fe", "se"}
-STORAGE_RE = re.compile(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", re.IGNORECASE)
-RAM_RE = re.compile(r"\b(\d+)\s*(gb|go)\s*(?:ram)?\b", re.IGNORECASE)
+CAPACITY_RE = re.compile(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", re.IGNORECASE)
+RAM_AFTER_RE = re.compile(r"\b(\d+)\s*(gb|go)\s*(?:de\s+)?ram\b", re.IGNORECASE)
+RAM_BEFORE_RE = re.compile(r"\bram\s*(\d+)\s*(gb|go)\b", re.IGNORECASE)
+SLASH_RE = re.compile(r"\b(\d+)\s*(?:gb|go)?\s*/\s*(\d+)\s*(gb|go|tb|to)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -19,41 +21,81 @@ class CanonicalResolution:
     reason: str
 
 
+@dataclass(frozen=True)
+class CapacityProfile:
+    ram_gb: int | None = None
+    storage_gb: int | None = None
+
+
 def _variant_tokens(name: str) -> set[str]:
     return set(normalize_product_name(name).split()) & VARIANT_TOKENS
 
 
-def _storage_tokens(name: str) -> set[str]:
-    normalized = normalize_product_name(name)
-    return {f"{amount}{unit}" for amount, unit in STORAGE_RE.findall(normalized)}
+def _to_gb(amount: str, unit: str) -> int | None:
+    value = int(amount)
+    normalized = unit.lower()
+    if normalized in {"tb", "to"}:
+        return value * 1024
+    if normalized in {"gb", "go"}:
+        return value
+    return None
 
 
-def _has_variant_conflict(left: str, right: str) -> bool:
+def capacity_profile(name: str) -> CapacityProfile:
+    text = (name or "").lower()
+    slash = SLASH_RE.search(text)
+    if slash:
+        first = int(slash.group(1))
+        second = _to_gb(slash.group(2), slash.group(3))
+        if second is not None and first <= 64 and second > first:
+            return CapacityProfile(ram_gb=first, storage_gb=second)
+
+    explicit_ram = None
+    ram_match = RAM_AFTER_RE.search(text) or RAM_BEFORE_RE.search(text)
+    if ram_match:
+        explicit_ram = _to_gb(ram_match.group(1), ram_match.group(2))
+
+    capacities = []
+    for amount, unit in CAPACITY_RE.findall(text):
+        value = _to_gb(amount, unit)
+        if value is not None:
+            capacities.append(value)
+
+    unique = sorted(set(capacities))
+    if explicit_ram is not None:
+        storage_candidates = [value for value in unique if value != explicit_ram]
+        return CapacityProfile(explicit_ram, max(storage_candidates) if storage_candidates else None)
+
+    if len(unique) >= 2:
+        smallest, largest = unique[0], unique[-1]
+        if smallest <= 64 and largest > smallest:
+            return CapacityProfile(ram_gb=smallest, storage_gb=largest)
+        return CapacityProfile(storage_gb=largest)
+
+    if len(unique) == 1:
+        value = unique[0]
+        # A lone small GB value can be RAM or storage. Do not create a false conflict.
+        return CapacityProfile(storage_gb=value if value > 64 else None)
+
+    return CapacityProfile()
+
+
+def has_variant_conflict(left: str, right: str) -> bool:
     left_variants = _variant_tokens(left)
     right_variants = _variant_tokens(right)
     if left_variants != right_variants and (left_variants or right_variants):
         return True
 
-    left_storage = _storage_tokens(left)
-    right_storage = _storage_tokens(right)
-    if left_storage and right_storage and left_storage.isdisjoint(right_storage):
+    left_capacity = capacity_profile(left)
+    right_capacity = capacity_profile(right)
+    if left_capacity.storage_gb is not None and right_capacity.storage_gb is not None and left_capacity.storage_gb != right_capacity.storage_gb:
+        return True
+    if left_capacity.ram_gb is not None and right_capacity.ram_gb is not None and left_capacity.ram_gb != right_capacity.ram_gb:
         return True
     return False
 
 
-def resolve_canonical_product(
-    product_name: str,
-    *,
-    sku_or_ean: str | None = None,
-    minimum_score: float = 0.82,
-) -> CanonicalResolution:
-    """Resolve an extracted merchant title to an existing canonical Product.
-
-    Resolution order:
-    1. exact SKU/EAN;
-    2. exact normalized title;
-    3. conservative V3 title matching without variant/storage conflicts.
-    """
+def resolve_canonical_product(product_name: str, *, sku_or_ean: str | None = None, minimum_score: float = 0.82) -> CanonicalResolution:
     name = (product_name or "").strip()
     sku = (sku_or_ean or "").strip()
     if sku:
@@ -68,14 +110,11 @@ def resolve_canonical_product(
     best_product = None
     best_score = 0.0
     best_reason = "aucun produit canonique compatible"
-
     for product in Product.objects.all().only("id", "name", "sku_or_ean"):
         if normalize_product_name(product.name) == normalized:
             return CanonicalResolution(product, 1.0, "nom normalisé identique")
-
-        if _has_variant_conflict(name, product.name):
+        if has_variant_conflict(name, product.name):
             continue
-
         result = match_product(name, product.name, threshold=minimum_score)
         if result.is_match and result.score > best_score:
             best_product = product
@@ -87,11 +126,7 @@ def resolve_canonical_product(
     return CanonicalResolution(best_product, best_score, best_reason)
 
 
-def get_or_create_canonical_product(
-    product_name: str,
-    *,
-    sku_or_ean: str | None = None,
-) -> tuple[Product, CanonicalResolution]:
+def get_or_create_canonical_product(product_name: str, *, sku_or_ean: str | None = None) -> tuple[Product, CanonicalResolution]:
     resolution = resolve_canonical_product(product_name, sku_or_ean=sku_or_ean)
     if resolution.product is not None:
         product = resolution.product
@@ -100,8 +135,5 @@ def get_or_create_canonical_product(
             product.save(update_fields=["sku_or_ean", "updated_at"])
         return product, resolution
 
-    product = Product.objects.create(
-        name=(product_name or "Produit non identifié").strip(),
-        sku_or_ean=(sku_or_ean or None),
-    )
+    product = Product.objects.create(name=(product_name or "Produit non identifié").strip(), sku_or_ean=(sku_or_ean or None))
     return product, CanonicalResolution(product, 1.0, "nouveau produit canonique")
