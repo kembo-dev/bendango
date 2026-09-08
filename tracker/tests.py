@@ -660,7 +660,7 @@ class SearchResultDisplayTests(TestCase):
                 in_stock=True,
             )
 
-    def test_cleanup_stale_listings_removes_old_entries(self):
+    def test_cleanup_stale_listings_deactivates_old_entries(self):
         retailer = Retailer.objects.create(name="Old Shop", base_url="https://old.example")
         product = Product.objects.create(name="Produit historique", sku_or_ean="OLD-001")
         PriceListing.objects.create(
@@ -677,10 +677,12 @@ class SearchResultDisplayTests(TestCase):
             scraped_at=timezone.now() - timezone.timedelta(days=45)
         )
 
-        deleted = cleanup_stale_listings(days=30)
+        deactivated = cleanup_stale_listings(days=30)
 
-        self.assertEqual(deleted, 1)
-        self.assertFalse(PriceListing.objects.filter(pk=listing.pk).exists())
+        self.assertEqual(deactivated, 1)
+        listing.refresh_from_db()
+        self.assertFalse(listing.is_active)
+        self.assertTrue(PriceListing.objects.filter(pk=listing.pk).exists())
 
     def test_process_url_and_save_rejects_homepage_urls(self):
         listing, error = process_url_and_save("https://example.com/")
