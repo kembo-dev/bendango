@@ -4,6 +4,7 @@ from django.shortcuts import render
 from .discovery_sources import discover_social_sources
 from .forms import SearchOrScrapeForm
 from .pricing import attach_price_history_stats
+from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save, search_and_scrape_product
 
 
@@ -23,7 +24,6 @@ def scrape_view(request):
             site = form.cleaned_data["site"]
             query = form.cleaned_data["query"].strip()
             model_name = form.cleaned_data["model_name"]
-
             if site is not None:
                 site = site.strip()
             if not site:
@@ -41,20 +41,12 @@ def scrape_view(request):
                 if error:
                     errors.append(error)
             else:
-                listings, errors = search_and_scrape_product(
-                    product_query=query,
-                    site_filter=site,
-                    model_name=model_name,
-                )
-                # Social platforms are discovery aids, not verified price offers.
-                # Keep them visible even when the merchant pipeline finds nothing.
+                listings, errors = search_and_scrape_product(product_query=query, site_filter=site, model_name=model_name)
                 discovery_sources = discover_social_sources(query)
 
         if listings:
-            listings = sorted(
-                listings,
-                key=lambda item: (0 if item.in_stock else 1, _comparison_price(item)),
-            )
+            listings = attach_offer_quality(listings)
+            listings = sorted(listings, key=offer_sort_key)
             listings = attach_price_history_stats(listings)
             best_listing = listings[0]
             normalized_prices = [_comparison_price(item) for item in listings]
@@ -74,14 +66,10 @@ def scrape_view(request):
     else:
         form = SearchOrScrapeForm()
 
-    return render(
-        request,
-        "tracker/scrape.html",
-        {
-            "form": form,
-            "listings": listings,
-            "discovery_sources": discovery_sources,
-            "errors": errors,
-            "summary": summary,
-        },
-    )
+    return render(request, "tracker/scrape.html", {
+        "form": form,
+        "listings": listings,
+        "discovery_sources": discovery_sources,
+        "errors": errors,
+        "summary": summary,
+    })
