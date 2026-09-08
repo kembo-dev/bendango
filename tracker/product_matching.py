@@ -27,8 +27,20 @@ def normalize_product_name(value: str) -> str:
     value = "".join(char for char in value if not unicodedata.combining(char))
     value = value.lower()
     value = re.sub(r"\b(pro|max|plus|ultra)\s+(max|plus|ultra)\b", r"\1 \2", value)
+
+    # Canonicalize capacities before punctuation/whitespace cleanup so merchant
+    # titles such as "128 GB", "128GB", "128 Go" and "128Go" produce the
+    # same token. French Go/To are normalized to GB/TB for cross-shop matching.
+    value = re.sub(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", _normalize_capacity_match, value)
     value = re.sub(r"[^a-z0-9]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _normalize_capacity_match(match: re.Match) -> str:
+    amount = match.group(1)
+    unit = match.group(2).lower()
+    unit = {"go": "gb", "to": "tb"}.get(unit, unit)
+    return f"{amount}{unit}"
 
 
 def _tokens(value: str) -> set[str]:
