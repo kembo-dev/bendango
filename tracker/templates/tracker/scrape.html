@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scraper de Produit - Bendango</title>
+    <title>Comparateur de prix - Bendango</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light page-shell">
-
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-9">
+        <div class="col-md-10">
             <div class="hero-panel text-center mb-4">
                 <div class="eyebrow">Bendango Compare</div>
                 <h1 class="mb-2">Comparez les prix intelligemment</h1>
-                <p class="mb-0">Recherchez un produit, trouvez le meilleur prix et comparez les offres les plus fiables.</p>
+                <p class="mb-0">Trouvez les offres fiables, comparez les prix et suivez leur évolution.</p>
             </div>
 
-            <!-- Formulaire -->
             <form method="post" class="card p-4 shadow-sm premium-form">
                 {% csrf_token %}
                 <div class="row g-3 align-items-end">
@@ -29,9 +27,7 @@
                         <div id="site-field-group" class="d-none">
                             <label class="form-label fw-bold">Site e-commerce ou URL</label>
                             {{ form.site }}
-                            {% if form.site.help_text %}
-                                <div class="form-text">{{ form.site.help_text }}</div>
-                            {% endif %}
+                            {% if form.site.help_text %}<div class="form-text">{{ form.site.help_text }}</div>{% endif %}
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -39,255 +35,103 @@
                         {{ form.query }}
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label fw-bold">Modèle Ollama</label>
+                        <label class="form-label fw-bold">Modèle IA</label>
                         {{ form.model_name }}
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary mt-4 w-100 btn-compare">Comparer les prix</button>
             </form>
 
-            <!-- Messages d'erreur -->
             {% if errors and not listings %}
             <div class="alert alert-warning mt-4" role="alert">
                 <div class="fw-semibold mb-2">Aucun résultat exploitable</div>
-                {% for error in errors %}
-                    <div>{{ error }}</div>
-                {% endfor %}
+                {% for error in errors %}<div>{{ error }}</div>{% endfor %}
             </div>
             {% endif %}
 
             {% if request.method == 'POST' and not listings and not errors %}
-            <div class="alert alert-info mt-4" role="alert">
-                Aucune offre valide n’a été trouvée pour cette recherche. Essayez un nom de produit plus précis ou activez le filtre de site.
-            </div>
+            <div class="alert alert-info mt-4">Aucune offre valide n’a été trouvée. Essayez un nom de produit plus précis.</div>
             {% endif %}
 
-            <!-- Affichage des résultats -->
             {% if listings %}
             <div class="mt-4">
-                <div class="alert alert-success best-price-alert mb-3 py-2 px-3 d-flex justify-content-between align-items-center gap-2 flex-wrap" aria-label="Résumé du meilleur prix">
-                    <div class="d-flex align-items-center gap-2">
-                        <span>🏆</span>
-                        <strong>Meilleur prix</strong>
-                    </div>
+                <div class="alert alert-success best-price-alert mb-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                    <div><span>🏆</span> <strong>Meilleure offre</strong></div>
                     <span>{{ summary.best_listing.price }} {{ summary.best_listing.currency }} chez {{ summary.best_listing.retailer.name }}</span>
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge text-bg-light">{{ summary.offer_count }} offre{{ summary.offer_count|pluralize }}</span>
-                        <button type="button" class="btn btn-sm btn-outline-success copy-best-price" data-copy-text="{{ summary.best_listing.price }} {{ summary.best_listing.currency }} chez {{ summary.best_listing.retailer.name }}">
-                            Copier
-                        </button>
-                    </div>
+                    <span class="badge text-bg-light">{{ summary.offer_count }} offre{{ summary.offer_count|pluralize }}</span>
                 </div>
-                <div class="alert alert-light border border-success-subtle mb-3 py-2 px-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                    <span class="summary-savings">Prix moyen: {{ summary.average_price|floatformat:2 }} {{ summary.currency }}</span>
-                    <span class="summary-savings">Économie: {{ summary.savings|floatformat:2 }} {{ summary.currency }}</span>
-                    <span class="summary-savings">-{{ summary.savings_percent|floatformat:0 }}% vs prix moyen</span>
+                <div class="alert alert-light border mb-3 d-flex justify-content-between gap-2 flex-wrap">
+                    <span class="summary-pill">Prix moyen normalisé : {{ summary.average_price|floatformat:2 }} {{ summary.currency }}</span>
+                    <span class="summary-pill">Économie : {{ summary.savings|floatformat:2 }} {{ summary.currency }}</span>
+                    <span class="summary-pill">-{{ summary.savings_percent|floatformat:0 }}% vs moyenne</span>
                 </div>
-
-                {% if summary.top_offers %}
-                <div class="row g-2 mb-3">
-                    {% for top_offer in summary.top_offers %}
-                    <div class="col-md-4">
-                        <div class="card border-success-subtle h-100">
-                            <div class="card-body py-2 px-3">
-                                <div class="small text-muted mb-1">#{{ forloop.counter }}</div>
-                                <div class="fw-bold">{{ top_offer.price }} {{ top_offer.currency }}</div>
-                                <div class="small text-truncate">{{ top_offer.retailer.name }}</div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
 
                 {% for listing in listings %}
-                <div class="card shadow-sm border-0 mb-3 overflow-hidden result-card {% if forloop.first %}result-card-best{% endif %}">
-                    <div class="card-body p-0">
-                        <div class="row g-0 align-items-stretch">
-                            <div class="col-md-3 bg-light d-flex align-items-center justify-content-center product-thumb">
-                                <div class="text-center text-secondary">
-                                    <div class="display-6 mb-2">🛍️</div>
-                                    <small class="fw-semibold">Produit</small>
+                <div class="card shadow-sm border-0 mb-3 result-card {% if forloop.first %}result-card-best{% endif %}">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                            <div>
+                                <div class="small text-muted text-uppercase fw-bold">{{ listing.retailer.name }}</div>
+                                <h3 class="h4 mb-1">{{ listing.product.name }}</h3>
+                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                    {% if listing.in_stock %}<span class="badge text-bg-success">En stock</span>{% else %}<span class="badge text-bg-danger">Rupture</span>{% endif %}
+                                    <span class="badge text-bg-primary">Confiance {{ listing.confidence_score|floatformat:2 }}</span>
+                                    <span class="badge text-bg-secondary">{{ listing.get_extraction_source_display }}</span>
+                                    {% if listing.price_stats.is_price_drop %}<span class="badge text-bg-success">↓ Prix en baisse</span>{% endif %}
                                 </div>
                             </div>
-                            <div class="col-md-9 p-4">
-                                <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
-                                    <div>
-                                        <div class="text-uppercase small text-muted fw-bold mb-1">Offre</div>
-                                        <h3 class="h4 mb-0">{{ listing.product.name }}</h3>
-                                    </div>
-                                    {% if listing.in_stock %}
-                                        <span class="badge text-bg-success rounded-pill px-3 py-2">En stock</span>
-                                    {% else %}
-                                        <span class="badge text-bg-danger rounded-pill px-3 py-2">Rupture</span>
-                                    {% endif %}
-                                </div>
-
-                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-                                    <div>
-                                        <div class="text-muted small">Prix</div>
-                                        <div class="fs-3 fw-bold text-primary mb-0">{{ listing.price }} {{ listing.currency }}</div>
-                                    </div>
-                                    <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm px-3">
-                                        Voir l'offre
-                                    </a>
-                                </div>
-
-                                <ul class="list-group list-group-flush border-top border-bottom">
-                                    <li class="list-group-item px-0">
-                                        <strong>Source :</strong>
-                                        <span class="text-break">{{ listing.retailer.name }}</span>
-                                    </li>
-                                    <li class="list-group-item px-0">
-                                        <strong>Référence :</strong> {{ listing.product.sku_or_ean|default:"Non spécifiée" }}
-                                    </li>
-                                    <li class="list-group-item px-0">
-                                        <strong>Disponibilité :</strong>
-                                        {% if listing.in_stock %}Disponible{% else %}Rupture de stock{% endif %}
-                                    </li>
-                                </ul>
+                            <div class="text-end">
+                                <div class="fs-3 fw-bold text-primary">{{ listing.price }} {{ listing.currency }}</div>
+                                {% if listing.normalized_price %}<div class="small text-muted">≈ {{ listing.normalized_price }} {{ listing.normalized_currency }}</div>{% endif %}
                             </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-4"><div class="metric"><small>Plus bas historique</small><strong>{{ listing.price_stats.lowest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div>
+                            <div class="col-sm-4"><div class="metric"><small>Plus haut historique</small><strong>{{ listing.price_stats.highest_price|floatformat:2 }} {{ listing.price_stats.currency }}</strong></div></div>
+                            <div class="col-sm-4"><div class="metric"><small>Variation</small><strong>{% if listing.price_stats.previous_price %}{{ listing.price_stats.change_percent|floatformat:1 }}%{% else %}Nouvelle offre{% endif %}</strong></div></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 border-top pt-3">
+                            <div class="small text-muted">
+                                Référence : {{ listing.product.sku_or_ean|default:"Non spécifiée" }} · Matching : {{ listing.match_score|floatformat:2 }}
+                            </div>
+                            <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm px-3">Voir l'offre</a>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
             {% endif %}
-
         </div>
     </div>
 </div>
 
 <style>
-.page-shell {
-    background: linear-gradient(180deg, #f6f9ff 0%, #eef3fb 100%);
-}
-
-.hero-panel {
-    padding: 2rem 1.5rem 1.25rem;
-    border-radius: 24px;
-    background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(25, 135, 84, 0.08));
-    border: 1px solid rgba(13, 110, 253, 0.08);
-}
-
-.eyebrow {
-    display: inline-block;
-    background: rgba(13, 110, 253, 0.08);
-    color: #0d6efd;
-    border-radius: 999px;
-    padding: 0.35rem 0.8rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 700;
-    margin-bottom: 0.75rem;
-}
-
-.hero-panel h1 {
-    font-size: clamp(2rem, 3vw, 3rem);
-    font-weight: 800;
-    color: #122033;
-}
-
-.hero-panel p {
-    color: #4d5d73;
-    font-size: 1.02rem;
-}
-
-.premium-form {
-    border: 1px solid rgba(13, 110, 253, 0.1);
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.9);
-}
-
-.btn-compare {
-    border-radius: 12px;
-    font-weight: 700;
-    padding: 0.9rem 1rem;
-}
-
-.result-card {
-    border: 1px solid rgba(13, 110, 253, 0.1);
-    border-radius: 18px;
-}
-
-.result-card-best {
-    border: 1px solid rgba(25, 135, 84, 0.55);
-    box-shadow: 0 0.5rem 1.5rem rgba(25, 135, 84, 0.12);
-}
-
-.best-price-alert {
-    border: 1px solid rgba(25, 135, 84, 0.25);
-    background: linear-gradient(90deg, rgba(25, 135, 84, 0.15), rgba(25, 135, 84, 0.04));
-    color: #146c43;
-    font-weight: 600;
-}
-
-.summary-savings {
-    background: rgba(255, 255, 255, 0.35);
-    border: 1px solid rgba(25, 135, 84, 0.2);
-    border-radius: 999px;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.8rem;
-}
-
-.product-thumb {
-    min-height: 180px;
-    border-right: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-@media (max-width: 767.98px) {
-    .product-thumb {
-        min-height: 120px;
-        border-right: 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-    }
-}
+.page-shell { background: linear-gradient(180deg,#f6f9ff 0%,#eef3fb 100%); min-height:100vh; }
+.hero-panel { padding:2rem 1.5rem 1.25rem; border-radius:24px; background:linear-gradient(135deg,rgba(13,110,253,.08),rgba(25,135,84,.08)); border:1px solid rgba(13,110,253,.08); }
+.eyebrow { display:inline-block; background:rgba(13,110,253,.08); color:#0d6efd; border-radius:999px; padding:.35rem .8rem; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; font-weight:700; margin-bottom:.75rem; }
+.hero-panel h1 { font-size:clamp(2rem,3vw,3rem); font-weight:800; color:#122033; }
+.hero-panel p { color:#4d5d73; }
+.premium-form { border:1px solid rgba(13,110,253,.1); border-radius:22px; background:rgba(255,255,255,.92); }
+.btn-compare { border-radius:12px; font-weight:700; padding:.9rem 1rem; }
+.result-card { border:1px solid rgba(13,110,253,.1)!important; border-radius:18px; }
+.result-card-best { border-color:rgba(25,135,84,.55)!important; box-shadow:0 .5rem 1.5rem rgba(25,135,84,.12)!important; }
+.best-price-alert { border:1px solid rgba(25,135,84,.25); background:linear-gradient(90deg,rgba(25,135,84,.15),rgba(25,135,84,.04)); color:#146c43; }
+.summary-pill { background:white; border:1px solid rgba(0,0,0,.08); border-radius:999px; padding:.3rem .8rem; font-size:.82rem; }
+.metric { height:100%; background:#f8f9fa; border:1px solid #e9ecef; border-radius:12px; padding:.7rem .85rem; display:flex; flex-direction:column; gap:.15rem; }
+.metric small { color:#6c757d; }
+.metric strong { color:#24364b; }
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const toggle = document.getElementById('toggle-site-filter');
-        const siteGroup = document.getElementById('site-field-group');
-        const siteInput = document.getElementById('id_site');
-
-        function syncSiteVisibility() {
-            const isVisible = Boolean(toggle && toggle.checked);
-            if (siteGroup) {
-                siteGroup.classList.toggle('d-none', !isVisible);
-            }
-            if (!isVisible && siteInput) {
-                siteInput.value = '';
-            }
-        }
-
-        if (toggle && siteGroup) {
-            toggle.checked = false;
-            toggle.addEventListener('change', syncSiteVisibility);
-            syncSiteVisibility();
-        }
-
-        const copyBestPriceButton = document.querySelector('.copy-best-price');
-        if (copyBestPriceButton) {
-            copyBestPriceButton.addEventListener('click', async function () {
-                const text = this.dataset.copyText || '';
-                try {
-                    await navigator.clipboard.writeText(text);
-                    const previousText = this.textContent;
-                    this.textContent = 'Copié !';
-                    setTimeout(() => {
-                        this.textContent = previousText;
-                    }, 1200);
-                } catch (error) {
-                    this.textContent = 'Erreur';
-                    setTimeout(() => {
-                        this.textContent = 'Copier';
-                    }, 1200);
-                }
-            });
-        }
-    });
+document.addEventListener('DOMContentLoaded', function () {
+    const toggle=document.getElementById('toggle-site-filter');
+    const group=document.getElementById('site-field-group');
+    const input=document.getElementById('id_site');
+    function sync(){const visible=Boolean(toggle&&toggle.checked); if(group)group.classList.toggle('d-none',!visible); if(!visible&&input)input.value='';}
+    if(toggle&&group){toggle.addEventListener('change',sync);sync();}
+});
 </script>
-
 </body>
 </html>
