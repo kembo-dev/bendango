@@ -1,6 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.shortcuts import render
 
+from .discovery_sources import discover_social_sources
 from .forms import SearchOrScrapeForm
 from .pricing import attach_price_history_stats
 from .services import process_url_and_save, search_and_scrape_product
@@ -12,6 +13,7 @@ def _comparison_price(listing):
 
 def scrape_view(request):
     listings = []
+    discovery_sources = []
     errors = []
     summary = {}
 
@@ -44,6 +46,9 @@ def scrape_view(request):
                     site_filter=site,
                     model_name=model_name,
                 )
+                # Social platforms are discovery aids, not verified price offers.
+                # Keep them visible even when the merchant pipeline finds nothing.
+                discovery_sources = discover_social_sources(query)
 
         if listings:
             listings = sorted(
@@ -75,6 +80,7 @@ def scrape_view(request):
         {
             "form": form,
             "listings": listings,
+            "discovery_sources": discovery_sources,
             "errors": errors,
             "summary": summary,
         },
