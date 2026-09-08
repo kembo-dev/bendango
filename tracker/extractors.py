@@ -154,6 +154,48 @@ def _price_candidates_from_node(node) -> list[Decimal]:
     return values
 
 
+def _infer_name_from_content(soup: BeautifulSoup) -> str:
+    # Mobile-RDC sometimes renders the visual H1 as a single ellipsis. Recover
+    # the actual model name from descriptive headings/content instead.
+    patterns = [
+        r"quel est le prix de l[’']?\s*([^?]+?)\s+à\s+kinshasa",
+        r"la sortie de l[’']?\s*([^!.]+?)\s+à\s+kinshasa",
+        r"l[’']?\s*(iphone\s+[0-9a-z+\- ]+?)\s+à\s+kinshasa",
+    ]
+    candidates = []
+    for node in soup.find_all(["h2", "h3", "p"], limit=80):
+        text = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+        if not text:
+            continue
+        candidates.append(text)
+    combined = " ".join(candidates)
+    for pattern in patterns:
+        match = re.search(pattern, combined, re.I)
+        if match:
+            name = re.sub(r"\s+", " ", match.group(1)).strip(" .:-")
+            if name:
+                return name
+    return ""
+
+
+def _checkout_price_from_text(text: str) -> Decimal | None:
+    # Prefer the amount immediately surrounding the purchase CTA/flash block.
+    markers = ["Commander sur WhatsApp", "Ajouter au panier", "VENTE FLASH", "Vente flash"]
+    for marker in markers:
+        index = text.lower().find(marker.lower())
+        if index == -1:
+            continue
+        start = max(0, index - 300)
+        end = min(len(text), index + 120)
+        window = text[start:end]
+        matches = re.findall(r"(?:\$|USD|CDF|FC|€)\s*([0-9][0-9\s.,]*)|([0-9][0-9\s.,]*)\s*(?:\$|USD|CDF|FC|€)", window, re.I)
+        prices = [_decimal_price(left or right) for left, right in matches]
+        prices = [price for price in prices if price is not None]
+        if prices:
+            return prices[-1]
+    return None
+
+
 def extract_woocommerce_product(html: str) -> StructuredProductData | None:
     if not html:
         return None
@@ -163,26 +205,40 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
     if not name or name in {"…", "..."}:
         meta_title = soup.find("meta", attrs={"property": "og:title"})
         name = meta_title.get("content", "").strip() if meta_title else ""
+    if not name or name in {"…", "..."}:
+        title = soup.title.get_text(" ", strip=True) if soup.title else ""
+        if title:
+            title = re.sub(r"\s*[|–—-]\s*Mobile\s*RDC.*$", "", title, flags=re.I).strip()
+            name = title
+    if not name or name in {"…", "..."}:
+        name = _infer_name_from_content(soup)
     if not name:
         return None
-    primary = soup.select_one(".summary.entry-summary") or soup.select_one(".summary") or soup.select_one("div.product.type-product") or soup.select_one("main")
+
+    primary = soup.select_one(".summary.entry-summary") or soup.select_one(".summary") or soup.select_one("div.product.type-product") or soup.select_one("main") or soup.body
     if primary is None:
         return None
-    prices = _price_candidates_from_node(primary)
-    if not prices:
-        text = primary.get_text(" ", strip=True)
-        for raw in re.findall(r"(?:USD\s*)?(\d[\d\s.,]*)\s*(?:\$|USD|CDF|FC|€)", text, re.I):
-            price = _decimal_price(raw)
-            if price is not None:
-                prices.append(price)
-    if not prices:
-        return None
+
     primary_text = primary.get_text(" ", strip=True)
+    price = _checkout_price_from_text(primary_text)
+    if price is None:
+        prices = _price_candidates_from_node(primary)
+        if not prices:
+            for raw in re.findall(r"(?:USD\s*)?(\d[\d\s.,]*)\s*(?:\$|USD|CDF|FC|€)", primary_text, re.I):
+                parsed = _decimal_price(raw)
+                if parsed is not None:
+                    prices.append(parsed)
+        if not prices:
+            return None
+        price = prices[0]
+
     lowered = primary_text.lower()
-    sku_node = primary.select_one(".sku, [itemprop='sku']")
+    sku_node = primary.select_one(".sku, [itemprop='sku']") if hasattr(primary, "select_one") else None
     image_node = soup.select_one(".woocommerce-product-gallery img, .product img")
     return StructuredProductData(
-        name, prices[0], normalize_currency_code(_currency_from_text(primary_text)),
+        name,
+        price,
+        normalize_currency_code(_currency_from_text(primary_text)),
         not any(token in lowered for token in ("rupture", "out of stock", "sold out", "indisponible")),
         sku_node.get_text(" ", strip=True) if sku_node else None,
         image_url=((image_node.get("data-large_image") or image_node.get("src") or "").strip() if image_node else ""),
@@ -191,7 +247,6 @@ def extract_woocommerce_product(html: str) -> StructuredProductData | None:
 
 
 def _query_from_document_url(html: str) -> str:
-    """Infer the requested product from canonical or OpenGraph URL."""
     soup = BeautifulSoup(html, "html.parser")
     candidates = []
     canonical = soup.find("link", attrs={"rel": "canonical"})
@@ -239,7 +294,10 @@ def extract_matching_product_card(html: str, query: str) -> StructuredProductDat
             continue
         image_node = card.find("img") if hasattr(card, "find") else None
         best = StructuredProductData(
-            title, min(prices), normalize_currency_code(_currency_from_text(card_text)), True,
+            title,
+            min(prices),
+            normalize_currency_code(_currency_from_text(card_text)),
+            True,
             image_url=((image_node.get("src") or image_node.get("data-src") or "").strip() if image_node else ""),
             source="html",
         )
@@ -257,10 +315,6 @@ def _candidate_matches_query(candidate: StructuredProductData | None, query: str
 
 def extract_structured_product(html: str, query: str | None = None) -> StructuredProductData | None:
     inferred_query = query or _query_from_document_url(html)
-
-    # On stale Shopify pages, generic JSON-LD/meta data may describe another
-    # recommendation or collection item. Never trust it if it conflicts with
-    # the requested product encoded in the document URL.
     for candidate in (
         extract_jsonld_product(html),
         extract_meta_product(html),
@@ -270,5 +324,4 @@ def extract_structured_product(html: str, query: str | None = None) -> Structure
             continue
         if not inferred_query or _candidate_matches_query(candidate, inferred_query):
             return candidate
-
     return extract_matching_product_card(html, inferred_query) if inferred_query else None
