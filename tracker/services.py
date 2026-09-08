@@ -26,6 +26,7 @@ from tracker.catalog import find_fresh_cached_listings
 from tracker.catalog_matching import get_or_create_canonical_product
 from tracker.currency import normalize_currency_code
 from tracker.extractors import extract_structured_product
+from tracker.market_coverage import distinct_merchant_count
 from tracker.models import PriceListing, Retailer
 from tracker.product_matching import match_product
 from tracker.retailer_trust import refresh_retailer_trust
@@ -244,32 +245,37 @@ def search_and_scrape_product(product_query,site_filter="all",model_name=None,ma
     cleanup_stale_listings(days=getattr(settings,"LISTING_STALE_DAYS",30));selected=(model_name or get_llm_config()["default_model"]).strip();results=[];errors=[];site_filter=(site_filter or "all").strip() or "all";country=getattr(settings,"DEFAULT_SEARCH_COUNTRY","RDC");site_filters=[] if site_filter=="all" else [p.strip() for p in site_filter.split(",") if p.strip()]
     for site in site_filters:ensure_retailer_for_site(site)
     cache_hosts=[normalize_site_filter(site)[0] for site in site_filters];cached=find_fresh_cached_listings(product_query,site_hosts=cache_hosts)
-    if cached:return cached,[]
-    search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters] if site_filters else [f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix']
-    urls=[];search_errors=[];candidate_limit=max(max_results*4,12)
+    target_merchants=1 if site_filters else max(2,int(getattr(settings,"MARKET_COVERAGE_TARGET",max_results)))
+    if cached and (site_filters or distinct_merchant_count(cached)>=target_merchants):return cached,[]
+    if cached:results.extend(cached)
+    search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters] if site_filters else [f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix',f'{product_query} vendeur {country}',f'{product_query} magasin Kinshasa']
+    urls=[];search_errors=[];candidate_limit=max(target_merchants*8,max_results*6,18)
     for term in search_terms:
         try:found=_collect_search_urls(term,max_results=candidate_limit)
         except Exception as exc:search_errors.append(str(exc));continue
         for url in found:
             if url not in urls:urls.append(url)
+        # Continue across query formulations until we have a broad candidate pool.
         if len(urls)>=candidate_limit:break
     allowed_hosts=[normalize_site_filter(site)[0] for site in site_filters]
     for url in urls:
         listing,error=process_url_and_save(url,model_name=selected,expected_query=product_query,allowed_hosts=allowed_hosts)
         if listing:results.append(listing)
         elif error and error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
-        if len(_deduplicate_results(results))>=max_results and not site_filters:break
-    if len(_deduplicate_results(results))<max_results:
-        fallback_domains=cache_hosts or _known_merchant_domains()
+        deduped=_deduplicate_results(results)
+        if not site_filters and distinct_merchant_count(deduped)>=target_merchants:break
+    deduped=_deduplicate_results(results)
+    if distinct_merchant_count(deduped)<target_merchants:
+        fallback_domains=cache_hosts or _known_merchant_domains(limit=max(20,target_merchants*5))
         if fallback_domains:
-            try:fallback_urls=discover_product_urls(product_query,fallback_domains,max_results=max_results*2)
+            try:fallback_urls=discover_product_urls(product_query,fallback_domains,max_results=max(target_merchants*4,max_results*2))
             except Exception as exc:search_errors.append(str(exc));fallback_urls=[]
             for url in fallback_urls:
                 if url in urls:continue
                 listing,error=process_url_and_save(url,model_name=selected,expected_query=product_query,allowed_hosts=allowed_hosts)
                 if listing:results.append(listing)
                 elif error and error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
-                if len(_deduplicate_results(results))>=max_results:break
+                if distinct_merchant_count(_deduplicate_results(results))>=target_merchants:break
     results=_deduplicate_results(results);results.sort(key=_get_sort_rank)
     if results:return results,[]
     if search_errors and not urls:return [],["La recherche web n'a retourné aucune page marchande exploitable pour ce produit."]
