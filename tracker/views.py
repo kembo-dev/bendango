@@ -1,8 +1,10 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.shortcuts import render
 
 from .discovery_sources import discover_social_sources
 from .forms import SearchOrScrapeForm
+from .market_coverage import coverage_summary
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save, search_and_scrape_product
@@ -48,17 +50,15 @@ def scrape_view(request):
             listings = attach_offer_quality(listings)
             listings = sorted(listings, key=offer_sort_key)
             listings = attach_price_history_stats(listings)
-
             recommended_listing = listings[0]
             in_stock_listings = [item for item in listings if item.in_stock]
             cheapest_listing = min(in_stock_listings or listings, key=_comparison_price)
-
             normalized_prices = [_comparison_price(item) for item in listings]
             average_price = sum(normalized_prices) / len(normalized_prices)
             recommended_price = _comparison_price(recommended_listing)
             savings = average_price - recommended_price
             savings_percent = (savings / average_price * 100) if average_price else 0
-
+            target_merchants = 1 if query.startswith(("http://", "https://")) or site != "all" else int(getattr(settings, "MARKET_COVERAGE_TARGET", 3))
             summary = {
                 "recommended_listing": recommended_listing,
                 "cheapest_listing": cheapest_listing,
@@ -69,6 +69,7 @@ def scrape_view(request):
                 "currency": recommended_listing.normalized_currency or "USD",
                 "offer_count": len(listings),
                 "top_offers": listings[:3],
+                "coverage": coverage_summary(listings, target_merchants),
             }
     else:
         form = SearchOrScrapeForm()
