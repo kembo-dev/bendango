@@ -11,7 +11,7 @@ VARIANT_TOKENS = {"pro", "max", "plus", "ultra", "mini", "lite", "fe", "se"}
 CAPACITY_RE = re.compile(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", re.IGNORECASE)
 RAM_AFTER_RE = re.compile(r"\b(\d+)\s*(gb|go)\s*(?:de\s+)?ram\b", re.IGNORECASE)
 RAM_BEFORE_RE = re.compile(r"\bram\s*(\d+)\s*(gb|go)\b", re.IGNORECASE)
-SLASH_RE = re.compile(r"\b(\d+)\s*(?:gb|go)?\s*/\s*(\d+)\s*(gb|go|tb|to)\b", re.IGNORECASE)
+COMPACT_RE = re.compile(r"\b(\d{1,2})\s*(?:gb|go)?\s*[+/]\s*(\d{2,4})\s*(gb|go|tb|to)?\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -31,9 +31,9 @@ def _variant_tokens(name: str) -> set[str]:
     return set(normalize_product_name(name).split()) & VARIANT_TOKENS
 
 
-def _to_gb(amount: str, unit: str) -> int | None:
+def _to_gb(amount: str, unit: str | None) -> int | None:
     value = int(amount)
-    normalized = unit.lower()
+    normalized = (unit or "gb").lower()
     if normalized in {"tb", "to"}:
         return value * 1024
     if normalized in {"gb", "go"}:
@@ -43,12 +43,13 @@ def _to_gb(amount: str, unit: str) -> int | None:
 
 def capacity_profile(name: str) -> CapacityProfile:
     text = (name or "").lower()
-    slash = SLASH_RE.search(text)
-    if slash:
-        first = int(slash.group(1))
-        second = _to_gb(slash.group(2), slash.group(3))
-        if second is not None and first <= 64 and second > first:
-            return CapacityProfile(ram_gb=first, storage_gb=second)
+
+    compact = COMPACT_RE.search(text)
+    if compact:
+        ram = int(compact.group(1))
+        storage = _to_gb(compact.group(2), compact.group(3))
+        if ram <= 64 and storage is not None and storage > ram:
+            return CapacityProfile(ram_gb=ram, storage_gb=storage)
 
     explicit_ram = None
     ram_match = RAM_AFTER_RE.search(text) or RAM_BEFORE_RE.search(text)
@@ -74,7 +75,6 @@ def capacity_profile(name: str) -> CapacityProfile:
 
     if len(unique) == 1:
         value = unique[0]
-        # A lone small GB value can be RAM or storage. Do not create a false conflict.
         return CapacityProfile(storage_gb=value if value > 64 else None)
 
     return CapacityProfile()
@@ -95,6 +95,11 @@ def has_variant_conflict(left: str, right: str) -> bool:
     return False
 
 
+def _matching_name(name: str) -> str:
+    compact = COMPACT_RE.sub(lambda m: f"{m.group(1)}GB {m.group(2)}{m.group(3) or 'GB'}", name or "")
+    return normalize_product_name(compact)
+
+
 def resolve_canonical_product(product_name: str, *, sku_or_ean: str | None = None, minimum_score: float = 0.82) -> CanonicalResolution:
     name = (product_name or "").strip()
     sku = (sku_or_ean or "").strip()
@@ -103,7 +108,7 @@ def resolve_canonical_product(product_name: str, *, sku_or_ean: str | None = Non
         if product:
             return CanonicalResolution(product, 1.0, "sku/ean identique")
 
-    normalized = normalize_product_name(name)
+    normalized = _matching_name(name)
     if not normalized:
         return CanonicalResolution(None, 0.0, "nom produit vide")
 
@@ -111,11 +116,11 @@ def resolve_canonical_product(product_name: str, *, sku_or_ean: str | None = Non
     best_score = 0.0
     best_reason = "aucun produit canonique compatible"
     for product in Product.objects.all().only("id", "name", "sku_or_ean"):
-        if normalize_product_name(product.name) == normalized:
+        if _matching_name(product.name) == normalized:
             return CanonicalResolution(product, 1.0, "nom normalisé identique")
         if has_variant_conflict(name, product.name):
             continue
-        result = match_product(name, product.name, threshold=minimum_score)
+        result = match_product(_matching_name(name), _matching_name(product.name), threshold=minimum_score)
         if result.is_match and result.score > best_score:
             best_product = product
             best_score = result.score
