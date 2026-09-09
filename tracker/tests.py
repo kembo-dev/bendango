@@ -162,11 +162,11 @@ class SearchResultDisplayTests(TestCase):
         self.assertContains(response, "Produit test"); self.assertContains(response, "Test Shop"); self.assertContains(response, "Rupture"); self.assertContains(response, "https://example.com/produit")
 
     @patch("tracker.views.search_and_scrape_product")
-    def test_scrape_view_marks_best_price(self, mock_search):
+    def test_scrape_view_marks_lowest_price(self, mock_search):
         retailer_a = Retailer.objects.create(name="Shop A", base_url="https://shop-a.example"); retailer_b = Retailer.objects.create(name="Shop B", base_url="https://shop-b.example"); product = Product.objects.create(name="Produit test", sku_or_ean="XYZ789")
         mock_search.return_value = ([PriceListing.objects.create(product=product, retailer=retailer_b, url="https://shop-b.example/produit", price="199.99", currency="EUR", in_stock=True), PriceListing.objects.create(product=product, retailer=retailer_a, url="https://shop-a.example/produit", price="99.99", currency="EUR", in_stock=True)], [])
         response = self.client.post(reverse("scrape_view"), {"site": "", "query": "Produit test", "model_name": "qwen2.5-coder:7b"})
-        self.assertContains(response, "Meilleur prix"); self.assertContains(response, "99.99 EUR")
+        self.assertContains(response, "Prix le plus bas"); self.assertContains(response, "99.99 EUR")
 
     @patch("tracker.views.search_and_scrape_product")
     def test_scrape_view_prefers_in_stock_offer_over_cheaper_out_of_stock(self, mock_search):
