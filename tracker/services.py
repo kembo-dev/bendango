@@ -145,7 +145,6 @@ def _confidence_for(source,match_score,has_sku):
 
 
 def _is_plausible_price(price, currency):
-    """Reject obvious extraction errors using a configurable normalized ceiling."""
     try:
         amount=Decimal(str(price))
     except Exception:
@@ -192,7 +191,10 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
                 return None,f"Produit non pertinent ({preliminary_match.reason}, score={preliminary_match.score:.2f})."
 
     extracted,source=_structured_to_extracted(html,query=expected_query)
-    if extracted is None and expected_query and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
+    # Search-discovered URLs are filtered aggressively before spending an LLM call.
+    # Direct/programmatic URL checks can still reach extraction so a true product
+    # mismatch is reported as such rather than being hidden behind a structure error.
+    if extracted is None and expected_query and allowed_hosts is not None and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
     name=(extracted.product_name or "").strip();currency=normalize_currency_code(extracted.currency);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
