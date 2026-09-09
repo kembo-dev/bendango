@@ -2,12 +2,13 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.shortcuts import render
 
+from .adaptive_engine import search_and_scrape_product
 from .discovery_sources import discover_social_sources
 from .forms import SearchOrScrapeForm
 from .market_coverage import coverage_summary
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
-from .services import process_url_and_save, search_and_scrape_product
+from .services import process_url_and_save
 
 
 def _comparison_price(listing):
