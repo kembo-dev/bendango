@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 
 BLOCKED_HOSTS = {
@@ -35,6 +35,7 @@ def is_low_value_candidate_url(url: str) -> bool:
     host = parsed.netloc.lower().removeprefix("www.")
     path = (parsed.path or "").lower()
     query = (parsed.query or "").lower()
+    query_params = parse_qs(parsed.query or "")
 
     if not host:
         return True
@@ -45,6 +46,8 @@ def is_low_value_candidate_url(url: str) -> bool:
     if any(marker in path for marker in BLOCKED_PATH_MARKERS):
         return True
     if host.endswith("fnac.com") and FNAC_LISTING_PATTERN.search(path):
+        return True
+    if "amazon." in host and path.rstrip("/") == "/s" and "k" in query_params:
         return True
     if re.search(r"\.(pdf|txt|docx?|epub|xml|csv|zip)$", path):
         return True
