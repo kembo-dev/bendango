@@ -24,7 +24,7 @@ except ImportError:
 
 from tracker.catalog import find_fresh_cached_listings
 from tracker.catalog_matching import get_or_create_canonical_product
-from tracker.currency import normalize_currency_code
+from tracker.currency import normalize_currency_code, normalize_to_usd
 from tracker.extractors import extract_structured_product
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import PriceListing, Retailer
@@ -144,6 +144,19 @@ def _confidence_for(source,match_score,has_sku):
     base={"jsonld":.92,"shopify":.88,"meta":.84,"llm":.76,"html":.62,"cache":.70}.get(source,.55);score=base+(.04 if has_sku else 0)+(.04*max(0,min(match_score,1)));return Decimal(str(round(min(score,.99),4)))
 
 
+def _is_plausible_price(price, currency):
+    """Reject obvious extraction errors using a configurable normalized ceiling."""
+    try:
+        amount=Decimal(str(price))
+    except Exception:
+        return False
+    if amount<=0:return False
+    normalized=normalize_to_usd(amount,currency)
+    if normalized is None:return True
+    max_usd=Decimal(str(getattr(settings,"BENDANGO_MAX_NORMALIZED_PRICE_USD",100000)))
+    return normalized<=max_usd
+
+
 def _cached_listing_for_url(url,expected_query=None):
     listing=PriceListing.objects.select_related("product","retailer").filter(url=url,is_active=True).order_by("-scraped_at").first()
     if listing is None:return None
@@ -171,9 +184,6 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
     if not html:return (cached,None) if cached else (None,"Impossible de récupérer le contenu de la page web.")
     if _is_not_found_page(html):_deactivate_listing_for_url(url);return None,"Page introuvable ou URL produit inexistante."
 
-    # Detect a clear structured product mismatch before the general structure
-    # guard. Otherwise a valid product page for the wrong item is misreported
-    # as "sans structure de produit exploitable".
     if expected_query:
         raw_structured=extract_structured_product(html,query=None)
         if raw_structured is not None:
@@ -186,7 +196,7 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
     name=(extracted.product_name or "").strip();currency=normalize_currency_code(extracted.currency);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
-    if not name or name.lower() in {"unknown","inconnu","n/a","na"} or price<=0:return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
+    if not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
     match=match_product(expected_query,name) if expected_query else None
     if match and not match.is_match:return (cached,None) if cached else (None,f"Produit non pertinent ({match.reason}, score={match.score:.2f}).")
     match_score=match.score if match else 1.0;host=(parsed.netloc or "").lower().removeprefix("www.");base=f"{parsed.scheme}://{parsed.netloc}"
