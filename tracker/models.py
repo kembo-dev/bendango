@@ -86,6 +86,27 @@ class PriceListing(models.Model):
         ratio = max(Decimal(old_normalized), Decimal(new_normalized_price)) / min(Decimal(old_normalized), Decimal(new_normalized_price))
         return ratio >= Decimal('10')
 
+    def _repair_stale_currency_history(self):
+        """Repair old snapshots created with a wrong currency label for the same raw amount."""
+        if not self.pk or self.normalized_price is None or self.normalized_price <= 0:
+            return 0
+
+        repaired = 0
+        stale = PriceHistory.objects.filter(listing=self, price=self.price).exclude(currency=self.currency)
+        for snapshot in stale:
+            if snapshot.normalized_price is None or snapshot.normalized_price <= 0:
+                continue
+            ratio = max(Decimal(snapshot.normalized_price), Decimal(self.normalized_price)) / min(Decimal(snapshot.normalized_price), Decimal(self.normalized_price))
+            if ratio < Decimal('10'):
+                continue
+            PriceHistory.objects.filter(pk=snapshot.pk).update(
+                currency=self.currency,
+                normalized_price=self.normalized_price,
+                normalized_currency=self.normalized_currency,
+            )
+            repaired += 1
+        return repaired
+
     def save(self, *args, **kwargs):
         from tracker.currency import normalize_to_usd
         previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'normalized_price', 'in_stock').first() if self.pk else None
@@ -98,9 +119,6 @@ class PriceListing(models.Model):
         result = super().save(*args, **kwargs)
 
         if currency_correction:
-            # Historical snapshots with the exact same raw amount and old currency were
-            # created from the same extraction mistake. Repair them in place so a
-            # currency-label fix does not appear as a -99%/+10000% market movement.
             PriceHistory.objects.filter(
                 listing=self,
                 price=self.price,
@@ -110,7 +128,13 @@ class PriceListing(models.Model):
                 normalized_price=self.normalized_price,
                 normalized_currency=self.normalized_currency,
             )
-            # Ensure there is at least one corrected snapshot for this state.
+
+        # Always repair stale snapshots as well. This matters when a previous request
+        # already corrected the current listing currency but left old history behind.
+        self._repair_stale_currency_history()
+
+        changed = previous is None or previous['price'] != self.price or previous['currency'] != self.currency or previous['in_stock'] != self.in_stock
+        if currency_correction:
             if not PriceHistory.objects.filter(
                 listing=self,
                 price=self.price,
@@ -125,11 +149,15 @@ class PriceListing(models.Model):
                     normalized_currency=self.normalized_currency,
                     in_stock=self.in_stock,
                 )
-            return result
-
-        changed = previous is None or previous['price'] != self.price or previous['currency'] != self.currency or previous['in_stock'] != self.in_stock
-        if changed:
-            PriceHistory.objects.create(listing=self, price=self.price, currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency, in_stock=self.in_stock)
+        elif changed:
+            PriceHistory.objects.create(
+                listing=self,
+                price=self.price,
+                currency=self.currency,
+                normalized_price=self.normalized_price,
+                normalized_currency=self.normalized_currency,
+                in_stock=self.in_stock,
+            )
         return result
 
     def __str__(self):
