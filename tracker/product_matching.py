@@ -9,6 +9,7 @@ ACCESSORY_TOKENS = {
     "screen", "verre", "chargeur", "charger", "cable", "câble", "adapter",
     "adaptateur", "support", "holder", "bracelet", "strap", "battery", "batterie",
     "ecouteur", "ecouteurs", "earbuds", "headset", "vitre", "film",
+    "boitier", "boîtier", "enclosure", "dock", "station",
 }
 
 STORAGE_PATTERN = re.compile(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", re.IGNORECASE)
@@ -27,10 +28,6 @@ def normalize_product_name(value: str) -> str:
     value = "".join(char for char in value if not unicodedata.combining(char))
     value = value.lower()
     value = re.sub(r"\b(pro|max|plus|ultra)\s+(max|plus|ultra)\b", r"\1 \2", value)
-
-    # Canonicalize capacities before punctuation/whitespace cleanup so merchant
-    # titles such as "128 GB", "128GB", "128 Go" and "128Go" produce the
-    # same token. French Go/To are normalized to GB/TB for cross-shop matching.
     value = re.sub(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", _normalize_capacity_match, value)
     value = re.sub(r"[^a-z0-9]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
@@ -75,6 +72,15 @@ def _variant_conflict(query: str, candidate: str) -> str | None:
     return None
 
 
+def _is_generic_containment(query: str, candidate: str) -> bool:
+    """Allow short category-like product queries when every essential token is present."""
+    query_tokens = _tokens(query)
+    candidate_tokens = _tokens(candidate)
+    if not query_tokens or len(query_tokens) > 3:
+        return False
+    return query_tokens.issubset(candidate_tokens)
+
+
 def product_match_score(query: str, candidate: str) -> float:
     """Return a conservative similarity score from 0 to 1."""
     left = normalize_product_name(query)
@@ -101,6 +107,9 @@ def product_match_score(query: str, candidate: str) -> float:
     if _variant_conflict(left, right):
         score *= 0.45
 
+    if _is_generic_containment(left, right):
+        score = max(score, 0.86)
+
     return round(max(0.0, min(score, 1.0)), 4)
 
 
@@ -122,6 +131,9 @@ def match_product(query: str, candidate: str, threshold: float = 0.72) -> Produc
 
     if left in right or right in left:
         return ProductMatchResult(True, max(score, 0.9), "nom contenu dans l'autre intitulé")
+
+    if _is_generic_containment(left, right):
+        return ProductMatchResult(True, max(score, 0.86), "requête générique contenue dans l'intitulé")
 
     if score >= threshold:
         return ProductMatchResult(True, score, "similarité suffisante")
