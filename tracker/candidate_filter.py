@@ -22,6 +22,9 @@ PRODUCT_PATH_MARKERS = (
 )
 
 
+FNAC_LISTING_PATTERN = re.compile(r"/(?:n?shi)\d+(?:/[^/?#]+)*/w-\d+(?:/|$)", re.IGNORECASE)
+
+
 def _host_matches(host: str, blocked: str) -> bool:
     return host == blocked or host.endswith("." + blocked)
 
@@ -40,6 +43,8 @@ def is_low_value_candidate_url(url: str) -> bool:
     if host == "bing.com" and path.startswith("/aclick"):
         return True
     if any(marker in path for marker in BLOCKED_PATH_MARKERS):
+        return True
+    if host.endswith("fnac.com") and FNAC_LISTING_PATTERN.search(path):
         return True
     if re.search(r"\.(pdf|txt|docx?|epub|xml|csv|zip)$", path):
         return True
