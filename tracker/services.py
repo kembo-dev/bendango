@@ -94,19 +94,38 @@ def fetch_and_clean_html(url):
 
 
 def _parse_fallback_price(raw):
-    value=raw.replace(" ","").strip()
+    value=raw.replace("\xa0"," ").replace(" ","").strip()
     if "," in value and "." in value:value=value.replace(".","").replace(",",".") if value.rfind(",")>value.rfind(".") else value.replace(",","")
     elif "," in value:value=value.replace(",",".") if len(value.rsplit(",",1)[1])<=2 else value.replace(",","")
     elif value.count(".")==1 and len(value.rsplit(".",1)[1])>2:value=value.replace(".","")
     return float(value)
 
 
+def _detect_page_currency(text):
+    """Prefer explicit currency markers present on the merchant page."""
+    value=(text or "").replace("\xa0"," ")
+    checks=[
+        (r"\bXOF\b|\bFCFA\b|\bF\s*CFA\b|\bCFA\b","XOF"),
+        (r"\bXAF\b","XAF"),
+        (r"\bCDF\b|\bFC\b","CDF"),
+        (r"\bUSD\b|\$","USD"),
+        (r"\bEUR\b|€","EUR"),
+    ]
+    for pattern,currency in checks:
+        if re.search(pattern,value,re.I):
+            return normalize_currency_code(currency,context=value)
+    return None
+
+
 def _fallback_extract_html(html_snippet):
-    soup=BeautifulSoup(html_snippet,"html.parser");title=soup.title.get_text(" ",strip=True) if soup.title else "";heading=" ".join(n.get_text(" ",strip=True) for n in soup.find_all(["h1","h2","h3"])[:3]);product_name=re.sub(r"\s+"," ",title or heading).strip();text=soup.get_text(" ",strip=True)
-    patterns=[r"(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?)\s*(?:€|EUR|USD|CDF|FC|\$)",r"(?:€|EUR|USD|CDF|FC|\$)\s*(\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?)"]
-    raw=next((m.group(1) for p in patterns if (m:=re.search(p,text,flags=re.I))),None)
-    if not raw:return None
-    currency="CDF" if re.search(r"\bCDF\b|\bFC\b",text,re.I) else "USD" if re.search(r"\bUSD\b|\$",text,re.I) else "EUR";lower=text.lower();stock=not any(t in lower for t in ["rupture","épuisé","epuise","indisponible","out of stock","sold out"])
+    soup=BeautifulSoup(html_snippet,"html.parser");title=soup.title.get_text(" ",strip=True) if soup.title else "";heading=" ".join(n.get_text(" ",strip=True) for n in soup.find_all(["h1","h2","h3"])[:3]);product_name=re.sub(r"\s+"," ",title or heading).strip();text=soup.get_text(" ",strip=True).replace("\xa0"," ")
+    amount=r"\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?"
+    token=r"XOF|XAF|FCFA|F\s*CFA|CFA|CDF|FC|USD|EUR|€|\$"
+    after=re.search(rf"(?P<amount>{amount})\s*(?P<currency>{token})",text,flags=re.I)
+    before=re.search(rf"(?P<currency>{token})\s*(?P<amount>{amount})",text,flags=re.I)
+    match=after or before
+    if not match:return None
+    raw=match.group("amount");currency=normalize_currency_code(match.group("currency"),context=text);lower=text.lower();stock=not any(t in lower for t in ["rupture","épuisé","epuise","indisponible","out of stock","sold out"])
     return ExtractedProductData(product_name=product_name or "Produit non identifié",price=_parse_fallback_price(raw),currency=currency,in_stock=stock)
 
 
@@ -170,7 +189,7 @@ def _has_exploitable_product_structure(html):
     if not html:return False
     soup=BeautifulSoup(html,"html.parser");text=soup.get_text(" ",strip=True)
     if len(text)<40:return False
-    lower=text.lower();price=bool(re.search(r"(?:€|eur|usd|cdf|fc|\$)\s*\d|\d[\d\s\.,]*\s*(?:€|eur|usd|cdf|fc|\$)",text,re.I));signal=any(t in lower for t in ["prix","price","en stock","in stock","sku","ean","product","produit","ajouter au panier","add to cart","acheter","buy now"])
+    lower=text.lower();price=bool(re.search(r"(?:€|eur|usd|xof|xaf|cfa|fcfa|cdf|fc|\$)\s*\d|\d[\d\s\.,]*\s*(?:€|eur|usd|xof|xaf|cfa|fcfa|cdf|fc|\$)",text,re.I));signal=any(t in lower for t in ["prix","price","en stock","in stock","sku","ean","product","produit","ajouter au panier","add to cart","acheter","buy now"])
     return signal and len(soup.find_all(["h1","h2","h3","p","div","span"]))>=2 and not (any(t in lower for t in ["bienvenue","newsletter","contact","blog"]) and not price)
 
 
@@ -194,7 +213,8 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
     if extracted is None and expected_query and allowed_hosts is not None and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
-    name=(extracted.product_name or "").strip();currency=normalize_currency_code(extracted.currency);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
+    page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text)
+    name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
     if not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
     match=match_product(expected_query,name) if expected_query else None
     if match and not match.is_match:return (cached,None) if cached else (None,f"Produit non pertinent ({match.reason}, score={match.score:.2f}).")
