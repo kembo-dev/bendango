@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -73,14 +75,58 @@ class PriceListing(models.Model):
         if self.match_score is not None and not (0 <= self.match_score <= 1):
             raise ValidationError({'match_score': 'Le score de matching doit être compris entre 0 et 1.'})
 
+    @staticmethod
+    def _is_currency_correction(previous, new_price, new_currency, new_normalized_price):
+        """Detect an obvious currency-label repair rather than a real market price change."""
+        if not previous or previous['currency'] == new_currency or previous['price'] != new_price:
+            return False
+        old_normalized = previous.get('normalized_price')
+        if old_normalized is None or new_normalized_price is None or old_normalized <= 0 or new_normalized_price <= 0:
+            return False
+        ratio = max(Decimal(old_normalized), Decimal(new_normalized_price)) / min(Decimal(old_normalized), Decimal(new_normalized_price))
+        return ratio >= Decimal('10')
+
     def save(self, *args, **kwargs):
         from tracker.currency import normalize_to_usd
-        previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'in_stock').first() if self.pk else None
+        previous = PriceListing.objects.filter(pk=self.pk).values('price', 'currency', 'normalized_price', 'in_stock').first() if self.pk else None
         self.currency = (self.currency or '').upper()
         self.normalized_currency = 'USD'
         self.normalized_price = normalize_to_usd(self.price, self.currency)
         self.full_clean()
+
+        currency_correction = self._is_currency_correction(previous, self.price, self.currency, self.normalized_price)
         result = super().save(*args, **kwargs)
+
+        if currency_correction:
+            # Historical snapshots with the exact same raw amount and old currency were
+            # created from the same extraction mistake. Repair them in place so a
+            # currency-label fix does not appear as a -99%/+10000% market movement.
+            PriceHistory.objects.filter(
+                listing=self,
+                price=self.price,
+                currency=previous['currency'],
+            ).update(
+                currency=self.currency,
+                normalized_price=self.normalized_price,
+                normalized_currency=self.normalized_currency,
+            )
+            # Ensure there is at least one corrected snapshot for this state.
+            if not PriceHistory.objects.filter(
+                listing=self,
+                price=self.price,
+                currency=self.currency,
+                in_stock=self.in_stock,
+            ).exists():
+                PriceHistory.objects.create(
+                    listing=self,
+                    price=self.price,
+                    currency=self.currency,
+                    normalized_price=self.normalized_price,
+                    normalized_currency=self.normalized_currency,
+                    in_stock=self.in_stock,
+                )
+            return result
+
         changed = previous is None or previous['price'] != self.price or previous['currency'] != self.currency or previous['in_stock'] != self.in_stock
         if changed:
             PriceHistory.objects.create(listing=self, price=self.price, currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency, in_stock=self.in_stock)
