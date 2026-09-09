@@ -191,9 +191,6 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
                 return None,f"Produit non pertinent ({preliminary_match.reason}, score={preliminary_match.score:.2f})."
 
     extracted,source=_structured_to_extracted(html,query=expected_query)
-    # Search-discovered URLs are filtered aggressively before spending an LLM call.
-    # Direct/programmatic URL checks can still reach extraction so a true product
-    # mismatch is reported as such rather than being hidden behind a structure error.
     if extracted is None and expected_query and allowed_hosts is not None and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
@@ -218,8 +215,7 @@ def _is_homepage_url(url):
     parsed=urlparse(url)
     if not parsed.netloc:return True
     path=(parsed.path or "").strip("/").lower()
-    if not path or path in {"fr","en","es","de","it","pt","ar","ru","zh","tr","sw"}:return True
-    parts=[p for p in path.split("/") if p];return len(parts)==1 and parts[0] not in {"products","product","produits","produit"}
+    return not path or path in {"fr","en","es","de","it","pt","ar","ru","zh","tr","sw"}
 
 
 def _is_category_or_listing_url(url):
