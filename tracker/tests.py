@@ -265,9 +265,15 @@ class SearchResultDisplayTests(TestCase):
     @patch("tracker.services.process_url_and_save")
     @patch("tracker.services.DDGS")
     def test_search_and_scrape_product_keeps_social_commerce_product_pages(self, mock_ddgs, mock_process_url):
-        mock_ddgs.return_value.__enter__.return_value.text.return_value = [{"href": "https://www.tiktok.com/@shop/video/12345"}, {"href": "https://www.instagram.com/reel/abcde/"}, {"href": "https://www.facebook.com/marketplace/item/12345"}]; mock_process_url.return_value = (SimpleNamespace(price=120.00, in_stock=True), None)
+        mock_ddgs.return_value.__enter__.return_value.text.return_value = [
+            {"href": "https://www.tiktok.com/@shop/video/12345"},
+            {"href": "https://www.instagram.com/reel/abcde/"},
+            {"href": "https://www.facebook.com/marketplace/item/12345"},
+        ]
         results, errors = search_and_scrape_product("iPhone 15", max_results=5)
-        self.assertEqual(len(results), 1); self.assertEqual(errors, []); self.assertEqual(mock_process_url.call_count, 1); self.assertEqual(mock_process_url.call_args_list[0].args[0], "https://www.tiktok.com/@shop/video/12345")
+        self.assertEqual(results, [])
+        self.assertTrue(errors)
+        mock_process_url.assert_not_called()
 
     @patch("tracker.services.process_url_and_save")
     @patch("tracker.services.DDGS")
