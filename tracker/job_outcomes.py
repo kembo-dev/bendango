@@ -1,12 +1,10 @@
 from __future__ import annotations
 
+from django.conf import settings
+
 
 def classify_processing_error(error: str | None) -> tuple[str, bool]:
-    """Map user-facing processing errors to stable operational categories.
-
-    Returns (fetch_status, retryable). The categories are intentionally compact so
-    monitoring can aggregate them across workers and releases.
-    """
+    """Map user-facing processing errors to stable operational categories."""
     text = (error or "").strip().lower()
     if not text:
         return "processing_failure", False
@@ -33,3 +31,19 @@ def classify_processing_error(error: str | None) -> tuple[str, bool]:
         return "homepage", False
 
     return "processing_failure", False
+
+
+def should_retry_job(fetch_status: str, attempts: int, retryable: bool) -> bool:
+    """Decide whether the persistent queue should retry after inner fetch retries.
+
+    The HTTP collector already retries transient network failures internally. By
+    default the persistent queue therefore grants at most one additional delayed
+    attempt for fetch/anti-bot failures, instead of multiplying 3 transport attempts
+    by 3 queue attempts.
+    """
+    if not retryable:
+        return False
+    if fetch_status in {"fetch_failed", "anti_bot"}:
+        max_queue_attempts = max(1, int(getattr(settings, "SCRAPE_JOB_FETCH_MAX_ATTEMPTS", 2)))
+        return int(attempts or 0) < max_queue_attempts
+    return True
