@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase, override_settings
 
-from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms, recent_failure_profile
+from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms, is_broad_product_query, recent_failure_profile
 from tracker.models import SearchDiagnostic
 
 
@@ -33,6 +33,27 @@ class AdaptiveSearchPlanningTests(TestCase):
         )
         self.assertIn("MacBook Air M4 revendeur RDC", terms)
         self.assertIn("MacBook Air M4 shop price", terms)
+
+    def test_broad_query_uses_transactional_terms(self):
+        terms = build_adaptive_search_terms("guitare", country="RDC", diagnostics=Counter())
+        self.assertTrue(is_broad_product_query("guitare"))
+        self.assertTrue(any('"guitare"' in term and "acheter" in term for term in terms))
+        self.assertTrue(any("ajouter au panier" in term for term in terms))
+        self.assertNotIn("guitare prix", terms)
+
+    def test_model_query_is_not_treated_as_broad(self):
+        self.assertFalse(is_broad_product_query("iPhone 16e 256GB"))
+        terms = build_adaptive_search_terms("iPhone 16e 256GB", diagnostics=Counter())
+        self.assertIn("iPhone 16e 256GB prix", terms)
+
+    def test_broad_mismatch_recovery_keeps_shopping_intent(self):
+        terms = build_adaptive_search_terms(
+            "guitare",
+            country="RDC",
+            diagnostics=Counter({"product_mismatch": 4}),
+        )
+        self.assertTrue(any("acheter produit prix" in term for term in terms))
+        self.assertFalse(any("modèle exact" in term for term in terms))
 
     def test_recent_failure_profile_aggregates_diagnostics(self):
         SearchDiagnostic.objects.create(
