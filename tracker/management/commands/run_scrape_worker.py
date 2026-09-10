@@ -37,6 +37,9 @@ class Command(BaseCommand):
                     job.url,
                     model_name=job.model_name or None,
                     expected_query=job.query or None,
+                    # A non-None value enables the same cheap product-structure
+                    # prequalification used by Adaptive Search before LLM fallback.
+                    allowed_hosts=[],
                 )
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
                 if listing:
