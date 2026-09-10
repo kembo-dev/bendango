@@ -10,16 +10,20 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--domains", type=int, default=10, help="Number of problematic domains to display.")
+        parser.add_argument("--recent-hours", type=int, default=None, help="Only include jobs created in the last N hours.")
         parser.add_argument("--json", action="store_true", dest="as_json", help="Output metrics as JSON.")
 
     def handle(self, *args, **options):
-        metrics = queue_metrics(limit_domains=max(1, options["domains"]))
+        metrics = queue_metrics(limit_domains=max(1, options["domains"]), recent_hours=options["recent_hours"])
         if options["as_json"]:
             self.stdout.write(json.dumps(metrics, ensure_ascii=False, indent=2))
             return
 
         status = metrics["status"]
-        self.stdout.write(self.style.SUCCESS("Bendango Scrape Queue"))
+        title = "Bendango Scrape Queue"
+        if metrics["window_hours"]:
+            title += f" - last {metrics['window_hours']}h"
+        self.stdout.write(self.style.SUCCESS(title))
         self.stdout.write(f"Total jobs       : {metrics['total']}")
         self.stdout.write(f"Backlog          : {metrics['backlog']}")
         self.stdout.write(
