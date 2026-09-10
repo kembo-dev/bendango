@@ -20,13 +20,13 @@ class _Diagnostics:
 
 
 class AdaptiveQueueIntegrationTests(TestCase):
-    def _call(self, url='https://merchant.example/products/disk-1tb'):
+    def _call(self, url='https://merchant.example/products/disk-1tb', allowed_hosts=None):
         diagnostics = _Diagnostics()
         results = []
         errors = []
         _process_urls(
             [url], set(), results, errors, diagnostics,
-            'model', 'disque dur', [], 3, [],
+            'model', 'disque dur', allowed_hosts or [], 3, [],
         )
         return diagnostics, results, errors
 
@@ -51,6 +51,32 @@ class AdaptiveQueueIntegrationTests(TestCase):
         self.assertEqual(results, [])
         self.assertEqual(len(errors), 1)
         self.assertTrue(diagnostics.errors)
+
+    @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=True)
+    def test_sync_fallback_does_not_steal_running_job(self):
+        ScrapeJob.objects.create(
+            url='https://merchant.example/products/disk-1tb',
+            query='disque dur',
+            model_name='model',
+            status=ScrapeJob.STATUS_RUNNING,
+            attempts=1,
+            available_at=timezone.now(),
+            started_at=timezone.now(),
+        )
+        with patch('tracker.adaptive_engine.process_url_and_save') as process:
+            diagnostics, results, errors = self._call()
+        self.assertFalse(process.called)
+        job = ScrapeJob.objects.get()
+        self.assertEqual(job.status, ScrapeJob.STATUS_RUNNING)
+        self.assertEqual(job.attempts, 1)
+        self.assertEqual(results, [])
+        self.assertEqual(errors, [])
+
+    @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=True)
+    def test_sync_fallback_passes_allowed_hosts(self):
+        with patch('tracker.adaptive_engine.process_url_and_save', return_value=(None, 'Page sans structure de produit exploitable.')) as process:
+            self._call(allowed_hosts=['merchant.example'])
+        self.assertEqual(process.call_args.kwargs['allowed_hosts'], ['merchant.example'])
 
     @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=False)
     def test_async_mode_reuses_completed_listing_job(self):
