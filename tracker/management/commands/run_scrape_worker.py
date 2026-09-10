@@ -2,7 +2,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
-from tracker.job_outcomes import classify_processing_error
+from tracker.job_outcomes import classify_processing_error, should_retry_job
 from tracker.job_queue import claim_next_job, complete_job, fail_job, recover_stale_running_jobs
 from tracker.services import process_url_and_save
 
@@ -37,8 +37,6 @@ class Command(BaseCommand):
                     job.url,
                     model_name=job.model_name or None,
                     expected_query=job.query or None,
-                    # A non-None value enables the same cheap product-structure
-                    # prequalification used by Adaptive Search before LLM fallback.
                     allowed_hosts=[],
                 )
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
@@ -47,6 +45,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success ({duration_ms}ms)'))
                 else:
                     fetch_status, retryable = classify_processing_error(error)
+                    retryable = should_retry_job(fetch_status, job.attempts, retryable)
                     fail_job(
                         job,
                         error or "Échec de traitement.",
