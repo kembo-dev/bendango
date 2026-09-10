@@ -8,7 +8,9 @@ from django.conf import settings
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
+from tracker.job_queue import complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
+from tracker.models import ScrapeJob
 from tracker.search_diagnostics import SearchDiagnosticsRecorder
 from tracker.services import (
     _collect_search_urls,
@@ -31,7 +33,6 @@ def _append_unique(target, values):
 
 
 def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit):
-    """Execute a search pass while keeping only high-value candidates."""
     for term in search_terms:
         diagnostics.record_search_term()
         try:
@@ -52,10 +53,49 @@ def _domain(url):
     return urlparse(url).netloc.lower().removeprefix("www.")
 
 
+def _process_job_now(job, selected, product_query, diagnostics, errors):
+    if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
+        return job.listing
+
+    # Claiming is intentionally avoided here: the HTTP request path already owns
+    # this job. We still persist the same lifecycle used by the background worker.
+    job.status = ScrapeJob.STATUS_RUNNING
+    job.attempts += 1
+    from django.utils import timezone
+    job.started_at = timezone.now()
+    job.finished_at = None
+    job.save(update_fields=['status', 'attempts', 'started_at', 'finished_at', 'updated_at'])
+
+    try:
+        listing, error = process_url_and_save(
+            job.url,
+            model_name=selected,
+            expected_query=product_query,
+        )
+        if listing:
+            complete_job(job, listing=listing, fetch_status='processed_sync')
+            return listing
+
+        retryable = error == 'Impossible de récupérer le contenu de la page web.'
+        fail_job(job, error or "Échec de traitement.", retryable=retryable, fetch_status='processing_failure')
+        if error:
+            diagnostics.record_error(error)
+            if error != "Source non marchande ignorée.":
+                errors.append(f"{job.url}: {error}")
+        return None
+    except Exception as exc:
+        message = str(exc)
+        fail_job(job, message, retryable=True, fetch_status='sync_exception')
+        diagnostics.record_error(message)
+        errors.append(f"{job.url}: {message}")
+        return None
+
+
 def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters):
-    """Process product-like URLs, limiting repeated failures from the same domain."""
+    """Persist every candidate as ScrapeJob, with optional synchronous fallback."""
     domain_failures = Counter()
     max_failures_per_domain = int(getattr(settings, "ADAPTIVE_MAX_FAILURES_PER_DOMAIN", 2))
+    sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
 
     for url in urls:
         if url in processed_urls:
@@ -66,27 +106,42 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
 
         processed_urls.add(url)
         diagnostics.record_processed()
-        listing, error = process_url_and_save(
+        job = enqueue_scrape_job(
             url,
+            query=product_query,
             model_name=selected,
-            expected_query=product_query,
-            allowed_hosts=allowed_hosts,
+            max_attempts=int(getattr(settings, "SCRAPE_JOB_MAX_ATTEMPTS", 3)),
         )
+
+        listing = None
+        if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
+            listing = job.listing
+        elif sync_fallback:
+            listing = _process_job_now(job, selected, product_query, diagnostics, errors)
+        else:
+            # In async mode, a worker will process pending/retry jobs. Existing
+            # completed jobs can still surface immediately on later requests.
+            finished = ScrapeJob.objects.filter(
+                url=url,
+                query=product_query,
+                status=ScrapeJob.STATUS_SUCCESS,
+                listing__isnull=False,
+            ).select_related('listing').order_by('-finished_at').first()
+            if finished:
+                listing = finished.listing
+
         if listing:
             results.append(listing)
-        elif error:
-            if host:
+        else:
+            current = ScrapeJob.objects.filter(pk=job.pk).first()
+            if current and current.status == ScrapeJob.STATUS_FAILED and host:
                 domain_failures[host] += 1
-            diagnostics.record_error(error)
-            if error != "Source non marchande ignorée.":
-                errors.append(f"{url}: {error}")
 
         if not site_filters and distinct_merchant_count(_deduplicate_results(results)) >= target_merchants:
             break
 
 
 def search_and_scrape_product(product_query, site_filter="all", model_name=None, max_results=3):
-    """Adaptive Bendango search: learn from diagnostics and recover from current failures."""
     cleanup_stale_listings(days=getattr(settings, "LISTING_STALE_DAYS", 30))
     selected = (model_name or get_llm_config()["default_model"]).strip()
     results = []
@@ -120,18 +175,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
 
     _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit)
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
-    _process_urls(
-        urls,
-        processed_urls,
-        results,
-        errors,
-        diagnostics,
-        selected,
-        product_query,
-        allowed_hosts,
-        target_merchants,
-        site_filters,
-    )
+    _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters)
 
     if not site_filters and distinct_merchant_count(_deduplicate_results(results)) < target_merchants:
         recovery_terms = build_recovery_terms(product_query, errors + search_errors, country=country)
@@ -140,18 +184,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
             before = len(urls)
             _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2)
             if len(urls) > before:
-                _process_urls(
-                    urls,
-                    processed_urls,
-                    results,
-                    errors,
-                    diagnostics,
-                    selected,
-                    product_query,
-                    allowed_hosts,
-                    target_merchants,
-                    site_filters,
-                )
+                _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters)
 
     deduped = _deduplicate_results(results)
     if distinct_merchant_count(deduped) < target_merchants:
@@ -169,24 +202,15 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
                 diagnostics.record_error(message)
                 fallback_urls = []
             diagnostics.record_fallback_candidates(len(fallback_urls))
-            _process_urls(
-                fallback_urls,
-                processed_urls,
-                results,
-                errors,
-                diagnostics,
-                selected,
-                product_query,
-                allowed_hosts,
-                target_merchants,
-                site_filters,
-            )
+            _process_urls(fallback_urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters)
 
     results = _deduplicate_results(results)
     results.sort(key=_get_sort_rank)
     diagnostics.save(results)
     if results:
         return results, []
+    if not getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True) and urls:
+        return [], ["Recherche lancée en arrière-plan. Les offres seront disponibles après traitement de la file de collecte."]
     if search_errors and not urls:
         return [], ["La recherche web n'a retourné aucune page marchande exploitable pour ce produit."]
     return [], errors or ["Aucune page marchande exploitable n'a été trouvée pour ce produit."]
