@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -25,24 +26,78 @@ def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_atte
     )
 
 
+def recover_stale_running_jobs(timeout_seconds: int | None = None) -> int:
+    """Return abandoned running jobs to retry/failed state.
+
+    A worker can disappear after claiming a job. Jobs whose started_at is older than
+    the configured timeout are therefore released so another worker can continue.
+    """
+    if timeout_seconds is None:
+        timeout_seconds = int(getattr(settings, 'SCRAPE_JOB_RUNNING_TIMEOUT', 300))
+    timeout_seconds = max(1, int(timeout_seconds))
+    cutoff = timezone.now() - timedelta(seconds=timeout_seconds)
+    stale_ids = list(
+        ScrapeJob.objects.filter(
+            status=ScrapeJob.STATUS_RUNNING,
+            started_at__isnull=False,
+            started_at__lt=cutoff,
+        ).values_list('id', flat=True)
+    )
+    recovered = 0
+    for job_id in stale_ids:
+        with transaction.atomic():
+            job = ScrapeJob.objects.filter(pk=job_id, status=ScrapeJob.STATUS_RUNNING).first()
+            if not job:
+                continue
+            now = timezone.now()
+            if job.attempts < job.max_attempts:
+                job.status = ScrapeJob.STATUS_RETRY
+                job.available_at = now
+                job.last_error = 'Job running expiré: worker interrompu ou bloqué.'
+            else:
+                job.status = ScrapeJob.STATUS_FAILED
+                job.last_error = 'Job running expiré après le nombre maximal de tentatives.'
+            job.fetch_status = 'stale_worker'
+            job.finished_at = now
+            job.save(update_fields=['status', 'available_at', 'last_error', 'fetch_status', 'finished_at', 'updated_at'])
+            recovered += 1
+    return recovered
+
+
 def claim_next_job() -> ScrapeJob | None:
-    """Atomically claim one available pending/retry job."""
+    """Atomically claim one available job without double-claiming across workers.
+
+    The conditional UPDATE is intentional: select_for_update is not effective on
+    SQLite, while this compare-and-set approach also remains safe on PostgreSQL.
+    """
     now = timezone.now()
-    with transaction.atomic():
-        job = (
-            ScrapeJob.objects.select_for_update()
-            .filter(status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY], available_at__lte=now)
+    for _ in range(5):
+        candidate = (
+            ScrapeJob.objects.filter(
+                status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY],
+                available_at__lte=now,
+            )
             .order_by('available_at', 'created_at')
+            .values('id', 'status', 'attempts')
             .first()
         )
-        if not job:
+        if not candidate:
             return None
-        job.status = ScrapeJob.STATUS_RUNNING
-        job.attempts += 1
-        job.started_at = now
-        job.finished_at = None
-        job.save(update_fields=['status', 'attempts', 'started_at', 'finished_at', 'updated_at'])
-        return job
+
+        updated = ScrapeJob.objects.filter(
+            pk=candidate['id'],
+            status=candidate['status'],
+            attempts=candidate['attempts'],
+        ).update(
+            status=ScrapeJob.STATUS_RUNNING,
+            attempts=candidate['attempts'] + 1,
+            started_at=now,
+            finished_at=None,
+            updated_at=now,
+        )
+        if updated == 1:
+            return ScrapeJob.objects.get(pk=candidate['id'])
+    return None
 
 
 def complete_job(job: ScrapeJob, listing=None, fetch_status: str = 'success', http_status=None, duration_ms: int = 0, from_cache: bool = False):
