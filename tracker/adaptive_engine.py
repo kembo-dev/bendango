@@ -8,7 +8,7 @@ from django.conf import settings
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
-from tracker.job_queue import complete_job, enqueue_scrape_job, fail_job
+from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob
 from tracker.search_diagnostics import SearchDiagnosticsRecorder
@@ -53,24 +53,26 @@ def _domain(url):
     return urlparse(url).netloc.lower().removeprefix("www.")
 
 
-def _process_job_now(job, selected, product_query, diagnostics, errors):
+def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_hosts=None):
     if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
         return job.listing
 
-    # Claiming is intentionally avoided here: the HTTP request path already owns
-    # this job. We still persist the same lifecycle used by the background worker.
-    job.status = ScrapeJob.STATUS_RUNNING
-    job.attempts += 1
-    from django.utils import timezone
-    job.started_at = timezone.now()
-    job.finished_at = None
-    job.save(update_fields=['status', 'attempts', 'started_at', 'finished_at', 'updated_at'])
+    claimed = claim_job(job.pk)
+    if claimed is None:
+        # A worker (or another request) already owns this job, or a retry is not
+        # available yet. Never process it twice from the synchronous fallback.
+        current = ScrapeJob.objects.filter(pk=job.pk).select_related('listing').first()
+        if current and current.status == ScrapeJob.STATUS_SUCCESS and current.listing_id:
+            return current.listing
+        return None
+    job = claimed
 
     try:
         listing, error = process_url_and_save(
             job.url,
             model_name=selected,
             expected_query=product_query,
+            allowed_hosts=allowed_hosts,
         )
         if listing:
             complete_job(job, listing=listing, fetch_status='processed_sync')
@@ -117,10 +119,8 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
             listing = job.listing
         elif sync_fallback:
-            listing = _process_job_now(job, selected, product_query, diagnostics, errors)
+            listing = _process_job_now(job, selected, product_query, diagnostics, errors, allowed_hosts=allowed_hosts)
         else:
-            # In async mode, a worker will process pending/retry jobs. Existing
-            # completed jobs can still surface immediately on later requests.
             finished = ScrapeJob.objects.filter(
                 url=url,
                 query=product_query,
