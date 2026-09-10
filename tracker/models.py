@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class Retailer(models.Model):
@@ -46,7 +47,7 @@ class Product(models.Model):
 
 class PriceListing(models.Model):
     """Dernière offre connue d'un produit chez un marchand."""
-    EXTRACTION_SOURCES = [('jsonld', 'JSON-LD'), ('shopify', 'Shopify JSON'), ('meta', 'Meta tags'), ('llm', 'LLM'), ('html', 'HTML fallback'), ('cache', 'Cached listing'), ('unknown', 'Unknown')]
+    EXTRACTION_SOURCES = [('jsonld', 'JSON-LD'), ('microdata', 'Schema.org microdata'), ('shopify', 'Shopify JSON'), ('meta', 'Meta tags'), ('llm', 'LLM'), ('html', 'HTML fallback'), ('cache', 'Cached listing'), ('unknown', 'Unknown')]
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='listings')
     retailer = models.ForeignKey(Retailer, on_delete=models.CASCADE)
     url = models.URLField(max_length=2048)
@@ -193,7 +194,7 @@ class ScrapeJob(models.Model):
     duration_ms = models.PositiveIntegerField(default=0)
     from_cache = models.BooleanField(default=False)
     listing = models.ForeignKey(PriceListing, on_delete=models.SET_NULL, blank=True, null=True, related_name='scrape_jobs')
-    available_at = models.DateTimeField(db_index=True)
+    available_at = models.DateTimeField(default=timezone.now, db_index=True)
     started_at = models.DateTimeField(blank=True, null=True)
     finished_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -202,8 +203,8 @@ class ScrapeJob(models.Model):
     class Meta:
         ordering = ['available_at', 'created_at']
         indexes = [
-            models.Index(fields=['status', 'available_at']),
-            models.Index(fields=['url', 'status']),
+            models.Index(fields=['status', 'available_at'], name='tracker_scr_status_avail_idx'),
+            models.Index(fields=['url', 'status'], name='tracker_scr_url_status_idx'),
         ]
 
     def __str__(self):
