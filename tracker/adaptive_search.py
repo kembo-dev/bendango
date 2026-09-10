@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 
 from tracker.models import SearchDiagnostic
@@ -19,6 +20,19 @@ DEFAULT_GLOBAL_TERMS = (
     '{query} magasin Kinshasa',
 )
 
+BROAD_LOCAL_TERMS = (
+    '"{query}" {country} acheter "en stock"',
+    '"{query}" Kinshasa acheter prix',
+    '"{query}" {country} boutique livraison prix',
+)
+
+BROAD_GLOBAL_TERMS = (
+    '"{query}" acheter "en stock" prix',
+    '"{query}" "ajouter au panier"',
+    '"{query}" boutique en ligne prix',
+    '"{query}" shop buy price',
+)
+
 
 def _unique(values):
     seen = set()
@@ -29,6 +43,14 @@ def _unique(values):
             seen.add(value)
             output.append(value)
     return output
+
+
+def is_broad_product_query(query: str) -> bool:
+    """Detect generic/category-like searches that need stronger shopping intent."""
+    tokens = re.findall(r"[a-zA-ZÀ-ÿ0-9]+", query or "")
+    meaningful = [token for token in tokens if len(token) > 1]
+    has_model_signal = any(any(char.isdigit() for char in token) for token in meaningful)
+    return bool(meaningful) and len(meaningful) <= 2 and not has_model_signal
 
 
 def recent_failure_profile(query: str, limit: int = 5) -> Counter:
@@ -47,14 +69,24 @@ def recent_failure_profile(query: str, limit: int = 5) -> Counter:
 def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=None):
     """Build search passes using recent failure signals without fixed merchant preference."""
     profile = Counter(diagnostics or recent_failure_profile(query))
-    terms = [template.format(query=query, country=country) for template in DEFAULT_LOCAL_TERMS]
+    broad = is_broad_product_query(query)
+    local_templates = BROAD_LOCAL_TERMS if broad else DEFAULT_LOCAL_TERMS
+    global_templates = BROAD_GLOBAL_TERMS if broad else DEFAULT_GLOBAL_TERMS
+    terms = [template.format(query=query, country=country) for template in local_templates]
 
     if profile['product_mismatch']:
-        terms.extend([
-            f'{query} modèle exact prix',
-            f'{query} référence acheter',
-            f'intitle:"{query}" prix',
-        ])
+        if broad:
+            terms.extend([
+                f'"{query}" acheter produit prix',
+                f'"{query}" "en stock" boutique',
+                f'"{query}" product buy price',
+            ])
+        else:
+            terms.extend([
+                f'{query} modèle exact prix',
+                f'{query} référence acheter',
+                f'intitle:"{query}" prix',
+            ])
 
     if profile['no_product_structure'] or profile['extraction_failed'] or profile['invalid_data']:
         terms.extend([
@@ -77,7 +109,7 @@ def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=No
             f'{query} online store',
         ])
 
-    terms.extend(template.format(query=query, country=country) for template in DEFAULT_GLOBAL_TERMS)
+    terms.extend(template.format(query=query, country=country) for template in global_templates)
     return _unique(terms)
 
 
