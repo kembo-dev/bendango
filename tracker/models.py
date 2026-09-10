@@ -77,7 +77,6 @@ class PriceListing(models.Model):
 
     @staticmethod
     def _is_currency_correction(previous, new_price, new_currency, new_normalized_price):
-        """Detect an obvious currency-label repair rather than a real market price change."""
         if not previous or previous['currency'] == new_currency or previous['price'] != new_price:
             return False
         old_normalized = previous.get('normalized_price')
@@ -87,10 +86,8 @@ class PriceListing(models.Model):
         return ratio >= Decimal('10')
 
     def _repair_stale_currency_history(self):
-        """Repair old snapshots created with a wrong currency label for the same raw amount."""
         if not self.pk or self.normalized_price is None or self.normalized_price <= 0:
             return 0
-
         repaired = 0
         stale = PriceHistory.objects.filter(listing=self, price=self.price).exclude(currency=self.currency)
         for snapshot in stale:
@@ -99,11 +96,7 @@ class PriceListing(models.Model):
             ratio = max(Decimal(snapshot.normalized_price), Decimal(self.normalized_price)) / min(Decimal(snapshot.normalized_price), Decimal(self.normalized_price))
             if ratio < Decimal('10'):
                 continue
-            PriceHistory.objects.filter(pk=snapshot.pk).update(
-                currency=self.currency,
-                normalized_price=self.normalized_price,
-                normalized_currency=self.normalized_currency,
-            )
+            PriceHistory.objects.filter(pk=snapshot.pk).update(currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency)
             repaired += 1
         return repaired
 
@@ -114,50 +107,17 @@ class PriceListing(models.Model):
         self.normalized_currency = 'USD'
         self.normalized_price = normalize_to_usd(self.price, self.currency)
         self.full_clean()
-
         currency_correction = self._is_currency_correction(previous, self.price, self.currency, self.normalized_price)
         result = super().save(*args, **kwargs)
-
         if currency_correction:
-            PriceHistory.objects.filter(
-                listing=self,
-                price=self.price,
-                currency=previous['currency'],
-            ).update(
-                currency=self.currency,
-                normalized_price=self.normalized_price,
-                normalized_currency=self.normalized_currency,
-            )
-
-        # Always repair stale snapshots as well. This matters when a previous request
-        # already corrected the current listing currency but left old history behind.
+            PriceHistory.objects.filter(listing=self, price=self.price, currency=previous['currency']).update(currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency)
         self._repair_stale_currency_history()
-
         changed = previous is None or previous['price'] != self.price or previous['currency'] != self.currency or previous['in_stock'] != self.in_stock
         if currency_correction:
-            if not PriceHistory.objects.filter(
-                listing=self,
-                price=self.price,
-                currency=self.currency,
-                in_stock=self.in_stock,
-            ).exists():
-                PriceHistory.objects.create(
-                    listing=self,
-                    price=self.price,
-                    currency=self.currency,
-                    normalized_price=self.normalized_price,
-                    normalized_currency=self.normalized_currency,
-                    in_stock=self.in_stock,
-                )
+            if not PriceHistory.objects.filter(listing=self, price=self.price, currency=self.currency, in_stock=self.in_stock).exists():
+                PriceHistory.objects.create(listing=self, price=self.price, currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency, in_stock=self.in_stock)
         elif changed:
-            PriceHistory.objects.create(
-                listing=self,
-                price=self.price,
-                currency=self.currency,
-                normalized_price=self.normalized_price,
-                normalized_currency=self.normalized_currency,
-                in_stock=self.in_stock,
-            )
+            PriceHistory.objects.create(listing=self, price=self.price, currency=self.currency, normalized_price=self.normalized_price, normalized_currency=self.normalized_currency, in_stock=self.in_stock)
         return result
 
     def __str__(self):
@@ -204,3 +164,47 @@ class SearchDiagnostic(models.Model):
 
     def __str__(self):
         return f"{self.query}: {self.merchant_count}/{self.target_merchants} marchands"
+
+
+class ScrapeJob(models.Model):
+    """Persistent unit of scraping work, independent from the execution backend."""
+    STATUS_PENDING = 'pending'
+    STATUS_RUNNING = 'running'
+    STATUS_RETRY = 'retry'
+    STATUS_SUCCESS = 'success'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_RETRY, 'Retry'),
+        (STATUS_SUCCESS, 'Success'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    url = models.URLField(max_length=2048, db_index=True)
+    query = models.CharField(max_length=255, blank=True, default='')
+    model_name = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+    last_error = models.TextField(blank=True, default='')
+    fetch_status = models.CharField(max_length=32, blank=True, default='')
+    http_status = models.PositiveIntegerField(blank=True, null=True)
+    duration_ms = models.PositiveIntegerField(default=0)
+    from_cache = models.BooleanField(default=False)
+    listing = models.ForeignKey(PriceListing, on_delete=models.SET_NULL, blank=True, null=True, related_name='scrape_jobs')
+    available_at = models.DateTimeField(db_index=True)
+    started_at = models.DateTimeField(blank=True, null=True)
+    finished_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['available_at', 'created_at']
+        indexes = [
+            models.Index(fields=['status', 'available_at']),
+            models.Index(fields=['url', 'status']),
+        ]
+
+    def __str__(self):
+        return f"{self.status}: {self.url}"
