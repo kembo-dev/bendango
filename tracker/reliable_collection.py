@@ -54,7 +54,7 @@ def _domain_key(url: str) -> str:
     return f"bendango:domain:last_fetch:{host}"
 
 
-def _wait_for_domain_slot(url: str, sleep_func=time.sleep):
+def _wait_for_domain_slot(url: str):
     interval = float(getattr(settings, "COLLECTION_DOMAIN_MIN_INTERVAL", 0.35))
     if interval <= 0:
         return
@@ -64,7 +64,7 @@ def _wait_for_domain_slot(url: str, sleep_func=time.sleep):
     if last is not None:
         remaining = interval - (now - float(last))
         if remaining > 0:
-            sleep_func(remaining)
+            time.sleep(remaining)
     cache.set(key, time.monotonic(), timeout=max(int(interval * 20), 10))
 
 
@@ -85,11 +85,12 @@ def _is_anti_bot_page(text: str) -> bool:
     return any(marker in lower for marker in ANTI_BOT_MARKERS)
 
 
-def fetch_html(url: str, force_refresh: bool = False, session_factory=None, sleep_func=None) -> FetchResult:
+def fetch_html(url: str, force_refresh: bool = False, session_factory=None, sleep_func=None, apply_rate_limit: bool = True) -> FetchResult:
     """Reliable fetch primitive with cache, pacing, retry/backoff and anti-bot detection.
 
-    session_factory/sleep_func are injectable so legacy callers and tests can keep
-    controlling transport behavior without bypassing the reliable collection layer.
+    session_factory and sleep_func only control transport and retry backoff. Domain
+    pacing remains independent so tests/callers can disable it explicitly without
+    changing retry semantics.
     """
     started = time.monotonic()
     session_factory = session_factory or requests.Session
@@ -110,7 +111,8 @@ def fetch_html(url: str, force_refresh: bool = False, session_factory=None, slee
     last_error = ""
     last_status = None
     for attempt in range(1, max_attempts + 1):
-        _wait_for_domain_slot(url, sleep_func=sleep_func)
+        if apply_rate_limit:
+            _wait_for_domain_slot(url)
         try:
             response = session.get(url, timeout=timeout, allow_redirects=True)
             last_status = response.status_code
