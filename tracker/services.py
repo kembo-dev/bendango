@@ -77,7 +77,10 @@ def resolve_bedrock_model_id(model_name,region=None):return (model_name or "").s
 
 
 def fetch_and_clean_html(url):
-    result=fetch_html(url)
+    # Keep this legacy facade deterministic: its historical tests mock the transport
+    # here and expect each call to perform a fresh request. Production queue workers
+    # call the same reliable collector, while direct fetch_html callers keep caching.
+    result=fetch_html(url,force_refresh=True,session_factory=requests.Session,sleep_func=time.sleep)
     return result.html
 
 
