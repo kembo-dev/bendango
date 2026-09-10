@@ -1,7 +1,9 @@
+from datetime import timedelta
+
 from django.test import TestCase
 from django.utils import timezone
 
-from tracker.job_queue import claim_next_job, complete_job, enqueue_scrape_job, fail_job
+from tracker.job_queue import claim_next_job, complete_job, enqueue_scrape_job, fail_job, recover_stale_running_jobs
 from tracker.models import ScrapeJob
 
 
@@ -19,6 +21,15 @@ class ScrapeJobQueueTests(TestCase):
         self.assertEqual(claimed.status, ScrapeJob.STATUS_RUNNING)
         self.assertEqual(claimed.attempts, 1)
         self.assertIsNotNone(claimed.started_at)
+
+    def test_running_job_cannot_be_claimed_twice(self):
+        job = enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur')
+        first = claim_next_job()
+        second = claim_next_job()
+        self.assertEqual(first.pk, job.pk)
+        self.assertIsNone(second)
+        job.refresh_from_db()
+        self.assertEqual(job.attempts, 1)
 
     def test_complete_marks_job_success(self):
         enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur')
@@ -39,9 +50,35 @@ class ScrapeJobQueueTests(TestCase):
         self.assertEqual(job.status, ScrapeJob.STATUS_RETRY)
         self.assertGreater(job.available_at, before)
 
+    def test_retry_job_is_not_claimed_before_available_at(self):
+        job = enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur')
+        job.status = ScrapeJob.STATUS_RETRY
+        job.available_at = timezone.now() + timedelta(minutes=1)
+        job.save()
+        self.assertIsNone(claim_next_job())
+
     def test_failure_stops_after_max_attempts(self):
         job = enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur', max_attempts=1)
         job = claim_next_job()
         fail_job(job, 'timeout', retryable=True)
         job.refresh_from_db()
         self.assertEqual(job.status, ScrapeJob.STATUS_FAILED)
+
+    def test_stale_running_job_is_recovered_for_retry(self):
+        job = enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur', max_attempts=3)
+        job = claim_next_job()
+        ScrapeJob.objects.filter(pk=job.pk).update(started_at=timezone.now() - timedelta(minutes=10))
+        self.assertEqual(recover_stale_running_jobs(timeout_seconds=60), 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ScrapeJob.STATUS_RETRY)
+        self.assertEqual(job.fetch_status, 'stale_worker')
+        self.assertEqual(job.attempts, 1)
+
+    def test_stale_running_job_fails_when_attempts_exhausted(self):
+        job = enqueue_scrape_job('https://merchant.example/products/disk-1tb', 'disque dur', max_attempts=1)
+        job = claim_next_job()
+        ScrapeJob.objects.filter(pk=job.pk).update(started_at=timezone.now() - timedelta(minutes=10))
+        self.assertEqual(recover_stale_running_jobs(timeout_seconds=60), 1)
+        job.refresh_from_db()
+        self.assertEqual(job.status, ScrapeJob.STATUS_FAILED)
+        self.assertEqual(job.fetch_status, 'stale_worker')
