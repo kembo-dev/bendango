@@ -47,7 +47,6 @@ def _decimal_price(value) -> Decimal | None:
 
 
 def _shopify_variant_price(value) -> Decimal | None:
-    """Decode Shopify variant prices, which are commonly integer cents."""
     if value is None:
         return None
     raw = str(value).strip()
@@ -55,7 +54,6 @@ def _shopify_variant_price(value) -> Decimal | None:
         return None
     if re.fullmatch(r"\d+", raw):
         amount = Decimal(raw)
-        # Shopify product/variant JSON uses the smallest currency unit.
         return (amount / Decimal("100")).quantize(Decimal("0.01")) if amount >= 100 else amount
     return _decimal_price(raw)
 
@@ -119,6 +117,67 @@ def extract_jsonld_product(html: str) -> StructuredProductData | None:
     return None
 
 
+def _node_value(node) -> str:
+    if node is None:
+        return ""
+    for attr in ("content", "value", "data-price", "data-product-price", "href", "src"):
+        value = node.get(attr) if hasattr(node, "get") else None
+        if value:
+            return str(value).strip()
+    return node.get_text(" ", strip=True) if hasattr(node, "get_text") else ""
+
+
+def extract_microdata_product(html: str, query: str | None = None) -> StructuredProductData | None:
+    """Extract schema.org-style Product/Offer microdata embedded in normal DOM nodes."""
+    if not html:
+        return None
+    soup = BeautifulSoup(html, "html.parser")
+    product_scopes = soup.select("[itemscope][itemtype*='Product'], [itemtype*='schema.org/Product']")
+    scopes = product_scopes or [soup]
+    candidates = []
+
+    for scope in scopes[:20]:
+        name_node = scope.select_one("[itemprop='name']")
+        price_node = scope.select_one("[itemprop='price']")
+        currency_node = scope.select_one("[itemprop='priceCurrency']")
+        availability_node = scope.select_one("[itemprop='availability']")
+        sku_node = scope.select_one("[itemprop='sku'], [itemprop='gtin13'], [itemprop='gtin'], [itemprop='mpn']")
+        brand_node = scope.select_one("[itemprop='brand']")
+        image_node = scope.select_one("[itemprop='image']")
+
+        name = _node_value(name_node)
+        price = _decimal_price(_node_value(price_node))
+        if not name or price is None:
+            continue
+
+        if query:
+            match = match_product(query, name, threshold=0.72)
+            if not match.is_match:
+                continue
+            match_score = match.score
+        else:
+            match_score = 1.0
+
+        currency = normalize_currency_code(_node_value(currency_node) or _currency_from_text(scope.get_text(" ", strip=True)))
+        availability = _node_value(availability_node).lower()
+        in_stock = not any(token in availability for token in ("outofstock", "out of stock", "soldout", "sold out", "discontinued"))
+        candidates.append((match_score, StructuredProductData(
+            product_name=name,
+            price=price,
+            currency=currency,
+            in_stock=in_stock,
+            sku_or_ean=_node_value(sku_node) or None,
+            brand=_node_value(brand_node),
+            image_url=_node_value(image_node),
+            source="microdata",
+        )))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
+
+
 def extract_meta_product(html: str) -> StructuredProductData | None:
     if not html:
         return None
@@ -152,7 +211,6 @@ def _walk_dicts(value):
 
 
 def extract_shopify_product(html: str, query: str | None = None) -> StructuredProductData | None:
-    """Extract Shopify product objects embedded in JSON/script payloads."""
     if not html:
         return None
     soup = BeautifulSoup(html, "html.parser")
@@ -168,7 +226,6 @@ def extract_shopify_product(html: str, query: str | None = None) -> StructuredPr
                 payloads.append(json.loads(raw))
             except (json.JSONDecodeError, TypeError):
                 pass
-        # Shopify themes also embed JSON objects inside JS assignments.
         for match in re.finditer(r"\{[^{}]{0,2500}\"variants\"\s*:\s*\[[^\]]+\][^{}]{0,2500}\}", raw, re.S):
             try:
                 payloads.append(json.loads(match.group(0)))
@@ -227,6 +284,10 @@ def extract_shopify_product(html: str, query: str | None = None) -> StructuredPr
 def _currency_from_text(text: str) -> str:
     if re.search(r"\b(?:CDF|FC)\b|₣", text, re.I):
         return "CDF"
+    if re.search(r"\b(?:XOF|FCFA|CFA)\b", text, re.I):
+        return "XOF"
+    if re.search(r"\bXAF\b", text, re.I):
+        return "XAF"
     if "$" in text or re.search(r"\bUSD\b", text, re.I):
         return "USD"
     if "€" in text or re.search(r"\bEUR\b", text, re.I):
@@ -396,6 +457,7 @@ def extract_structured_product(html: str, query: str | None = None) -> Structure
     inferred_query = query or _query_from_document_url(html)
     for candidate in (
         extract_jsonld_product(html),
+        extract_microdata_product(html, inferred_query),
         extract_meta_product(html),
         extract_shopify_product(html, inferred_query),
         extract_woocommerce_product(html),
