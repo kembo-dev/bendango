@@ -1,5 +1,6 @@
 import os
 import re
+import time  # Compatibility import: legacy tests patch tracker.services.time.sleep.
 from decimal import Decimal
 from urllib.parse import urlparse
 
