@@ -10,6 +10,7 @@ from tracker.models import ScrapeJob
 
 
 ACTIVE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY, ScrapeJob.STATUS_RUNNING)
+CLAIMABLE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY)
 
 
 def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_attempts: int = 3) -> ScrapeJob:
@@ -27,11 +28,6 @@ def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_atte
 
 
 def recover_stale_running_jobs(timeout_seconds: int | None = None) -> int:
-    """Return abandoned running jobs to retry/failed state.
-
-    A worker can disappear after claiming a job. Jobs whose started_at is older than
-    the configured timeout are therefore released so another worker can continue.
-    """
     if timeout_seconds is None:
         timeout_seconds = int(getattr(settings, 'SCRAPE_JOB_RUNNING_TIMEOUT', 300))
     timeout_seconds = max(1, int(timeout_seconds))
@@ -64,39 +60,56 @@ def recover_stale_running_jobs(timeout_seconds: int | None = None) -> int:
     return recovered
 
 
-def claim_next_job() -> ScrapeJob | None:
-    """Atomically claim one available job without double-claiming across workers.
+def claim_job(job_id: int) -> ScrapeJob | None:
+    """Atomically claim one specific job if it is still available."""
+    now = timezone.now()
+    candidate = (
+        ScrapeJob.objects.filter(
+            pk=job_id,
+            status__in=CLAIMABLE_STATUSES,
+            available_at__lte=now,
+        )
+        .values('id', 'status', 'attempts')
+        .first()
+    )
+    if not candidate:
+        return None
 
-    The conditional UPDATE is intentional: select_for_update is not effective on
-    SQLite, while this compare-and-set approach also remains safe on PostgreSQL.
-    """
+    updated = ScrapeJob.objects.filter(
+        pk=candidate['id'],
+        status=candidate['status'],
+        attempts=candidate['attempts'],
+        available_at__lte=now,
+    ).update(
+        status=ScrapeJob.STATUS_RUNNING,
+        attempts=candidate['attempts'] + 1,
+        started_at=now,
+        finished_at=None,
+        updated_at=now,
+    )
+    if updated != 1:
+        return None
+    return ScrapeJob.objects.get(pk=candidate['id'])
+
+
+def claim_next_job() -> ScrapeJob | None:
+    """Atomically claim one available job without double-claiming across workers."""
     now = timezone.now()
     for _ in range(5):
         candidate = (
             ScrapeJob.objects.filter(
-                status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY],
+                status__in=CLAIMABLE_STATUSES,
                 available_at__lte=now,
             )
             .order_by('available_at', 'created_at')
-            .values('id', 'status', 'attempts')
+            .values('id')
             .first()
         )
         if not candidate:
             return None
-
-        updated = ScrapeJob.objects.filter(
-            pk=candidate['id'],
-            status=candidate['status'],
-            attempts=candidate['attempts'],
-        ).update(
-            status=ScrapeJob.STATUS_RUNNING,
-            attempts=candidate['attempts'] + 1,
-            started_at=now,
-            finished_at=None,
-            updated_at=now,
-        )
-        if updated == 1:
-            return ScrapeJob.objects.get(pk=candidate['id'])
+        claimed = claim_job(candidate['id'])
+        if claimed:
+            return claimed
     return None
 
 
