@@ -2,6 +2,7 @@ import time
 
 from django.core.management.base import BaseCommand
 
+from tracker.job_outcomes import classify_processing_error
 from tracker.job_queue import claim_next_job, complete_job, fail_job, recover_stale_running_jobs
 from tracker.services import process_url_and_save
 
@@ -30,22 +31,33 @@ class Command(BaseCommand):
                 time.sleep(max(options['poll_interval'], 0.1))
                 continue
 
+            started = time.monotonic()
             try:
                 listing, error = process_url_and_save(
                     job.url,
                     model_name=job.model_name or None,
                     expected_query=job.query or None,
                 )
+                duration_ms = max(1, int((time.monotonic() - started) * 1000))
                 if listing:
-                    complete_job(job, listing=listing, fetch_status='processed')
-                    self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success'))
+                    complete_job(job, listing=listing, fetch_status='processed', duration_ms=duration_ms)
+                    self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success ({duration_ms}ms)'))
                 else:
-                    retryable = error == 'Impossible de récupérer le contenu de la page web.'
-                    fail_job(job, error or "Échec de traitement.", retryable=retryable, fetch_status='processing_failure')
-                    self.stdout.write(self.style.WARNING(f'job {job.pk}: {job.status} - {job.last_error}'))
+                    fetch_status, retryable = classify_processing_error(error)
+                    fail_job(
+                        job,
+                        error or "Échec de traitement.",
+                        retryable=retryable,
+                        fetch_status=fetch_status,
+                        duration_ms=duration_ms,
+                    )
+                    self.stdout.write(self.style.WARNING(
+                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms) - {job.last_error}'
+                    ))
             except Exception as exc:
-                fail_job(job, str(exc), retryable=True, fetch_status='worker_exception')
-                self.stderr.write(f'job {job.pk}: {job.status} - {exc}')
+                duration_ms = max(1, int((time.monotonic() - started) * 1000))
+                fail_job(job, str(exc), retryable=True, fetch_status='worker_exception', duration_ms=duration_ms)
+                self.stderr.write(f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms) - {exc}')
 
             processed += 1
             if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
