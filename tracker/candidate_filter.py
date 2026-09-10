@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from urllib.parse import parse_qs, urlparse
 
+from tracker.domain_health import url_domain_health_score
+
 
 BLOCKED_HOSTS = {
     "bing.com", "google.com", "duckduckgo.com",
@@ -21,7 +23,6 @@ PRODUCT_PATH_MARKERS = (
     "/product/", "/products/", "/produit/", "/item/", "/p/", "/dp/", "/article/",
 )
 
-
 FNAC_LISTING_PATTERN = re.compile(r"/(?:n?shi)\d+(?:/[^/?#]+)*/w-\d+(?:/|$)", re.IGNORECASE)
 
 
@@ -30,7 +31,6 @@ def _host_matches(host: str, blocked: str) -> bool:
 
 
 def is_low_value_candidate_url(url: str) -> bool:
-    """Reject obvious non-product/search/listing pages before network scraping."""
     parsed = urlparse(url or "")
     host = parsed.netloc.lower().removeprefix("www.")
     path = (parsed.path or "").lower()
@@ -57,7 +57,6 @@ def is_low_value_candidate_url(url: str) -> bool:
 
 
 def product_url_score(url: str) -> int:
-    """Rank likely product-detail URLs ahead of ambiguous pages."""
     parsed = urlparse(url or "")
     path = (parsed.path or "").lower()
     score = 0
@@ -73,7 +72,7 @@ def product_url_score(url: str) -> int:
 
 
 def filter_and_rank_candidate_urls(urls):
-    """Deduplicate, remove obvious noise and prioritize product-detail candidates."""
+    """Deduplicate noise, then combine URL quality with learned domain health."""
     unique = []
     seen = set()
     for url in urls or []:
@@ -82,4 +81,11 @@ def filter_and_rank_candidate_urls(urls):
         seen.add(url)
         if not is_low_value_candidate_url(url):
             unique.append(url)
-    return sorted(unique, key=lambda value: product_url_score(value), reverse=True)
+
+    # URL structure remains the strongest signal. Domain history only breaks/ranks
+    # candidates of similar structural quality, preserving exploration of new shops.
+    return sorted(
+        unique,
+        key=lambda value: (product_url_score(value), url_domain_health_score(value)),
+        reverse=True,
+    )
