@@ -3,6 +3,7 @@ import re
 from decimal import Decimal
 from urllib.parse import urlparse
 
+import requests  # Compatibility import: legacy tests patch tracker.services.requests.
 from bs4 import BeautifulSoup
 from ddgs import DDGS
 from django.conf import settings
@@ -75,7 +76,8 @@ def resolve_bedrock_model_id(model_name,region=None):return (model_name or "").s
 
 
 def fetch_and_clean_html(url):
-    return fetch_html(url).html
+    result=fetch_html(url)
+    return result.html
 
 
 def _parse_fallback_price(raw):
@@ -96,7 +98,8 @@ def _detect_page_currency(text):
 
 def _fallback_extract_html(html_snippet):
     soup=BeautifulSoup(html_snippet,"html.parser");title=soup.title.get_text(" ",strip=True) if soup.title else "";heading=" ".join(n.get_text(" ",strip=True) for n in soup.find_all(["h1","h2","h3"])[:3]);product_name=re.sub(r"\s+"," ",title or heading).strip();text=soup.get_text(" ",strip=True).replace("\xa0"," ")
-    amount=r"\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?";token=r"XOF|XAF|FCFA|F\s*CFA|CFA|CDF|FC|USD|EUR|€|\$";after=re.search(rf"(?P<amount>{amount})\s*(?P<currency>{token})",text,flags=re.I);before=re.search(rf"(?P<currency>{token})\s*(?P<amount>{amount})",text,flags=re.I);match=after or before
+    amount=r"\d{1,3}(?:[\s\.,]\d{3})*(?:[\.,]\d{1,2})?";token=r"XOF|XAF|FCFA|F\s*CFA|CFA|CDF|FC|USD|EUR|€|\$"
+    after=re.search(rf"(?P<amount>{amount})\s*(?P<currency>{token})",text,flags=re.I);before=re.search(rf"(?P<currency>{token})\s*(?P<amount>{amount})",text,flags=re.I);match=after or before
     if not match:return None
     raw=match.group("amount");currency=normalize_currency_code(match.group("currency"),context=text);lower=text.lower();stock=not any(t in lower for t in ["rupture","épuisé","epuise","indisponible","out of stock","sold out"])
     return ExtractedProductData(product_name=product_name or "Produit non identifié",price=_parse_fallback_price(raw),currency=currency,in_stock=stock)
@@ -104,7 +107,8 @@ def _fallback_extract_html(html_snippet):
 
 def extract_with_ollama(html_snippet,model_name):
     if ollama is None:raise RuntimeError("Le paquet ollama n'est pas installé.")
-    response=ollama.chat(model=model_name,messages=[{"role":"system","content":"Tu es un extracteur de données e-commerce précis."},{"role":"user","content":f"Extrais nom, prix, devise, stock et SKU/EAN.\n\nHTML:\n{html_snippet}"}],format=ExtractedProductData.model_json_schema(),options={"temperature":0.1});return ExtractedProductData.model_validate_json(response["message"]["content"])
+    response=ollama.chat(model=model_name,messages=[{"role":"system","content":"Tu es un extracteur de données e-commerce précis."},{"role":"user","content":f"Extrais nom, prix, devise, stock et SKU/EAN.\n\nHTML:\n{html_snippet}"}],format=ExtractedProductData.model_json_schema(),options={"temperature":0.1})
+    return ExtractedProductData.model_validate_json(response["message"]["content"])
 
 
 def extract_with_bedrock(html_snippet,model_name):
@@ -124,12 +128,17 @@ def _extract_llm_only(html_snippet,model_name=None):
 
 def extract_with_llm(html_snippet,model_name=None):return _extract_llm_only(html_snippet,model_name) or _fallback_extract_html(html_snippet)
 
+
 def _structured_to_extracted(html,query=None):
     s=extract_structured_product(html,query=query)
     if s is None:return None,""
     return ExtractedProductData(product_name=s.product_name,price=float(s.price),currency=s.currency,in_stock=s.in_stock,sku_or_ean=s.sku_or_ean),(s.source or "unknown")
+
+
 def _confidence_for(source,match_score,has_sku):
     base={"jsonld":.92,"shopify":.88,"meta":.84,"llm":.76,"html":.62,"cache":.70}.get(source,.55);score=base+(.04 if has_sku else 0)+(.04*max(0,min(match_score,1)));return Decimal(str(round(min(score,.99),4)))
+
+
 def _is_plausible_price(price,currency):
     try:amount=Decimal(str(price))
     except Exception:return False
@@ -137,13 +146,18 @@ def _is_plausible_price(price,currency):
     normalized=normalize_to_usd(amount,currency)
     if normalized is None:return True
     return normalized<=Decimal(str(getattr(settings,"BENDANGO_MAX_NORMALIZED_PRICE_USD",100000)))
+
+
 def _cached_listing_for_url(url,expected_query=None):
     listing=PriceListing.objects.select_related("product","retailer").filter(url=url,is_active=True).order_by("-scraped_at").first()
     if listing is None:return None
     if expected_query and not match_product(expected_query,listing.product.name).is_match:return None
     return listing
+
+
 def _deactivate_listing_for_url(url):return PriceListing.objects.filter(url=url,is_active=True).update(is_active=False)
 def _is_not_found_page(html):return bool(html) and any(m in html.lower() for m in ["404 page introuvable","page introuvable","not found","page not found","could not find this page","we couldn't find this page"])
+
 def _has_exploitable_product_structure(html):
     if not html:return False
     soup=BeautifulSoup(html,"html.parser");text=soup.get_text(" ",strip=True)
@@ -169,7 +183,8 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
     if extracted is None and expected_query and allowed_hosts is not None and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
     if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
-    page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text);name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
+    page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text)
+    name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
     if not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
     match=match_product(expected_query,name) if expected_query else None
     if match and not match.is_match:return (cached,None) if cached else (None,f"Produit non pertinent ({match.reason}, score={match.score:.2f}).")
@@ -188,7 +203,10 @@ def _is_homepage_url(url):
     if not url:return True
     parsed=urlparse(url)
     if not parsed.netloc:return True
-    path=(parsed.path or "").strip("/").lower();return not path or path in {"fr","en","es","de","it","pt","ar","ru","zh","tr","sw"}
+    path=(parsed.path or "").strip("/").lower()
+    return not path or path in {"fr","en","es","de","it","pt","ar","ru","zh","tr","sw"}
+
+
 def _is_category_or_listing_url(url):
     path=(urlparse(url).path or "").lower();return ".oembed" in path or path.endswith("/oembed") or any(t in path for t in ("/categorie/","/category/","/categories/","/collections/","/collection/","/shop/","/search/","/ads/","/annonces/","/market/","/en/ads/"))
 def _is_comparator_url(url):
@@ -198,6 +216,8 @@ def _is_low_quality_source_url(url):
     if any(host==b or host.endswith("."+b) for b in blocked):return True
     if path.endswith((".txt",".pdf",".epub",".doc",".docx",".xml",".csv",".zip")):return True
     return any(t in f"{host} {path}" for t in ["/forum/","/forums/","/blog/","/discussion/","/topic/","/wiki/","/stream/"])
+
+
 def _collect_search_urls(search_term,max_results):
     urls=[]
     with DDGS() as ddgs:
@@ -205,6 +225,8 @@ def _collect_search_urls(search_term,max_results):
             url=str(result.get("href") or "").strip()
             if url and not (_is_homepage_url(url) or _is_category_or_listing_url(url) or _is_comparator_url(url) or _is_low_quality_source_url(url)) and url not in urls:urls.append(url)
     return urls
+
+
 def cleanup_stale_listings(days=30,product_id=None):
     cutoff=timezone.now()-timezone.timedelta(days=days);q=PriceListing.objects.filter(scraped_at__lt=cutoff,is_active=True)
     if product_id is not None:q=q.filter(product_id=product_id)
@@ -218,6 +240,8 @@ def _deduplicate_results(results):
         url=getattr(item,"url","");key=(getattr(item,"product_id",None),getattr(item,"retailer_id",None),url) if url else (id(item),)
         if key not in deduped or _get_sort_rank(item)<_get_sort_rank(deduped[key]):deduped[key]=item
     return list(deduped.values())
+
+
 def _known_merchant_domains(limit=20):
     domains=[]
     for base_url in Retailer.objects.filter(is_active=True).order_by("-trust_score").values_list("base_url",flat=True)[:limit]:
@@ -225,13 +249,16 @@ def _known_merchant_domains(limit=20):
         if host and host not in domains:domains.append(host)
     return domains
 
+
 def search_and_scrape_product(product_query,site_filter="all",model_name=None,max_results=3):
     cleanup_stale_listings(days=getattr(settings,"LISTING_STALE_DAYS",30));selected=(model_name or get_llm_config()["default_model"]).strip();results=[];errors=[];site_filter=(site_filter or "all").strip() or "all";country=getattr(settings,"DEFAULT_SEARCH_COUNTRY","RDC");site_filters=[] if site_filter=="all" else [p.strip() for p in site_filter.split(",") if p.strip()]
     for site in site_filters:ensure_retailer_for_site(site)
-    cache_hosts=[normalize_site_filter(site)[0] for site in site_filters];cached=find_fresh_cached_listings(product_query,site_hosts=cache_hosts);target_merchants=1 if site_filters else max(2,int(getattr(settings,"MARKET_COVERAGE_TARGET",max_results)));diagnostics=SearchDiagnosticsRecorder(product_query,site_filter,target_merchants)
+    cache_hosts=[normalize_site_filter(site)[0] for site in site_filters];cached=find_fresh_cached_listings(product_query,site_hosts=cache_hosts)
+    target_merchants=1 if site_filters else max(2,int(getattr(settings,"MARKET_COVERAGE_TARGET",max_results)));diagnostics=SearchDiagnosticsRecorder(product_query,site_filter,target_merchants)
     if cached and (site_filters or distinct_merchant_count(cached)>=target_merchants):diagnostics.save(cached);return cached,[]
     if cached:results.extend(cached)
-    search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters] if site_filters else [f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix',f'{product_query} vendeur {country}',f'{product_query} magasin Kinshasa'];urls=[];search_errors=[];candidate_limit=max(target_merchants*8,max_results*6,18)
+    search_terms=[f"site:{normalize_site_filter(site)[0]} {product_query}" for site in site_filters] if site_filters else [f'"{product_query}" {country} prix acheter',f'"{product_query}" Kinshasa prix',f'{product_query} {country} boutique en ligne',f'{product_query} acheter prix',f'{product_query} prix',f'{product_query} vendeur {country}',f'{product_query} magasin Kinshasa']
+    urls=[];search_errors=[];candidate_limit=max(target_merchants*8,max_results*6,18)
     for term in search_terms:
         diagnostics.record_search_term()
         try:found=_collect_search_urls(term,max_results=candidate_limit)
@@ -244,7 +271,9 @@ def search_and_scrape_product(product_query,site_filter="all",model_name=None,ma
     for url in urls:
         diagnostics.record_processed();listing,error=process_url_and_save(url,model_name=selected,expected_query=product_query,allowed_hosts=allowed_hosts)
         if listing:results.append(listing)
-        elif error:diagnostics.record_error(error);errors.append(f"{url}: {error}") if error!="Source non marchande ignorée." else None
+        elif error:
+            diagnostics.record_error(error)
+            if error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
         if not site_filters and distinct_merchant_count(_deduplicate_results(results))>=target_merchants:break
     deduped=_deduplicate_results(results)
     if distinct_merchant_count(deduped)<target_merchants:
@@ -257,7 +286,9 @@ def search_and_scrape_product(product_query,site_filter="all",model_name=None,ma
                 if url in urls:continue
                 diagnostics.record_processed();listing,error=process_url_and_save(url,model_name=selected,expected_query=product_query,allowed_hosts=allowed_hosts)
                 if listing:results.append(listing)
-                elif error:diagnostics.record_error(error);errors.append(f"{url}: {error}") if error!="Source non marchande ignorée." else None
+                elif error:
+                    diagnostics.record_error(error)
+                    if error!="Source non marchande ignorée.":errors.append(f"{url}: {error}")
                 if distinct_merchant_count(_deduplicate_results(results))>=target_merchants:break
     results=_deduplicate_results(results);results.sort(key=_get_sort_rank);diagnostics.save(results)
     if results:return results,[]
