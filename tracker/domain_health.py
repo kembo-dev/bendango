@@ -35,19 +35,39 @@ def domain_health(domain: str, sample_size: int | None = None) -> dict:
         score = 0.5
     else:
         success_rate = successes / total
-        penalty = (0.10 * (fetch_failures / total)) + (0.05 * (extraction_failures / total))
+        penalty = (0.20 * (fetch_failures / total)) + (0.08 * (extraction_failures / total))
         score = max(0.0, min(1.0, success_rate - penalty))
 
     return {
         "domain": domain,
         "sample_size": total,
         "successes": successes,
+        "fetch_failures": fetch_failures,
+        "extraction_failures": extraction_failures,
         "score": round(score, 4),
     }
 
 
 def url_domain_health_score(url: str) -> float:
     return domain_health(domain_from_url(url))["score"]
+
+
+def domain_candidate_cap(domain: str, default_cap: int = 3) -> int:
+    """Choose how many candidates a domain may contribute to one global search.
+
+    New/undersampled domains remain exploratory. Repeatedly failing domains are
+    throttled rather than blacklisted, so they can recover naturally over time.
+    """
+    default_cap = max(1, int(default_cap))
+    health = domain_health(domain)
+    min_samples = int(getattr(settings, "DOMAIN_HEALTH_MIN_SAMPLES", 4))
+    if health["sample_size"] < min_samples:
+        return min(default_cap, 2)
+    if health["score"] < 0.20:
+        return 1
+    if health["score"] < 0.50:
+        return min(default_cap, 2)
+    return default_cap
 
 
 def rank_urls_by_domain_health(urls):
@@ -60,8 +80,6 @@ def rank_urls_by_domain_health(urls):
         if domain not in cache:
             cache[domain] = domain_health(domain)
         health = cache[domain]
-        # Neutral/new domains rank ahead of known-bad domains, but good known domains
-        # rank highest. Original order breaks ties to preserve search-engine relevance.
         scored.append((health["score"], index, url))
     scored.sort(key=lambda item: (-item[0], item[1]))
     return [url for _, _, url in scored]
