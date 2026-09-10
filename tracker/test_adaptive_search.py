@@ -1,7 +1,7 @@
 from collections import Counter
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms, recent_failure_profile
 from tracker.models import SearchDiagnostic
@@ -63,6 +63,7 @@ class AdaptiveSearchPlanningTests(TestCase):
 
 
 class AdaptiveEngineTests(TestCase):
+    @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=True)
     @patch("tracker.adaptive_engine.discover_product_urls", return_value=[])
     @patch("tracker.adaptive_engine.process_url_and_save")
     @patch("tracker.adaptive_engine._collect_search_urls")
