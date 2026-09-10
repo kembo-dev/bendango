@@ -46,6 +46,10 @@ class AdaptiveSearchPlanningTests(TestCase):
         terms = build_adaptive_search_terms("iPhone 16e 256GB", diagnostics=Counter())
         self.assertIn("iPhone 16e 256GB prix", terms)
 
+    def test_single_digit_model_query_is_not_treated_as_broad(self):
+        self.assertFalse(is_broad_product_query("PlayStation 5 Pro"))
+        self.assertFalse(is_broad_product_query("iPhone 8"))
+
     def test_broad_mismatch_recovery_keeps_shopping_intent(self):
         terms = build_adaptive_search_terms(
             "guitare",
