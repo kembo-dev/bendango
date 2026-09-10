@@ -8,6 +8,7 @@ from django.conf import settings
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
+from tracker.domain_health import url_domain_health_score
 from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob
@@ -32,6 +33,10 @@ def _append_unique(target, values):
             target.append(value)
 
 
+def _rank_adaptive_candidates(found):
+    return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score)
+
+
 def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit):
     for term in search_terms:
         diagnostics.record_search_term()
@@ -42,7 +47,7 @@ def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, cand
             search_errors.append(message)
             diagnostics.record_error(message)
             continue
-        filtered = filter_and_rank_candidate_urls(found)
+        filtered = _rank_adaptive_candidates(found)
         diagnostics.record_candidates(len(filtered))
         _append_unique(urls, filtered)
         if len(urls) >= candidate_limit:
@@ -59,8 +64,6 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
 
     claimed = claim_job(job.pk)
     if claimed is None:
-        # A worker (or another request) already owns this job, or a retry is not
-        # available yet. Never process it twice from the synchronous fallback.
         current = ScrapeJob.objects.filter(pk=job.pk).select_related('listing').first()
         if current and current.status == ScrapeJob.STATUS_SUCCESS and current.listing_id:
             return current.listing
@@ -94,7 +97,6 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
 
 
 def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters):
-    """Persist every candidate as ScrapeJob, with optional synchronous fallback."""
     domain_failures = Counter()
     max_failures_per_domain = int(getattr(settings, "ADAPTIVE_MAX_FAILURES_PER_DOMAIN", 2))
     sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
@@ -109,7 +111,7 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         processed_urls.add(url)
         diagnostics.record_processed()
         job = enqueue_scrape_job(
-            url,
+            url=url,
             query=product_query,
             model_name=selected,
             max_attempts=int(getattr(settings, "SCRAPE_JOB_MAX_ATTEMPTS", 3)),
@@ -191,7 +193,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
         fallback_domains = cache_hosts or _known_merchant_domains(limit=max(20, target_merchants * 5))
         if fallback_domains:
             try:
-                fallback_urls = filter_and_rank_candidate_urls(discover_product_urls(
+                fallback_urls = _rank_adaptive_candidates(discover_product_urls(
                     product_query,
                     fallback_domains,
                     max_results=max(target_merchants * 4, max_results * 2),
