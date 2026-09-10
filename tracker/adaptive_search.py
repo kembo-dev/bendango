@@ -49,7 +49,9 @@ def is_broad_product_query(query: str) -> bool:
     """Detect generic/category-like searches that need stronger shopping intent."""
     tokens = re.findall(r"[a-zA-ZÀ-ÿ0-9]+", query or "")
     meaningful = [token for token in tokens if len(token) > 1]
-    has_model_signal = any(any(char.isdigit() for char in token) for token in meaningful)
+    # Numeric model markers may be one character long (PlayStation 5 Pro, iPhone 8,
+    # Galaxy S9). Inspect every token before discarding short lexical noise.
+    has_model_signal = any(any(char.isdigit() for char in token) for token in tokens)
     return bool(meaningful) and len(meaningful) <= 2 and not has_model_signal
 
 
