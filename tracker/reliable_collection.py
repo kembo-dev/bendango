@@ -85,13 +85,20 @@ def _is_anti_bot_page(text: str) -> bool:
     return any(marker in lower for marker in ANTI_BOT_MARKERS)
 
 
-def fetch_html(url: str, force_refresh: bool = False, session_factory=None, sleep_func=None, apply_rate_limit: bool = True) -> FetchResult:
-    """Reliable fetch primitive with cache, pacing, retry/backoff and anti-bot detection.
+def _request_timeout():
+    """Return a bounded (connect, read) timeout tuple.
 
-    session_factory and sleep_func only control transport and retry backoff. Domain
-    pacing remains independent so tests/callers can disable it explicitly without
-    changing retry semantics.
+    Keep COLLECTION_TIMEOUT as a compatibility fallback, while allowing production
+    to tune connection and response-read budgets independently.
     """
+    legacy = float(getattr(settings, "COLLECTION_TIMEOUT", 20))
+    connect = float(getattr(settings, "COLLECTION_CONNECT_TIMEOUT", min(4.0, legacy)))
+    read = float(getattr(settings, "COLLECTION_READ_TIMEOUT", min(8.0, legacy)))
+    return max(0.5, connect), max(1.0, read)
+
+
+def fetch_html(url: str, force_refresh: bool = False, session_factory=None, sleep_func=None, apply_rate_limit: bool = True) -> FetchResult:
+    """Reliable fetch primitive with cache, pacing, retry/backoff and anti-bot detection."""
     started = time.monotonic()
     session_factory = session_factory or requests.Session
     sleep_func = sleep_func or time.sleep
@@ -104,7 +111,7 @@ def fetch_html(url: str, force_refresh: bool = False, session_factory=None, slee
 
     max_attempts = max(1, int(getattr(settings, "COLLECTION_MAX_ATTEMPTS", 3)))
     backoff_base = float(getattr(settings, "COLLECTION_BACKOFF_BASE", 1.0))
-    timeout = float(getattr(settings, "COLLECTION_TIMEOUT", 20))
+    timeout = _request_timeout()
     session = session_factory()
     session.headers.update(build_headers())
 
