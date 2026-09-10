@@ -98,7 +98,10 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
 
 def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters):
     domain_failures = Counter()
-    domain_seen = Counter()
+    # processed_urls is shared across the initial, recovery and fallback passes.
+    # Seed the counter from it so the per-domain cap applies to the whole search,
+    # not independently to each pass.
+    domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
     max_failures_per_domain = int(getattr(settings, "ADAPTIVE_MAX_FAILURES_PER_DOMAIN", 2))
     max_candidates_per_domain = max(1, int(getattr(settings, "ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN", 3)))
     sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
