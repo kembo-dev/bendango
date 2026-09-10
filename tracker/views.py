@@ -72,13 +72,12 @@ def scrape_view(request):
     async_waiting = False
     async_active_jobs = 0
 
-    # Async result page: /?q=<product>. This lets the browser leave the original
-    # POST and safely refresh while workers complete queued jobs.
     if request.method == "GET" and request.GET.get("q"):
         query = request.GET.get("q", "").strip()
         site = request.GET.get("site", "all").strip() or "all"
         form = SearchOrScrapeForm(initial={"query": query, "site": "" if site == "all" else site})
         listings, async_active_jobs, failed_jobs, total_jobs = _async_job_state(query)
+        discovery_sources = discover_social_sources(query)
         if listings:
             listings, summary = _decorate_results(listings, query, site)
         if async_active_jobs:
@@ -128,8 +127,6 @@ def scrape_view(request):
                 listings, errors = search_and_scrape_product(product_query=query, site_filter=site, model_name=model_name)
                 discovery_sources = discover_social_sources(query)
 
-                # In queue mode, leave the POST immediately and move to an idempotent
-                # GET that can auto-refresh as workers finish jobs.
                 queue_message = any("arrière-plan" in error or "file de collecte" in error for error in errors)
                 if not listings and queue_message:
                     params = {"q": query}
