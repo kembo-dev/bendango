@@ -97,3 +97,34 @@ class AdaptiveQueueIntegrationTests(TestCase):
         diagnostics, results, errors = self._call(listing.url)
         self.assertEqual(results, [listing])
         self.assertEqual(errors, [])
+
+    @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=False, ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN=2)
+    def test_global_search_caps_candidates_per_domain(self):
+        diagnostics = _Diagnostics()
+        urls = [
+            'https://shop.example/products/a',
+            'https://shop.example/products/b',
+            'https://shop.example/products/c',
+            'https://other.example/products/d',
+        ]
+        _process_urls(
+            urls, set(), [], [], diagnostics,
+            'model', 'disque dur', [], 10, [],
+        )
+        queued = list(ScrapeJob.objects.values_list('url', flat=True))
+        self.assertEqual(len(queued), 3)
+        self.assertIn('https://other.example/products/d', queued)
+        self.assertNotIn('https://shop.example/products/c', queued)
+
+    @override_settings(SCRAPE_QUEUE_SYNC_FALLBACK=False, ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN=1)
+    def test_selected_site_is_not_limited_by_global_domain_cap(self):
+        diagnostics = _Diagnostics()
+        urls = [
+            'https://shop.example/products/a',
+            'https://shop.example/products/b',
+        ]
+        _process_urls(
+            urls, set(), [], [], diagnostics,
+            'model', 'disque dur', ['shop.example'], 10, ['shop.example'],
+        )
+        self.assertEqual(ScrapeJob.objects.count(), 2)
