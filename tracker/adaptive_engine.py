@@ -8,7 +8,7 @@ from django.conf import settings
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
-from tracker.domain_health import url_domain_health_score
+from tracker.domain_health import domain_candidate_cap, url_domain_health_score
 from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob
@@ -98,13 +98,11 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
 
 def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters):
     domain_failures = Counter()
-    # processed_urls is shared across the initial, recovery and fallback passes.
-    # Seed the counter from it so the per-domain cap applies to the whole search,
-    # not independently to each pass.
     domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
     max_failures_per_domain = int(getattr(settings, "ADAPTIVE_MAX_FAILURES_PER_DOMAIN", 2))
     max_candidates_per_domain = max(1, int(getattr(settings, "ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN", 3)))
     sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
+    domain_caps = {}
 
     for url in urls:
         if url in processed_urls:
@@ -112,8 +110,11 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         host = _domain(url)
         if host and domain_failures[host] >= max_failures_per_domain:
             continue
-        if not site_filters and host and domain_seen[host] >= max_candidates_per_domain:
-            continue
+        if not site_filters and host:
+            if host not in domain_caps:
+                domain_caps[host] = domain_candidate_cap(host, max_candidates_per_domain)
+            if domain_seen[host] >= domain_caps[host]:
+                continue
 
         processed_urls.add(url)
         if host:
