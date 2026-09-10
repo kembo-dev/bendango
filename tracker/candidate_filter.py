@@ -3,8 +3,6 @@ from __future__ import annotations
 import re
 from urllib.parse import parse_qs, urlparse
 
-from tracker.domain_health import url_domain_health_score
-
 
 BLOCKED_HOSTS = {
     "bing.com", "google.com", "duckduckgo.com",
@@ -71,8 +69,8 @@ def product_url_score(url: str) -> int:
     return score
 
 
-def filter_and_rank_candidate_urls(urls):
-    """Deduplicate noise, then combine URL quality with learned domain health."""
+def filter_and_rank_candidate_urls(urls, health_score_func=None):
+    """Pure URL filtering by default; optional health ranking for adaptive callers."""
     unique = []
     seen = set()
     for url in urls or []:
@@ -82,10 +80,11 @@ def filter_and_rank_candidate_urls(urls):
         if not is_low_value_candidate_url(url):
             unique.append(url)
 
-    # URL structure remains the strongest signal. Domain history only breaks/ranks
-    # candidates of similar structural quality, preserving exploration of new shops.
+    if health_score_func is None:
+        return sorted(unique, key=product_url_score, reverse=True)
+
     return sorted(
         unique,
-        key=lambda value: (product_url_score(value), url_domain_health_score(value)),
+        key=lambda value: (product_url_score(value), health_score_func(value)),
         reverse=True,
     )
