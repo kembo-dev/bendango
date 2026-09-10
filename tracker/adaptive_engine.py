@@ -33,11 +33,15 @@ def _append_unique(target, values):
             target.append(value)
 
 
-def _rank_adaptive_candidates(found):
-    return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score)
+def _rank_adaptive_candidates(found, product_query=None):
+    return filter_and_rank_candidate_urls(
+        found,
+        health_score_func=url_domain_health_score,
+        query=product_query,
+    )
 
 
-def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit):
+def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None):
     for term in search_terms:
         diagnostics.record_search_term()
         try:
@@ -47,7 +51,7 @@ def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, cand
             search_errors.append(message)
             diagnostics.record_error(message)
             continue
-        filtered = _rank_adaptive_candidates(found)
+        filtered = _rank_adaptive_candidates(found, product_query=product_query)
         diagnostics.record_candidates(len(filtered))
         _append_unique(urls, filtered)
         if len(urls) >= candidate_limit:
@@ -185,7 +189,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
     else:
         search_terms = build_adaptive_search_terms(product_query, country=country)
 
-    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit)
+    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query)
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
     _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters)
 
@@ -194,7 +198,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
         recovery_terms = [term for term in recovery_terms if term not in search_terms]
         if recovery_terms:
             before = len(urls)
-            _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2)
+            _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2, product_query=product_query)
             if len(urls) > before:
                 _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters)
 
@@ -207,7 +211,7 @@ def search_and_scrape_product(product_query, site_filter="all", model_name=None,
                     product_query,
                     fallback_domains,
                     max_results=max(target_merchants * 4, max_results * 2),
-                ))
+                ), product_query=product_query)
             except Exception as exc:
                 message = str(exc)
                 search_errors.append(message)
