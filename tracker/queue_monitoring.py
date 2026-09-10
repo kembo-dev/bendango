@@ -14,9 +14,13 @@ def _domain(url: str) -> str:
     return urlparse(url or "").netloc.lower().removeprefix("www.") or "unknown"
 
 
-def queue_metrics(limit_domains: int = 10, recent_hours: int | None = None) -> dict:
+def queue_metrics(limit_domains: int = 10, recent_hours: int | None = None, query: str | None = None) -> dict:
     """Return operational metrics for the persistent scrape queue."""
     jobs = ScrapeJob.objects.all()
+    normalized_query = (query or "").strip()
+    if normalized_query:
+        jobs = jobs.filter(query__iexact=normalized_query)
+
     since = None
     if recent_hours is not None:
         recent_hours = max(1, int(recent_hours))
@@ -72,6 +76,7 @@ def queue_metrics(limit_domains: int = 10, recent_hours: int | None = None) -> d
     )
 
     return {
+        "query": normalized_query or None,
         "window_hours": recent_hours,
         "since": since.isoformat() if since else None,
         "total": total,
