@@ -98,7 +98,9 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
 
 def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters):
     domain_failures = Counter()
+    domain_seen = Counter()
     max_failures_per_domain = int(getattr(settings, "ADAPTIVE_MAX_FAILURES_PER_DOMAIN", 2))
+    max_candidates_per_domain = max(1, int(getattr(settings, "ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN", 3)))
     sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
 
     for url in urls:
@@ -107,8 +109,12 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         host = _domain(url)
         if host and domain_failures[host] >= max_failures_per_domain:
             continue
+        if not site_filters and host and domain_seen[host] >= max_candidates_per_domain:
+            continue
 
         processed_urls.add(url)
+        if host:
+            domain_seen[host] += 1
         diagnostics.record_processed()
         job = enqueue_scrape_job(
             url=url,
