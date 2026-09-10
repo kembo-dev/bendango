@@ -11,16 +11,23 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--domains", type=int, default=10, help="Number of problematic domains to display.")
         parser.add_argument("--recent-hours", type=int, default=None, help="Only include jobs created in the last N hours.")
+        parser.add_argument("--query", type=str, default=None, help="Only include jobs for this exact product query (case-insensitive).")
         parser.add_argument("--json", action="store_true", dest="as_json", help="Output metrics as JSON.")
 
     def handle(self, *args, **options):
-        metrics = queue_metrics(limit_domains=max(1, options["domains"]), recent_hours=options["recent_hours"])
+        metrics = queue_metrics(
+            limit_domains=max(1, options["domains"]),
+            recent_hours=options["recent_hours"],
+            query=options["query"],
+        )
         if options["as_json"]:
             self.stdout.write(json.dumps(metrics, ensure_ascii=False, indent=2))
             return
 
         status = metrics["status"]
         title = "Bendango Scrape Queue"
+        if metrics["query"]:
+            title += f' - query="{metrics["query"]}"'
         if metrics["window_hours"]:
             title += f" - last {metrics['window_hours']}h"
         self.stdout.write(self.style.SUCCESS(title))
