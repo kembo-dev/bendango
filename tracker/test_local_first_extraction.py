@@ -80,3 +80,76 @@ class LocalFirstExtractionTests(TestCase):
         self.assertIsNotNone(listing)
         self.assertEqual(listing.extraction_source, "llm")
         llm_mock.assert_called_once()
+
+    @patch("tracker.services._fallback_extract_html", return_value=None)
+    @patch("tracker.services._extract_llm_only")
+    @patch("tracker.services.extract_structured_product", return_value=None)
+    @patch("tracker.services.fetch_and_clean_html")
+    def test_clearly_irrelevant_title_skips_llm(
+        self,
+        fetch_mock,
+        structured_mock,
+        llm_mock,
+        fallback_mock,
+    ):
+        fetch_mock.return_value = """
+            <html>
+              <head><title>Canape salon moderne en cuir</title></head>
+              <body>
+                <h1>Canape salon moderne en cuir</h1>
+                <div>Produit disponible, price on request</div>
+                <div>Ajouter au panier</div>
+              </body>
+            </html>
+        """
+
+        listing, error = process_url_and_save(
+            "https://merchant.example/product/canape-cuir",
+            expected_query="Yamaha F310",
+            allowed_hosts=[],
+        )
+
+        self.assertIsNone(listing)
+        self.assertIn("Produit non pertinent", error)
+        llm_mock.assert_not_called()
+
+    @patch("tracker.services.refresh_retailer_trust")
+    @patch("tracker.services._fallback_extract_html", return_value=None)
+    @patch("tracker.services._extract_llm_only")
+    @patch("tracker.services.extract_structured_product", return_value=None)
+    @patch("tracker.services.fetch_and_clean_html")
+    def test_ambiguous_but_overlapping_title_keeps_llm_fallback(
+        self,
+        fetch_mock,
+        structured_mock,
+        llm_mock,
+        fallback_mock,
+        trust_mock,
+    ):
+        fetch_mock.return_value = """
+            <html>
+              <head><title>Yamaha instruments - offre speciale</title></head>
+              <body>
+                <h1>Yamaha instruments</h1>
+                <div>Produit disponible, price on request</div>
+                <div>Ajouter au panier</div>
+              </body>
+            </html>
+        """
+        llm_mock.return_value = ExtractedProductData(
+            product_name="Yamaha F310",
+            price=205,
+            currency="USD",
+            in_stock=True,
+        )
+
+        listing, error = process_url_and_save(
+            "https://merchant.example/product/yamaha-offer",
+            expected_query="Yamaha F310",
+            allowed_hosts=[],
+        )
+
+        self.assertIsNone(error)
+        self.assertIsNotNone(listing)
+        self.assertEqual(listing.extraction_source, "llm")
+        llm_mock.assert_called_once()
