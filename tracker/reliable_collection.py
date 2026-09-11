@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from contextvars import ContextVar
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -22,6 +23,7 @@ ANTI_BOT_MARKERS = (
     "unusual traffic",
     "robot check",
 )
+_FETCH_POLICY = ContextVar("bendango_fetch_policy", default=None)
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,15 @@ class FetchResult:
     from_cache: bool = False
     duration_ms: int = 0
     error: str = ""
+
+
+def set_fetch_policy(policy):
+    """Set a process/task-local fetch policy and return a token for restoration."""
+    return _FETCH_POLICY.set(policy or None)
+
+
+def reset_fetch_policy(token):
+    _FETCH_POLICY.reset(token)
 
 
 def build_headers():
@@ -114,6 +125,12 @@ def fetch_html(
         cached = cache.get(key)
         if cached:
             return FetchResult(html=cached, status="cache_hit", attempts=0, from_cache=True, duration_ms=int((time.monotonic() - started) * 1000))
+
+    policy = _FETCH_POLICY.get() or {}
+    if max_attempts_override is None:
+        max_attempts_override = policy.get("max_attempts")
+    if timeout_override is None:
+        timeout_override = policy.get("timeout")
 
     configured_attempts = int(getattr(settings, "COLLECTION_MAX_ATTEMPTS", 3))
     max_attempts = max(1, int(max_attempts_override if max_attempts_override is not None else configured_attempts))
