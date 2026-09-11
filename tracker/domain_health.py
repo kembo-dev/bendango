@@ -68,9 +68,9 @@ def domain_candidate_cap(domain: str, default_cap: int = 3) -> int:
 def domain_fetch_budget(domain: str) -> dict:
     """Return a bounded transport budget learned from recent domain outcomes.
 
-    New domains remain explorable, but exploration is deliberately cheaper than a
-    proven healthy domain so one unknown host cannot block a worker for 20-30s.
-    Poor domains are throttled, never blacklisted.
+    New domains remain explorable, but each exploration pass is intentionally
+    cheap. A failed exploratory job can still receive the queue-level delayed
+    retry, so the domain gets a second chance without multiplying inner retries.
     """
     health = domain_health(domain)
     min_samples = int(getattr(settings, "DOMAIN_HEALTH_MIN_SAMPLES", 4))
@@ -81,9 +81,9 @@ def domain_fetch_budget(domain: str) -> dict:
 
     if health["sample_size"] < min_samples:
         tier = "explore"
-        attempts = min(normal_attempts, max(1, int(getattr(settings, "COLLECTION_EXPLORE_MAX_ATTEMPTS", 2))))
-        connect = min(normal_connect, float(getattr(settings, "COLLECTION_EXPLORE_CONNECT_TIMEOUT", 3.0)))
-        read = min(normal_read, float(getattr(settings, "COLLECTION_EXPLORE_READ_TIMEOUT", 6.0)))
+        attempts = 1
+        connect = min(normal_connect, float(getattr(settings, "COLLECTION_EXPLORE_CONNECT_TIMEOUT", 2.0)))
+        read = min(normal_read, float(getattr(settings, "COLLECTION_EXPLORE_READ_TIMEOUT", 4.0)))
     elif health["score"] < 0.20:
         tier = "low"
         attempts = 1
