@@ -53,11 +53,6 @@ def url_domain_health_score(url: str) -> float:
 
 
 def domain_candidate_cap(domain: str, default_cap: int = 3) -> int:
-    """Choose how many candidates a domain may contribute to one global search.
-
-    New/undersampled domains remain exploratory. Repeatedly failing domains are
-    throttled rather than blacklisted, so they can recover naturally over time.
-    """
     default_cap = max(1, int(default_cap))
     health = domain_health(domain)
     min_samples = int(getattr(settings, "DOMAIN_HEALTH_MIN_SAMPLES", 4))
@@ -68,6 +63,52 @@ def domain_candidate_cap(domain: str, default_cap: int = 3) -> int:
     if health["score"] < 0.50:
         return min(default_cap, 2)
     return default_cap
+
+
+def domain_fetch_budget(domain: str) -> dict:
+    """Return a bounded transport budget learned from recent domain outcomes.
+
+    Poor domains are throttled, never blacklisted. New domains keep the normal
+    exploration budget until enough observations exist.
+    """
+    health = domain_health(domain)
+    min_samples = int(getattr(settings, "DOMAIN_HEALTH_MIN_SAMPLES", 4))
+    normal_attempts = max(1, int(getattr(settings, "COLLECTION_MAX_ATTEMPTS", 3)))
+    legacy = float(getattr(settings, "COLLECTION_TIMEOUT", 20))
+    normal_connect = float(getattr(settings, "COLLECTION_CONNECT_TIMEOUT", min(4.0, legacy)))
+    normal_read = float(getattr(settings, "COLLECTION_READ_TIMEOUT", min(8.0, legacy)))
+
+    if health["sample_size"] < min_samples:
+        tier = "explore"
+        attempts = normal_attempts
+        connect, read = normal_connect, normal_read
+    elif health["score"] < 0.20:
+        tier = "low"
+        attempts = 1
+        connect = min(normal_connect, float(getattr(settings, "COLLECTION_LOW_HEALTH_CONNECT_TIMEOUT", 2.0)))
+        read = min(normal_read, float(getattr(settings, "COLLECTION_LOW_HEALTH_READ_TIMEOUT", 4.0)))
+    elif health["score"] < 0.50:
+        tier = "limited"
+        attempts = min(normal_attempts, 2)
+        connect = min(normal_connect, float(getattr(settings, "COLLECTION_LIMITED_HEALTH_CONNECT_TIMEOUT", 3.0)))
+        read = min(normal_read, float(getattr(settings, "COLLECTION_LIMITED_HEALTH_READ_TIMEOUT", 6.0)))
+    else:
+        tier = "healthy"
+        attempts = normal_attempts
+        connect, read = normal_connect, normal_read
+
+    return {
+        "domain": domain,
+        "tier": tier,
+        "score": health["score"],
+        "sample_size": health["sample_size"],
+        "max_attempts": attempts,
+        "timeout": (max(0.5, connect), max(1.0, read)),
+    }
+
+
+def url_fetch_budget(url: str) -> dict:
+    return domain_fetch_budget(domain_from_url(url))
 
 
 def rank_urls_by_domain_health(urls):
