@@ -1,10 +1,11 @@
 import time
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from tracker.domain_health import url_fetch_budget
+from tracker.domain_health import domain_fetch_circuit_open, domain_from_url, url_fetch_budget
 from tracker.job_outcomes import classify_processing_error, should_retry_job
-from tracker.job_queue import claim_next_job, complete_job, fail_job, recover_stale_running_jobs
+from tracker.job_queue import claim_next_job, complete_job, defer_job, fail_job, recover_stale_running_jobs
 from tracker.reliable_collection import (
     clear_last_fetch_result,
     get_last_fetch_result,
@@ -43,6 +44,18 @@ class Command(BaseCommand):
                 if options['once'] or options['exit_when_empty'] or (options['max_jobs'] and processed >= options['max_jobs']):
                     break
                 time.sleep(max(options['poll_interval'], 0.1))
+                continue
+
+            domain = domain_from_url(job.url)
+            if domain_fetch_circuit_open(domain):
+                cooldown_seconds = max(60, int(getattr(settings, 'DOMAIN_FETCH_CIRCUIT_MINUTES', 10)) * 60)
+                defer_job(job, cooldown_seconds, reason='domain_cooldown')
+                self.stdout.write(self.style.WARNING(
+                    f'job {job.pk}: retry/domain_cooldown (domain={domain}, delay={cooldown_seconds}s)'
+                ))
+                processed += 1
+                if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
+                    break
                 continue
 
             started = time.monotonic()
