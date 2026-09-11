@@ -8,7 +8,7 @@ from django.conf import settings
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
-from tracker.domain_health import domain_candidate_cap, url_domain_health_score
+from tracker.domain_health import domain_candidate_cap, domain_fetch_circuit_open, url_domain_health_score
 from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob
@@ -107,6 +107,7 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
     max_candidates_per_domain = max(1, int(getattr(settings, "ADAPTIVE_MAX_CANDIDATES_PER_DOMAIN", 3)))
     sync_fallback = bool(getattr(settings, "SCRAPE_QUEUE_SYNC_FALLBACK", True))
     domain_caps = {}
+    circuit_state = {}
 
     for url in urls:
         if url in processed_urls:
@@ -115,6 +116,10 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         if host and domain_failures[host] >= max_failures_per_domain:
             continue
         if not site_filters and host:
+            if host not in circuit_state:
+                circuit_state[host] = domain_fetch_circuit_open(host)
+            if circuit_state[host]:
+                continue
             if host not in domain_caps:
                 domain_caps[host] = domain_candidate_cap(host, max_candidates_per_domain)
             if domain_seen[host] >= domain_caps[host]:
