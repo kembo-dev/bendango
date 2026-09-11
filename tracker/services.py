@@ -28,7 +28,7 @@ from tracker.currency import normalize_currency_code, normalize_to_usd
 from tracker.extractors import extract_structured_product
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import PriceListing, Retailer
-from tracker.product_matching import match_product
+from tracker.product_matching import match_product, normalize_product_name
 from tracker.reliable_collection import build_headers, fetch_html
 from tracker.retailer_trust import refresh_retailer_trust
 from tracker.search_diagnostics import SearchDiagnosticsRecorder
@@ -162,12 +162,48 @@ def _cached_listing_for_url(url,expected_query=None):
 def _deactivate_listing_for_url(url):return PriceListing.objects.filter(url=url,is_active=True).update(is_active=False)
 def _is_not_found_page(html):return bool(html) and any(m in html.lower() for m in ["404 page introuvable","page introuvable","not found","page not found","could not find this page","we couldn't find this page"])
 
+
 def _has_exploitable_product_structure(html):
     if not html:return False
     soup=BeautifulSoup(html,"html.parser");text=soup.get_text(" ",strip=True)
     if len(text)<40:return False
     lower=text.lower();price=bool(re.search(r"(?:€|eur|usd|xof|xaf|cfa|fcfa|cdf|fc|\$)\s*\d|\d[\d\s\.,]*\s*(?:€|eur|usd|xof|xaf|cfa|fcfa|cdf|fc|\$)",text,re.I));signal=any(t in lower for t in ["prix","price","en stock","in stock","sku","ean","product","produit","ajouter au panier","add to cart","acheter","buy now"])
     return signal and len(soup.find_all(["h1","h2","h3","p","div","span"]))>=2 and not (any(t in lower for t in ["bienvenue","newsletter","contact","blog"]) and not price)
+
+
+def _page_identity(html):
+    """Return a compact title/H1 identity suitable for a cheap relevance check."""
+    soup=BeautifulSoup(html or "","html.parser")
+    h1=soup.find("h1")
+    title=soup.title
+    parts=[]
+    if h1:
+        value=h1.get_text(" ",strip=True)
+        if value:parts.append(value)
+    if title:
+        value=title.get_text(" ",strip=True)
+        if value and value not in parts:parts.append(value)
+    return re.sub(r"\s+"," "," ".join(parts)).strip()[:500]
+
+
+def _clearly_irrelevant_before_llm(expected_query,html):
+    """Reject only near-zero title/H1 matches before spending an LLM call.
+
+    The gate intentionally stays conservative: short/generic identities, identities
+    with any meaningful query-token overlap, and ambiguous scores keep access to
+    the LLM so translations and unusual merchant titles are not prematurely lost.
+    """
+    if not expected_query:return None
+    identity=_page_identity(html)
+    normalized_identity=normalize_product_name(identity)
+    normalized_query=normalize_product_name(expected_query)
+    if not normalized_identity or len(normalized_identity)<8:return None
+    query_tokens={t for t in normalized_query.split() if len(t)>=3}
+    identity_tokens=set(normalized_identity.split())
+    if not query_tokens or query_tokens & identity_tokens:return None
+    result=match_product(expected_query,identity)
+    threshold=float(getattr(settings,"PRE_LLM_RELEVANCE_REJECT_SCORE",0.10))
+    return result if not result.is_match and result.score<=threshold else None
 
 
 def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=None):
@@ -190,6 +226,8 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
         if extracted is not None:
             source="html"
         else:
+            pre_llm_mismatch=_clearly_irrelevant_before_llm(expected_query,html)
+            if pre_llm_mismatch is not None:return (cached,None) if cached else (None,f"Produit non pertinent ({pre_llm_mismatch.reason}, score={pre_llm_mismatch.score:.2f}).")
             extracted=_extract_llm_only(html,model_name)
             source="llm" if extracted else "html"
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
