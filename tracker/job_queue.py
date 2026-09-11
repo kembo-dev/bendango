@@ -113,6 +113,20 @@ def claim_next_job() -> ScrapeJob | None:
     return None
 
 
+def defer_job(job: ScrapeJob, delay_seconds: int, reason: str = 'domain_cooldown') -> ScrapeJob:
+    """Release a claimed job for later without consuming a processing attempt."""
+    now = timezone.now()
+    job.status = ScrapeJob.STATUS_RETRY
+    job.attempts = max(0, int(job.attempts or 0) - 1)
+    job.available_at = now + timedelta(seconds=max(1, int(delay_seconds)))
+    job.started_at = None
+    job.finished_at = now
+    job.fetch_status = reason
+    job.last_error = 'Traitement différé temporairement.'
+    job.save(update_fields=['status', 'attempts', 'available_at', 'started_at', 'finished_at', 'fetch_status', 'last_error', 'updated_at'])
+    return job
+
+
 def complete_job(job: ScrapeJob, listing=None, fetch_status: str = 'success', http_status=None, duration_ms: int = 0, from_cache: bool = False):
     job.status = ScrapeJob.STATUS_SUCCESS
     job.listing = listing
