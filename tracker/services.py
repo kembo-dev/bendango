@@ -130,7 +130,7 @@ def _extract_llm_only(html_snippet,model_name=None):
     except Exception:return None
 
 
-def extract_with_llm(html_snippet,model_name=None):return _extract_llm_only(html_snippet,model_name) or _fallback_extract_html(html_snippet)
+def extract_with_llm(html_snippet,model_name=None):return _fallback_extract_html(html_snippet) or _extract_llm_only(html_snippet,model_name)
 
 
 def _structured_to_extracted(html,query=None):
@@ -185,7 +185,13 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
             if not preliminary_match.is_match:return None,f"Produit non pertinent ({preliminary_match.reason}, score={preliminary_match.score:.2f})."
     extracted,source=_structured_to_extracted(html,query=expected_query)
     if extracted is None and expected_query and allowed_hosts is not None and not _has_exploitable_product_structure(html):return (cached,None) if cached else (None,"Page sans structure de produit exploitable.")
-    if extracted is None:extracted=_extract_llm_only(html,model_name);source="llm" if extracted else "html";extracted=extracted or _fallback_extract_html(html)
+    if extracted is None:
+        extracted=_fallback_extract_html(html)
+        if extracted is not None:
+            source="html"
+        else:
+            extracted=_extract_llm_only(html,model_name)
+            source="llm" if extracted else "html"
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
     page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text)
     name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
