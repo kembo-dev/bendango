@@ -24,6 +24,13 @@ class Command(BaseCommand):
         parser.add_argument('--exit-when-empty', action='store_true', help='Exit when no available job remains.')
         parser.add_argument('--stale-timeout', type=int, default=None, help='Seconds before a running job is considered abandoned.')
 
+    @staticmethod
+    def _timing_label(total_ms, fetch_result, listing=None):
+        fetch_ms = int(getattr(fetch_result, 'duration_ms', 0) or 0)
+        process_ms = max(0, int(total_ms) - fetch_ms)
+        source = getattr(listing, 'extraction_source', '') or '-'
+        return f'fetch_ms={fetch_ms}, process_ms={process_ms}, source={source}'
+
     def handle(self, *args, **options):
         processed = 0
         recovered = recover_stale_running_jobs(options['stale_timeout'])
@@ -40,7 +47,7 @@ class Command(BaseCommand):
 
             started = time.monotonic()
             budget = url_fetch_budget(job.url)
-            budget['use_cache'] = True
+            budget = {**budget, 'use_cache': True}
             policy_token = set_fetch_policy(budget)
             clear_last_fetch_result()
             try:
@@ -52,20 +59,20 @@ class Command(BaseCommand):
                 )
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
                 fetch_result = get_last_fetch_result()
-                from_cache = bool(fetch_result and fetch_result.from_cache)
-                http_status = fetch_result.http_status if fetch_result else None
-                fetch_label = f'{budget["tier"]}, cache={"hit" if from_cache else "miss"}'
+                from_cache = bool(getattr(fetch_result, 'from_cache', False))
+                http_status = getattr(fetch_result, 'http_status', None)
+                timing = self._timing_label(duration_ms, fetch_result, listing)
                 if listing:
                     complete_job(
                         job,
                         listing=listing,
-                        fetch_status='cache_hit' if from_cache else 'processed',
+                        fetch_status='processed',
                         http_status=http_status,
                         duration_ms=duration_ms,
                         from_cache=from_cache,
                     )
                     self.stdout.write(self.style.SUCCESS(
-                        f'job {job.pk}: success ({duration_ms}ms, fetch={fetch_label})'
+                        f'job {job.pk}: success ({duration_ms}ms, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'
                     ))
                 else:
                     fetch_status, retryable = classify_processing_error(error)
@@ -80,24 +87,28 @@ class Command(BaseCommand):
                         from_cache=from_cache,
                     )
                     self.stdout.write(self.style.WARNING(
-                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, fetch={fetch_label}) - {job.last_error}'
+                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'
                     ))
             except Exception as exc:
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
                 fetch_result = get_last_fetch_result()
+                from_cache = bool(getattr(fetch_result, 'from_cache', False))
+                http_status = getattr(fetch_result, 'http_status', None)
+                timing = self._timing_label(duration_ms, fetch_result)
                 fail_job(
                     job,
                     str(exc),
                     retryable=True,
                     fetch_status='worker_exception',
-                    http_status=fetch_result.http_status if fetch_result else None,
+                    http_status=http_status,
                     duration_ms=duration_ms,
-                    from_cache=bool(fetch_result and fetch_result.from_cache),
+                    from_cache=from_cache,
                 )
-                self.stderr.write(f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms) - {exc}')
+                self.stderr.write(
+                    f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}'
+                )
             finally:
                 reset_fetch_policy(policy_token)
-                clear_last_fetch_result()
 
             processed += 1
             if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
