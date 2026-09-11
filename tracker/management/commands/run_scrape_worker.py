@@ -5,7 +5,12 @@ from django.core.management.base import BaseCommand
 from tracker.domain_health import url_fetch_budget
 from tracker.job_outcomes import classify_processing_error, should_retry_job
 from tracker.job_queue import claim_next_job, complete_job, fail_job, recover_stale_running_jobs
-from tracker.reliable_collection import reset_fetch_policy, set_fetch_policy
+from tracker.reliable_collection import (
+    clear_last_fetch_result,
+    get_last_fetch_result,
+    reset_fetch_policy,
+    set_fetch_policy,
+)
 from tracker.services import process_url_and_save
 
 
@@ -35,7 +40,9 @@ class Command(BaseCommand):
 
             started = time.monotonic()
             budget = url_fetch_budget(job.url)
+            budget['use_cache'] = True
             policy_token = set_fetch_policy(budget)
+            clear_last_fetch_result()
             try:
                 listing, error = process_url_and_save(
                     job.url,
@@ -44,10 +51,21 @@ class Command(BaseCommand):
                     allowed_hosts=[],
                 )
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
+                fetch_result = get_last_fetch_result()
+                from_cache = bool(fetch_result and fetch_result.from_cache)
+                http_status = fetch_result.http_status if fetch_result else None
+                fetch_label = f'{budget["tier"]}, cache={"hit" if from_cache else "miss"}'
                 if listing:
-                    complete_job(job, listing=listing, fetch_status='processed', duration_ms=duration_ms)
+                    complete_job(
+                        job,
+                        listing=listing,
+                        fetch_status='cache_hit' if from_cache else 'processed',
+                        http_status=http_status,
+                        duration_ms=duration_ms,
+                        from_cache=from_cache,
+                    )
                     self.stdout.write(self.style.SUCCESS(
-                        f'job {job.pk}: success ({duration_ms}ms, fetch={budget["tier"]})'
+                        f'job {job.pk}: success ({duration_ms}ms, fetch={fetch_label})'
                     ))
                 else:
                     fetch_status, retryable = classify_processing_error(error)
@@ -57,17 +75,29 @@ class Command(BaseCommand):
                         error or "Échec de traitement.",
                         retryable=retryable,
                         fetch_status=fetch_status,
+                        http_status=http_status,
                         duration_ms=duration_ms,
+                        from_cache=from_cache,
                     )
                     self.stdout.write(self.style.WARNING(
-                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, fetch={budget["tier"]}) - {job.last_error}'
+                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, fetch={fetch_label}) - {job.last_error}'
                     ))
             except Exception as exc:
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
-                fail_job(job, str(exc), retryable=True, fetch_status='worker_exception', duration_ms=duration_ms)
+                fetch_result = get_last_fetch_result()
+                fail_job(
+                    job,
+                    str(exc),
+                    retryable=True,
+                    fetch_status='worker_exception',
+                    http_status=fetch_result.http_status if fetch_result else None,
+                    duration_ms=duration_ms,
+                    from_cache=bool(fetch_result and fetch_result.from_cache),
+                )
                 self.stderr.write(f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms) - {exc}')
             finally:
                 reset_fetch_policy(policy_token)
+                clear_last_fetch_result()
 
             processed += 1
             if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
