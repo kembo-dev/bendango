@@ -24,6 +24,7 @@ ANTI_BOT_MARKERS = (
     "robot check",
 )
 _FETCH_POLICY = ContextVar("bendango_fetch_policy", default=None)
+_LAST_FETCH_RESULT = ContextVar("bendango_last_fetch_result", default=None)
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,19 @@ def set_fetch_policy(policy):
 
 def reset_fetch_policy(token):
     _FETCH_POLICY.reset(token)
+
+
+def clear_last_fetch_result():
+    _LAST_FETCH_RESULT.set(None)
+
+
+def get_last_fetch_result():
+    return _LAST_FETCH_RESULT.get()
+
+
+def _remember(result: FetchResult) -> FetchResult:
+    _LAST_FETCH_RESULT.set(result)
+    return result
 
 
 def build_headers():
@@ -119,14 +133,17 @@ def fetch_html(
     started = time.monotonic()
     session_factory = session_factory or requests.Session
     sleep_func = sleep_func or time.sleep
+    policy = _FETCH_POLICY.get() or {}
+    if policy.get("use_cache"):
+        force_refresh = False
+
     ttl = int(getattr(settings, "COLLECTION_HTML_CACHE_TTL", 300))
     key = _cache_key(url)
     if not force_refresh and ttl > 0:
         cached = cache.get(key)
         if cached:
-            return FetchResult(html=cached, status="cache_hit", attempts=0, from_cache=True, duration_ms=int((time.monotonic() - started) * 1000))
+            return _remember(FetchResult(html=cached, status="cache_hit", attempts=0, from_cache=True, duration_ms=int((time.monotonic() - started) * 1000)))
 
-    policy = _FETCH_POLICY.get() or {}
     if max_attempts_override is None:
         max_attempts_override = policy.get("max_attempts")
     if timeout_override is None:
@@ -152,16 +169,16 @@ def fetch_html(
                 if attempt < max_attempts:
                     sleep_func(backoff_base * (3 ** (attempt - 1)))
                     continue
-                return FetchResult(None, "transient_failure", last_status, attempt, False, int((time.monotonic() - started) * 1000), last_error)
+                return _remember(FetchResult(None, "transient_failure", last_status, attempt, False, int((time.monotonic() - started) * 1000), last_error))
             if response.status_code >= 400:
-                return FetchResult(None, "http_error", last_status, attempt, False, int((time.monotonic() - started) * 1000), f"HTTP {response.status_code}")
+                return _remember(FetchResult(None, "http_error", last_status, attempt, False, int((time.monotonic() - started) * 1000), f"HTTP {response.status_code}"))
 
             html = _clean_html(response.content, response.encoding)
             if _is_anti_bot_page(html):
-                return FetchResult(None, "anti_bot", last_status, attempt, False, int((time.monotonic() - started) * 1000), "Protection anti-bot détectée")
+                return _remember(FetchResult(None, "anti_bot", last_status, attempt, False, int((time.monotonic() - started) * 1000), "Protection anti-bot détectée"))
             if ttl > 0:
                 cache.set(key, html, timeout=ttl)
-            return FetchResult(html, "success", last_status, attempt, False, int((time.monotonic() - started) * 1000))
+            return _remember(FetchResult(html, "success", last_status, attempt, False, int((time.monotonic() - started) * 1000)))
 
         except requests.RequestException as exc:
             last_error = str(exc)
@@ -169,4 +186,4 @@ def fetch_html(
                 sleep_func(backoff_base * (3 ** (attempt - 1)))
                 continue
 
-    return FetchResult(None, "network_failure", last_status, max_attempts, False, int((time.monotonic() - started) * 1000), last_error)
+    return _remember(FetchResult(None, "network_failure", last_status, max_attempts, False, int((time.monotonic() - started) * 1000), last_error))
