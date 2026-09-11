@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from urllib.parse import urlparse
 
 from django.conf import settings
+from django.utils import timezone
 
 from tracker.models import ScrapeJob
 
@@ -46,6 +48,34 @@ def domain_health(domain: str, sample_size: int | None = None) -> dict:
         "extraction_failures": extraction_failures,
         "score": round(score, 4),
     }
+
+
+def domain_fetch_circuit_open(domain: str) -> bool:
+    """Temporarily pause domains with consecutive recent transport failures.
+
+    This is a short cooldown, not a blacklist. A recent success immediately closes
+    the circuit, and old failures age out automatically.
+    """
+    if not domain or domain == "unknown":
+        return False
+    threshold = max(2, int(getattr(settings, "DOMAIN_FETCH_CIRCUIT_FAILURES", 2)))
+    cooldown_minutes = max(1, int(getattr(settings, "DOMAIN_FETCH_CIRCUIT_MINUTES", 10)))
+    cutoff = timezone.now() - timedelta(minutes=cooldown_minutes)
+    rows = list(
+        ScrapeJob.objects.filter(
+            url__icontains=domain,
+            status__in=[ScrapeJob.STATUS_SUCCESS, ScrapeJob.STATUS_FAILED],
+            finished_at__gte=cutoff,
+        )
+        .order_by("-finished_at", "-created_at")
+        .values("status", "fetch_status")[:threshold]
+    )
+    if len(rows) < threshold:
+        return False
+    return all(
+        row["status"] == ScrapeJob.STATUS_FAILED and row["fetch_status"] in {"fetch_failed", "anti_bot"}
+        for row in rows
+    )
 
 
 def url_domain_health_score(url: str) -> float:
