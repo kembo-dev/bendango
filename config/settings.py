@@ -81,11 +81,6 @@ LLM_CONFIG = {
     'base_url': os.environ.get('OPENAI_BASE_URL') or '',
 }
 
-# Unit tests must be deterministic and must not accidentally call paid/live AWS
-# services just because a developer has credentials exported in the shell. The
-# legacy Bedrock integration test is therefore opt-in. Its skip decorator checks
-# AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY directly, so hide those variables only
-# inside the Django test process unless live integration testing was requested.
 TESTING = 'test' in sys.argv
 RUN_BEDROCK_INTEGRATION_TESTS = get_env_bool('RUN_BEDROCK_INTEGRATION_TESTS', default=False)
 if TESTING and not RUN_BEDROCK_INTEGRATION_TESTS:
@@ -133,12 +128,60 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Database -------------------------------------------------------------------
+# Keep SQLite as a zero-config fallback, but local/prod PostgreSQL can be
+# enabled with DB_ENGINE=postgresql. The recommended local database name is
+# "bendango".
+DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite').strip().lower()
+if DB_ENGINE in {'postgres', 'postgresql', 'psql'}:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('POSTGRES_DB', 'bendango'),
+            'USER': os.environ.get('POSTGRES_USER', 'bendango'),
+            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+            'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
+            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
+            'OPTIONS': {
+                'connect_timeout': int(os.environ.get('POSTGRES_CONNECT_TIMEOUT', '5')),
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# Redis / Django cache --------------------------------------------------------
+# REDIS_URL enables a shared cache usable by all web/worker processes. When it
+# is absent, tests and zero-config development keep using local memory.
+REDIS_URL = os.environ.get('REDIS_URL', '').strip()
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': float(os.environ.get('REDIS_CONNECT_TIMEOUT', '2')),
+                'SOCKET_TIMEOUT': float(os.environ.get('REDIS_SOCKET_TIMEOUT', '2')),
+                'IGNORE_EXCEPTIONS': False,
+            },
+            'KEY_PREFIX': os.environ.get('REDIS_KEY_PREFIX', 'bendango'),
+            'TIMEOUT': int(os.environ.get('REDIS_DEFAULT_TIMEOUT', '300')),
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'bendango-local-cache',
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
