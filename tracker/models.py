@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -167,6 +168,23 @@ class SearchDiagnostic(models.Model):
         return f"{self.query}: {self.merchant_count}/{self.target_merchants} marchands"
 
 
+class SearchRun(models.Model):
+    """One user search execution; isolates queue coverage from identical queries."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    query = models.CharField(max_length=255, db_index=True)
+    site_filter = models.CharField(max_length=255, default='all')
+    target_merchants = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['query', 'created_at'], name='tracker_run_query_created_idx')]
+
+    def __str__(self):
+        return f"{self.query} [{self.id}]"
+
+
 class ScrapeJob(models.Model):
     """Persistent unit of scraping work, independent from the execution backend."""
     STATUS_PENDING = 'pending'
@@ -182,6 +200,7 @@ class ScrapeJob(models.Model):
         (STATUS_FAILED, 'Failed'),
     ]
 
+    search_run = models.ForeignKey(SearchRun, on_delete=models.SET_NULL, blank=True, null=True, related_name='jobs')
     url = models.URLField(max_length=2048, db_index=True)
     query = models.CharField(max_length=255, blank=True, default='')
     model_name = models.CharField(max_length=255, blank=True, default='')
@@ -205,6 +224,7 @@ class ScrapeJob(models.Model):
         indexes = [
             models.Index(fields=['status', 'available_at'], name='tracker_scr_status_avail_idx'),
             models.Index(fields=['url', 'status'], name='tracker_scr_url_status_idx'),
+            models.Index(fields=['search_run', 'status'], name='tracker_scr_run_status_idx'),
         ]
 
     def __str__(self):
