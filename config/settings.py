@@ -22,7 +22,7 @@ def get_env_bool(name: str, default: bool = False) -> bool:
         return default
     return value.strip().lower() in {'1', 'true', 'yes', 'on'}
 
-
+SCRAPE_QUEUE_SYNC_FALLBACK = False
 DEBUG = get_env_bool('DJANGO_DEBUG', default=True)
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
