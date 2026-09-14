@@ -18,7 +18,9 @@ from tracker.job_queue import (
     claim_next_job,
     complete_job,
     defer_job,
+    discard_running_job,
     fail_job,
+    query_coverage_reached,
     recover_stale_running_jobs,
 )
 from tracker.reliable_collection import (
@@ -49,12 +51,7 @@ class DomainLock:
             timeout = max(10, int(getattr(settings, 'SCRAPE_DOMAIN_LOCK_TIMEOUT', 30)))
             try:
                 client = cache.client.get_client(write=True)
-                self.redis_lock = client.lock(
-                    self.cache_key,
-                    timeout=timeout,
-                    blocking_timeout=0,
-                    thread_local=False,
-                )
+                self.redis_lock = client.lock(self.cache_key, timeout=timeout, blocking_timeout=0, thread_local=False)
                 return bool(self.redis_lock.acquire(blocking=False))
             except Exception:
                 self.redis_lock = None
@@ -115,7 +112,6 @@ class Command(BaseCommand):
         manage_py = str(Path(settings.BASE_DIR) / 'manage.py')
         processes = []
         self.stdout.write(self.style.SUCCESS(f'Starting {worker_count} Bendango scrape workers'))
-
         for index in range(worker_count):
             command = [sys.executable, manage_py, 'run_scrape_worker', '--workers', '1', '--child-worker', '--poll-interval', str(options['poll_interval'])]
             if options['exit_when_empty']:
@@ -129,7 +125,6 @@ class Command(BaseCommand):
             env = os.environ.copy()
             env['BENDANGO_WORKER_INDEX'] = str(index + 1)
             processes.append(subprocess.Popen(command, cwd=str(settings.BASE_DIR), env=env))
-
         exit_code = 0
         try:
             for process in processes:
@@ -166,6 +161,15 @@ class Command(BaseCommand):
 
             lane = getattr(job, 'queue_lane', 'unknown')
             domain = domain_from_url(job.url)
+
+            # Another parallel worker may have reached market coverage after this
+            # job was claimed. Drop it before taking a lock or touching the network.
+            if query_coverage_reached(job.query):
+                discard_running_job(job)
+                self.stdout.write(self.style.SUCCESS(f'job {job.pk}: skipped/coverage_reached (lane={lane})'))
+                processed += 1
+                continue
+
             domain_lock = DomainLock(domain)
             if not domain_lock.acquire():
                 busy_delay = max(1, int(getattr(settings, 'SCRAPE_DOMAIN_BUSY_DELAY', 2)))
@@ -177,6 +181,13 @@ class Command(BaseCommand):
                 continue
 
             try:
+                # Recheck after waiting/competing for the domain lock.
+                if query_coverage_reached(job.query):
+                    discard_running_job(job)
+                    self.stdout.write(self.style.SUCCESS(f'job {job.pk}: skipped/coverage_reached (lane={lane})'))
+                    processed += 1
+                    continue
+
                 if domain_fetch_circuit_open(domain):
                     cooldown_seconds = max(60, int(getattr(settings, 'DOMAIN_FETCH_CIRCUIT_MINUTES', 10)) * 60)
                     defer_job(job, cooldown_seconds, reason='domain_cooldown')
@@ -205,7 +216,12 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.SUCCESS(f'query coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'))
                     else:
                         fetch_status, retryable = classify_processing_error(error)
-                        retryable = should_retry_job(fetch_status, job.attempts, retryable)
+                        # Coverage may have been reached while this request was in flight.
+                        # Preserve this diagnostic failure, but do not schedule another retry.
+                        if query_coverage_reached(job.query):
+                            retryable = False
+                        else:
+                            retryable = should_retry_job(fetch_status, job.attempts, retryable)
                         fail_job(job, error or "Échec de traitement.", retryable=retryable, fetch_status=fetch_status, http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
                         self.stdout.write(self.style.WARNING(f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'))
                 except Exception as exc:
@@ -214,7 +230,8 @@ class Command(BaseCommand):
                     from_cache = bool(getattr(fetch_result, 'from_cache', False))
                     http_status = getattr(fetch_result, 'http_status', None)
                     timing = self._timing_label(duration_ms, fetch_result)
-                    fail_job(job, str(exc), retryable=True, fetch_status='worker_exception', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
+                    retryable = not query_coverage_reached(job.query)
+                    fail_job(job, str(exc), retryable=retryable, fetch_status='worker_exception', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
                     self.stderr.write(f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, lane={lane}, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}')
                 finally:
                     reset_fetch_policy(policy_token)
