@@ -81,7 +81,24 @@ def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_
         return None
 
 
-def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run):
+def _process_urls(
+    urls,
+    processed_urls,
+    results,
+    errors,
+    diagnostics,
+    selected,
+    product_query,
+    allowed_hosts,
+    target_merchants,
+    site_filters,
+    search_run=None,
+):
+    """Queue/process candidate URLs, optionally scoped to a SearchRun.
+
+    search_run remains optional for backward compatibility with tests and legacy
+    internal callers. New user searches always pass a SearchRun instance.
+    """
     domain_failures = Counter()
     domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
     max_failures_per_domain = int(getattr(settings, 'ADAPTIVE_MAX_FAILURES_PER_DOMAIN', 2))
@@ -111,8 +128,11 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
             domain_seen[host] += 1
         diagnostics.record_processed()
         job = enqueue_scrape_job(
-            url=url, query=product_query, model_name=selected,
-            max_attempts=int(getattr(settings, 'SCRAPE_JOB_MAX_ATTEMPTS', 3)), search_run=search_run,
+            url=url,
+            query=product_query,
+            model_name=selected,
+            max_attempts=int(getattr(settings, 'SCRAPE_JOB_MAX_ATTEMPTS', 3)),
+            search_run=search_run,
         )
 
         listing = None
@@ -121,7 +141,14 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
         elif sync_fallback:
             listing = _process_job_now(job, selected, product_query, diagnostics, errors, allowed_hosts=allowed_hosts)
         else:
-            finished = ScrapeJob.objects.filter(search_run=search_run, url=url, status=ScrapeJob.STATUS_SUCCESS, listing__isnull=False).select_related('listing').order_by('-finished_at').first()
+            if search_run is not None:
+                finished_qs = ScrapeJob.objects.filter(search_run=search_run, url=url)
+            else:
+                finished_qs = ScrapeJob.objects.filter(search_run__isnull=True, query=product_query, url=url)
+            finished = finished_qs.filter(
+                status=ScrapeJob.STATUS_SUCCESS,
+                listing__isnull=False,
+            ).select_related('listing').order_by('-finished_at').first()
             if finished:
                 listing = finished.listing
 
