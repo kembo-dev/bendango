@@ -88,9 +88,7 @@ class ScrapeJobQueueTests(TestCase):
     def test_product_like_url_is_claimed_before_older_generic_url(self, health_mock):
         generic = enqueue_scrape_job('https://merchant-a.example/page/yamaha-f310', 'Yamaha F310')
         product = enqueue_scrape_job('https://merchant-b.example/product/yamaha-f310', 'Yamaha F310')
-
         claimed = claim_next_job()
-
         self.assertEqual(claimed.pk, product.pk)
         self.assertNotEqual(claimed.pk, generic.pk)
 
@@ -99,9 +97,7 @@ class ScrapeJobQueueTests(TestCase):
         health_mock.side_effect = lambda url: 0.9 if 'healthy.example' in url else 0.1
         low = enqueue_scrape_job('https://low.example/product/yamaha-f310', 'Yamaha F310')
         healthy = enqueue_scrape_job('https://healthy.example/product/yamaha-f310', 'Yamaha F310')
-
         claimed = claim_next_job()
-
         self.assertEqual(claimed.pk, healthy.pk)
         self.assertNotEqual(claimed.pk, low.pk)
 
@@ -119,9 +115,35 @@ class ScrapeJobQueueTests(TestCase):
         )
         known = enqueue_scrape_job('https://known.example/product/yamaha-f310', 'Yamaha F310')
         fresh = enqueue_scrape_job('https://fresh.example/product/yamaha-f310', 'Yamaha F310')
-
         claimed = claim_next_job()
-
         self.assertEqual(previous.status, ScrapeJob.STATUS_SUCCESS)
         self.assertEqual(claimed.pk, fresh.pk)
         self.assertNotEqual(claimed.pk, known.pk)
+
+    @patch('tracker.job_queue.url_domain_health_score')
+    def test_fresh_pending_job_is_claimed_before_higher_scoring_retry(self, health_mock):
+        health_mock.side_effect = lambda url: 1.0 if 'retry.example' in url else 0.0
+        retry = enqueue_scrape_job('https://retry.example/product/yamaha-f310', 'Yamaha F310')
+        retry.status = ScrapeJob.STATUS_RETRY
+        retry.attempts = 1
+        retry.available_at = timezone.now() - timedelta(seconds=30)
+        retry.save()
+        fresh = enqueue_scrape_job('https://fresh.example/page/yamaha-f310', 'Yamaha F310')
+
+        claimed = claim_next_job()
+
+        self.assertEqual(claimed.pk, fresh.pk)
+        self.assertNotEqual(claimed.pk, retry.pk)
+
+    @patch('tracker.job_queue.url_domain_health_score', return_value=0.5)
+    def test_retry_is_claimed_when_no_fresh_job_is_ready(self, health_mock):
+        retry = enqueue_scrape_job('https://retry.example/product/yamaha-f310', 'Yamaha F310')
+        retry.status = ScrapeJob.STATUS_RETRY
+        retry.attempts = 1
+        retry.available_at = timezone.now() - timedelta(seconds=30)
+        retry.save()
+
+        claimed = claim_next_job()
+
+        self.assertEqual(claimed.pk, retry.pk)
+        self.assertEqual(claimed.status, ScrapeJob.STATUS_RUNNING)
