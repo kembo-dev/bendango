@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from tracker.candidate_filter import product_url_score
+from tracker.domain_health import domain_from_url, url_domain_health_score
 from tracker.models import ScrapeJob
 
 
@@ -92,24 +94,80 @@ def claim_job(job_id: int) -> ScrapeJob | None:
     return ScrapeJob.objects.get(pk=candidate['id'])
 
 
+def _successful_domains_for_query(query: str, limit: int = 20) -> set[str]:
+    if not query:
+        return set()
+    urls = (
+        ScrapeJob.objects.filter(query=query, status=ScrapeJob.STATUS_SUCCESS)
+        .order_by('-finished_at', '-created_at')
+        .values_list('url', flat=True)[:max(1, limit)]
+    )
+    return {domain_from_url(url) for url in urls if url}
+
+
+def _queue_priority(job: ScrapeJob, successful_domains: set[str], health_cache: dict[str, float]) -> float:
+    """Score a claimable job for fast first-useful-result delivery.
+
+    Product-like URLs dominate the score, healthy domains receive a moderate boost,
+    and merchants not yet successful for the same query get a diversity bonus.
+    Retries receive a small penalty so fresh candidates get explored first.
+    """
+    domain = domain_from_url(job.url)
+    if domain not in health_cache:
+        health_cache[domain] = float(url_domain_health_score(job.url))
+
+    product_score = float(product_url_score(job.url, query=job.query))
+    health_score = health_cache[domain]
+    diversity_bonus = 0.0 if domain in successful_domains else 12.0
+    retry_penalty = 3.0 if job.status == ScrapeJob.STATUS_RETRY else 0.0
+
+    return (product_score * 10.0) + (health_score * 8.0) + diversity_bonus - retry_penalty
+
+
 def claim_next_job() -> ScrapeJob | None:
-    """Atomically claim one available job without double-claiming across workers."""
+    """Claim the best available job without double-claiming across workers.
+
+    Instead of strict FIFO, inspect a bounded ready window and prefer candidates
+    that are product-like, come from productive domains, and diversify merchants.
+    FIFO remains the tie-breaker, and atomic claim_job() preserves worker safety.
+    """
     now = timezone.now()
+    window = max(5, int(getattr(settings, 'SCRAPE_JOB_PRIORITY_WINDOW', 40)))
+
     for _ in range(5):
-        candidate = (
+        candidates = list(
             ScrapeJob.objects.filter(
                 status__in=CLAIMABLE_STATUSES,
                 available_at__lte=now,
             )
-            .order_by('available_at', 'created_at')
-            .values('id')
-            .first()
+            .order_by('available_at', 'created_at')[:window]
         )
-        if not candidate:
+        if not candidates:
             return None
-        claimed = claim_job(candidate['id'])
-        if claimed:
-            return claimed
+
+        successful_domains_by_query = {}
+        health_cache = {}
+        for job in candidates:
+            if job.query not in successful_domains_by_query:
+                successful_domains_by_query[job.query] = _successful_domains_for_query(job.query)
+
+        ranked = sorted(
+            enumerate(candidates),
+            key=lambda item: (
+                -_queue_priority(
+                    item[1],
+                    successful_domains_by_query[item[1].query],
+                    health_cache,
+                ),
+                item[0],
+            ),
+        )
+
+        for _, candidate in ranked:
+            claimed = claim_job(candidate.id)
+            if claimed:
+                return claimed
+
     return None
 
 
