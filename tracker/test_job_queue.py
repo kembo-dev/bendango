@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.utils import timezone
@@ -82,3 +83,45 @@ class ScrapeJobQueueTests(TestCase):
         job.refresh_from_db()
         self.assertEqual(job.status, ScrapeJob.STATUS_FAILED)
         self.assertEqual(job.fetch_status, 'stale_worker')
+
+    @patch('tracker.job_queue.url_domain_health_score', return_value=0.5)
+    def test_product_like_url_is_claimed_before_older_generic_url(self, health_mock):
+        generic = enqueue_scrape_job('https://merchant-a.example/page/yamaha-f310', 'Yamaha F310')
+        product = enqueue_scrape_job('https://merchant-b.example/product/yamaha-f310', 'Yamaha F310')
+
+        claimed = claim_next_job()
+
+        self.assertEqual(claimed.pk, product.pk)
+        self.assertNotEqual(claimed.pk, generic.pk)
+
+    @patch('tracker.job_queue.url_domain_health_score')
+    def test_health_breaks_tie_between_similar_product_urls(self, health_mock):
+        health_mock.side_effect = lambda url: 0.9 if 'healthy.example' in url else 0.1
+        low = enqueue_scrape_job('https://low.example/product/yamaha-f310', 'Yamaha F310')
+        healthy = enqueue_scrape_job('https://healthy.example/product/yamaha-f310', 'Yamaha F310')
+
+        claimed = claim_next_job()
+
+        self.assertEqual(claimed.pk, healthy.pk)
+        self.assertNotEqual(claimed.pk, low.pk)
+
+    @patch('tracker.job_queue.url_domain_health_score', return_value=0.5)
+    def test_new_merchant_gets_diversity_bonus_for_same_query(self, health_mock):
+        previous = ScrapeJob.objects.create(
+            url='https://known.example/product/yamaha-old',
+            query='Yamaha F310',
+            status=ScrapeJob.STATUS_SUCCESS,
+            fetch_status='processed',
+            attempts=1,
+            max_attempts=3,
+            available_at=timezone.now(),
+            finished_at=timezone.now(),
+        )
+        known = enqueue_scrape_job('https://known.example/product/yamaha-f310', 'Yamaha F310')
+        fresh = enqueue_scrape_job('https://fresh.example/product/yamaha-f310', 'Yamaha F310')
+
+        claimed = claim_next_job()
+
+        self.assertEqual(previous.status, ScrapeJob.STATUS_SUCCESS)
+        self.assertEqual(claimed.pk, fresh.pk)
+        self.assertNotEqual(claimed.pk, known.pk)
