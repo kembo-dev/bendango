@@ -5,7 +5,14 @@ from django.core.management.base import BaseCommand
 
 from tracker.domain_health import domain_fetch_circuit_open, domain_from_url, url_fetch_budget
 from tracker.job_outcomes import classify_processing_error, should_retry_job
-from tracker.job_queue import claim_next_job, complete_job, defer_job, fail_job, recover_stale_running_jobs
+from tracker.job_queue import (
+    cancel_satisfied_query_jobs,
+    claim_next_job,
+    complete_job,
+    defer_job,
+    fail_job,
+    recover_stale_running_jobs,
+)
 from tracker.reliable_collection import (
     clear_last_fetch_result,
     get_last_fetch_result,
@@ -88,6 +95,11 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(
                         f'job {job.pk}: success ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'
                     ))
+                    cancelled = cancel_satisfied_query_jobs(job.query)
+                    if cancelled:
+                        self.stdout.write(self.style.SUCCESS(
+                            f'query coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'
+                        ))
                 else:
                     fetch_status, retryable = classify_processing_error(error)
                     retryable = should_retry_job(fetch_status, job.attempts, retryable)
