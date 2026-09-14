@@ -46,12 +46,13 @@ class Command(BaseCommand):
                 time.sleep(max(options['poll_interval'], 0.1))
                 continue
 
+            lane = getattr(job, 'queue_lane', 'unknown')
             domain = domain_from_url(job.url)
             if domain_fetch_circuit_open(domain):
                 cooldown_seconds = max(60, int(getattr(settings, 'DOMAIN_FETCH_CIRCUIT_MINUTES', 10)) * 60)
                 defer_job(job, cooldown_seconds, reason='domain_cooldown')
                 self.stdout.write(self.style.WARNING(
-                    f'job {job.pk}: retry/domain_cooldown (domain={domain}, delay={cooldown_seconds}s)'
+                    f'job {job.pk}: retry/domain_cooldown (lane={lane}, domain={domain}, delay={cooldown_seconds}s)'
                 ))
                 processed += 1
                 if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
@@ -85,7 +86,7 @@ class Command(BaseCommand):
                         from_cache=from_cache,
                     )
                     self.stdout.write(self.style.SUCCESS(
-                        f'job {job.pk}: success ({duration_ms}ms, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'
+                        f'job {job.pk}: success ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'
                     ))
                 else:
                     fetch_status, retryable = classify_processing_error(error)
@@ -100,7 +101,7 @@ class Command(BaseCommand):
                         from_cache=from_cache,
                     )
                     self.stdout.write(self.style.WARNING(
-                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'
+                        f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'
                     ))
             except Exception as exc:
                 duration_ms = max(1, int((time.monotonic() - started) * 1000))
@@ -118,7 +119,7 @@ class Command(BaseCommand):
                     from_cache=from_cache,
                 )
                 self.stderr.write(
-                    f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}'
+                    f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, lane={lane}, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}'
                 )
             finally:
                 reset_fetch_policy(policy_token)
