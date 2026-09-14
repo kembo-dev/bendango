@@ -75,6 +75,7 @@ def claim_job(job_id: int) -> ScrapeJob | None:
     if not candidate:
         return None
 
+    claimed_from_status = candidate['status']
     updated = ScrapeJob.objects.filter(
         pk=candidate['id'],
         status=candidate['status'],
@@ -89,7 +90,10 @@ def claim_job(job_id: int) -> ScrapeJob | None:
     )
     if updated != 1:
         return None
-    return ScrapeJob.objects.get(pk=candidate['id'])
+    claimed = ScrapeJob.objects.get(pk=candidate['id'])
+    claimed.claimed_from_status = claimed_from_status
+    claimed.queue_lane = 'fresh' if claimed_from_status == ScrapeJob.STATUS_PENDING else 'retry'
+    return claimed
 
 
 def _successful_domains_for_query(query: str, limit: int = 20) -> set[str]:
