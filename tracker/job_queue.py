@@ -151,12 +151,7 @@ def _claim_best_from_lane(status: str, now, window: int) -> ScrapeJob | None:
 
 
 def claim_next_job() -> ScrapeJob | None:
-    """Claim fresh jobs first, then retry jobs.
-
-    Pending candidates and retries live in separate logical lanes. Quality, domain
-    health and merchant diversity are used within each lane, but a ready retry can
-    never jump ahead of a ready fresh candidate.
-    """
+    """Claim fresh jobs first, then retry jobs."""
     now = timezone.now()
     window = max(5, int(getattr(settings, 'SCRAPE_JOB_PRIORITY_WINDOW', 40)))
 
@@ -169,6 +164,55 @@ def claim_next_job() -> ScrapeJob | None:
             return claimed
         return None
     return None
+
+
+def _recent_successful_merchant_count(query: str, minutes: int | None = None) -> int:
+    if not query:
+        return 0
+    minutes = max(1, int(minutes or getattr(settings, 'SCRAPE_COVERAGE_WINDOW_MINUTES', 30)))
+    cutoff = timezone.now() - timedelta(minutes=minutes)
+    return (
+        ScrapeJob.objects.filter(
+            query=query,
+            status=ScrapeJob.STATUS_SUCCESS,
+            listing__isnull=False,
+            finished_at__gte=cutoff,
+        )
+        .values('listing__retailer_id')
+        .distinct()
+        .count()
+    )
+
+
+def _coverage_target_for_query(query: str) -> int:
+    """Infer single-site searches from the queued domain set; otherwise use market target."""
+    domains = {
+        domain_from_url(url)
+        for url in ScrapeJob.objects.filter(query=query, status__in=ACTIVE_STATUSES).values_list('url', flat=True)
+        if url
+    }
+    if len(domains) == 1:
+        return 1
+    return max(1, int(getattr(settings, 'MARKET_COVERAGE_TARGET', 3)))
+
+
+def cancel_satisfied_query_jobs(query: str) -> int:
+    """Delete unprocessed work once recent merchant coverage is sufficient.
+
+    Jobs are queue artifacts, so deleting never-processed pending/retry rows avoids
+    counting intentionally skipped work as failures while preserving all completed
+    success/failure history for diagnostics.
+    """
+    if not query:
+        return 0
+    target = _coverage_target_for_query(query)
+    if _recent_successful_merchant_count(query) < target:
+        return 0
+    deleted, _ = ScrapeJob.objects.filter(
+        query=query,
+        status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY],
+    ).delete()
+    return deleted
 
 
 def defer_job(job: ScrapeJob, delay_seconds: int, reason: str = 'domain_cooldown') -> ScrapeJob:
