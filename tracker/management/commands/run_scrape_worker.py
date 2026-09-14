@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
 from tracker.domain_health import domain_fetch_circuit_open, domain_from_url, url_fetch_budget
@@ -29,23 +30,42 @@ from tracker.reliable_collection import (
 from tracker.services import process_url_and_save
 
 
-class DomainFileLock:
-    """Non-blocking per-domain lock shared by worker processes on one host."""
+class DomainLock:
+    """Per-domain lock using Redis when configured, with a local file fallback."""
 
     def __init__(self, domain: str):
-        digest = hashlib.sha256((domain or 'unknown').encode('utf-8')).hexdigest()
+        self.domain = domain or 'unknown'
+        digest = hashlib.sha256(self.domain.encode('utf-8')).hexdigest()
+        self.cache_key = f'scrape-domain-lock:{digest}'
+        self.owner = f'{os.getpid()}:{time.time_ns()}'
+        self.redis_lock = None
         root = Path(getattr(settings, 'SCRAPE_DOMAIN_LOCK_DIR', '') or (Path(tempfile.gettempdir()) / 'bendango-domain-locks'))
         root.mkdir(parents=True, exist_ok=True)
         self.path = root / f'{digest}.lock'
         self.handle = None
 
     def acquire(self) -> bool:
+        if getattr(settings, 'REDIS_URL', ''):
+            timeout = max(10, int(getattr(settings, 'SCRAPE_DOMAIN_LOCK_TIMEOUT', 30)))
+            try:
+                client = cache.client.get_client(write=True)
+                self.redis_lock = client.lock(
+                    self.cache_key,
+                    timeout=timeout,
+                    blocking_timeout=0,
+                    thread_local=False,
+                )
+                return bool(self.redis_lock.acquire(blocking=False))
+            except Exception:
+                self.redis_lock = None
+                return False
+
         self.handle = open(self.path, 'a+', encoding='utf-8')
         try:
             fcntl.flock(self.handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             self.handle.seek(0)
             self.handle.truncate()
-            self.handle.write(f'{os.getpid()}\n')
+            self.handle.write(f'{self.owner}\n')
             self.handle.flush()
             return True
         except BlockingIOError:
@@ -54,6 +74,14 @@ class DomainFileLock:
             return False
 
     def release(self):
+        if self.redis_lock is not None:
+            try:
+                self.redis_lock.release()
+            except Exception:
+                pass
+            finally:
+                self.redis_lock = None
+            return
         if self.handle is None:
             return
         try:
@@ -89,16 +117,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Starting {worker_count} Bendango scrape workers'))
 
         for index in range(worker_count):
-            command = [
-                sys.executable,
-                manage_py,
-                'run_scrape_worker',
-                '--workers',
-                '1',
-                '--child-worker',
-                '--poll-interval',
-                str(options['poll_interval']),
-            ]
+            command = [sys.executable, manage_py, 'run_scrape_worker', '--workers', '1', '--child-worker', '--poll-interval', str(options['poll_interval'])]
             if options['exit_when_empty']:
                 command.append('--exit-when-empty')
             if options['once']:
@@ -124,7 +143,6 @@ class Command(BaseCommand):
             for process in processes:
                 process.wait()
             raise
-
         if exit_code:
             raise SystemExit(exit_code)
 
@@ -148,14 +166,11 @@ class Command(BaseCommand):
 
             lane = getattr(job, 'queue_lane', 'unknown')
             domain = domain_from_url(job.url)
-
-            domain_lock = DomainFileLock(domain)
+            domain_lock = DomainLock(domain)
             if not domain_lock.acquire():
                 busy_delay = max(1, int(getattr(settings, 'SCRAPE_DOMAIN_BUSY_DELAY', 2)))
                 defer_job(job, busy_delay, reason='domain_busy')
-                self.stdout.write(self.style.WARNING(
-                    f'job {job.pk}: retry/domain_busy (lane={lane}, domain={domain}, delay={busy_delay}s)'
-                ))
+                self.stdout.write(self.style.WARNING(f'job {job.pk}: retry/domain_busy (lane={lane}, domain={domain}, delay={busy_delay}s)'))
                 processed += 1
                 if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
                     break
@@ -165,81 +180,42 @@ class Command(BaseCommand):
                 if domain_fetch_circuit_open(domain):
                     cooldown_seconds = max(60, int(getattr(settings, 'DOMAIN_FETCH_CIRCUIT_MINUTES', 10)) * 60)
                     defer_job(job, cooldown_seconds, reason='domain_cooldown')
-                    self.stdout.write(self.style.WARNING(
-                        f'job {job.pk}: retry/domain_cooldown (lane={lane}, domain={domain}, delay={cooldown_seconds}s)'
-                    ))
+                    self.stdout.write(self.style.WARNING(f'job {job.pk}: retry/domain_cooldown (lane={lane}, domain={domain}, delay={cooldown_seconds}s)'))
                     processed += 1
                     if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']):
                         break
                     continue
 
                 started = time.monotonic()
-                budget = url_fetch_budget(job.url)
-                budget = {**budget, 'use_cache': True}
+                budget = {**url_fetch_budget(job.url), 'use_cache': True}
                 policy_token = set_fetch_policy(budget)
                 clear_last_fetch_result()
                 try:
-                    listing, error = process_url_and_save(
-                        job.url,
-                        model_name=job.model_name or None,
-                        expected_query=job.query or None,
-                        allowed_hosts=[],
-                    )
+                    listing, error = process_url_and_save(job.url, model_name=job.model_name or None, expected_query=job.query or None, allowed_hosts=[])
                     duration_ms = max(1, int((time.monotonic() - started) * 1000))
                     fetch_result = get_last_fetch_result()
                     from_cache = bool(getattr(fetch_result, 'from_cache', False))
                     http_status = getattr(fetch_result, 'http_status', None)
                     timing = self._timing_label(duration_ms, fetch_result, listing)
                     if listing:
-                        complete_job(
-                            job,
-                            listing=listing,
-                            fetch_status='processed',
-                            http_status=http_status,
-                            duration_ms=duration_ms,
-                            from_cache=from_cache,
-                        )
-                        self.stdout.write(self.style.SUCCESS(
-                            f'job {job.pk}: success ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'
-                        ))
+                        complete_job(job, listing=listing, fetch_status='processed', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
+                        self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'))
                         cancelled = cancel_satisfied_query_jobs(job.query)
                         if cancelled:
-                            self.stdout.write(self.style.SUCCESS(
-                                f'query coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'
-                            ))
+                            self.stdout.write(self.style.SUCCESS(f'query coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'))
                     else:
                         fetch_status, retryable = classify_processing_error(error)
                         retryable = should_retry_job(fetch_status, job.attempts, retryable)
-                        fail_job(
-                            job,
-                            error or "Échec de traitement.",
-                            retryable=retryable,
-                            fetch_status=fetch_status,
-                            http_status=http_status,
-                            duration_ms=duration_ms,
-                            from_cache=from_cache,
-                        )
-                        self.stdout.write(self.style.WARNING(
-                            f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'
-                        ))
+                        fail_job(job, error or "Échec de traitement.", retryable=retryable, fetch_status=fetch_status, http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
+                        self.stdout.write(self.style.WARNING(f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, lane={lane}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'))
                 except Exception as exc:
                     duration_ms = max(1, int((time.monotonic() - started) * 1000))
                     fetch_result = get_last_fetch_result()
                     from_cache = bool(getattr(fetch_result, 'from_cache', False))
                     http_status = getattr(fetch_result, 'http_status', None)
                     timing = self._timing_label(duration_ms, fetch_result)
-                    fail_job(
-                        job,
-                        str(exc),
-                        retryable=True,
-                        fetch_status='worker_exception',
-                        http_status=http_status,
-                        duration_ms=duration_ms,
-                        from_cache=from_cache,
-                    )
-                    self.stderr.write(
-                        f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, lane={lane}, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}'
-                    )
+                    fail_job(job, str(exc), retryable=True, fetch_status='worker_exception', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
+                    self.stderr.write(f'job {job.pk}: {job.status}/worker_exception ({duration_ms}ms, lane={lane}, cache={"hit" if from_cache else "miss"}, {timing}) - {exc}')
                 finally:
                     reset_fetch_policy(policy_token)
             finally:
