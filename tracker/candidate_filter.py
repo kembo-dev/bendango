@@ -18,7 +18,7 @@ BLOCKED_PATH_MARKERS = (
 )
 
 PRODUCT_PATH_MARKERS = (
-    "/product/", "/products/", "/produit/", "/item/", "/p/", "/dp/", "/article/",
+    "/product/", "/products/", "/produit/", "/produits/", "/item/", "/p/", "/dp/", "/article/",
 )
 
 EDITORIAL_HOST_MARKERS = (
@@ -35,6 +35,16 @@ EDITORIAL_PATH_MARKERS = (
 SHOPPING_PATH_HINTS = (
     "shop", "store", "boutique", "market", "mart", "vente", "acheter", "buy", "prix", "price",
 )
+
+AMBIGUOUS_PATH_MARKERS = (
+    "/catalog/", "/catalogue/", "/listing/", "/list/", "/offers/", "/offres/", "/deals/",
+    "/promo/", "/promotions/", "/tag/", "/tags/", "/results/", "/resultats/",
+)
+
+GENERIC_PATH_WORDS = {
+    "home", "accueil", "shop", "store", "boutique", "catalog", "catalogue", "market",
+    "products", "produits", "product", "produit", "offers", "offres", "deals", "promo",
+}
 
 FNAC_LISTING_PATTERN = re.compile(r"/(?:n?shi)\d+(?:/[^/?#]+)*/w-\d+(?:/|$)", re.IGNORECASE)
 
@@ -67,6 +77,23 @@ def _looks_like_shopping_url(host: str, path: str) -> bool:
     return _has_product_path(path) or any(hint in combined for hint in SHOPPING_PATH_HINTS)
 
 
+def _path_tokens(path: str):
+    return [
+        token.lower()
+        for token in re.findall(r"[a-zA-ZÀ-ÿ0-9]+", unquote(path or ""))
+        if len(token) > 1 and token.lower() not in GENERIC_PATH_WORDS
+    ]
+
+
+def _query_overlap_score(path: str, host: str, query: str | None) -> tuple[int, float]:
+    query_tokens = _query_tokens(query)
+    if not query_tokens:
+        return 0, 0.0
+    haystack = f"{host} {unquote(path)}".lower().replace("-", " ").replace("_", " ")
+    matched = sum(1 for token in query_tokens if token in haystack)
+    return matched, matched / max(1, len(query_tokens))
+
+
 def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
     parsed = urlparse(url or "")
     host = parsed.netloc.lower().removeprefix("www.")
@@ -92,8 +119,6 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
         return True
 
     if query and _is_broad_query(query):
-        # Generic searches attract editorial pages very easily. Require stronger
-        # commerce evidence before they enter the expensive scrape queue.
         if _looks_editorial(host, path) and not _has_product_path(path):
             return True
         segments = [segment for segment in path.split("/") if segment]
@@ -104,29 +129,58 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
 
 
 def product_url_score(url: str, query: str | None = None) -> int:
+    """Estimate product-detail quality before spending a network fetch.
+
+    This is intentionally ranking-oriented rather than a hard filter: ambiguous
+    merchants remain explorable, but strong product-detail URLs are fetched first.
+    """
     parsed = urlparse(url or "")
     host = parsed.netloc.lower().removeprefix("www.")
     path = unquote(parsed.path or "").lower()
     score = 0
+
     if _has_product_path(path):
-        score += 5
+        score += 8
     if re.search(r"\b(\d+)(gb|go|tb|to|ssd|hdd)\b", path):
         score += 2
-    if len([part for part in path.split("/") if part]) >= 2:
+
+    path_tokens = _path_tokens(path)
+    if len(path_tokens) >= 3:
+        score += 2
+    elif len(path_tokens) >= 1:
         score += 1
+
     if _looks_like_shopping_url(host, path):
-        score += 1
-    if query:
-        haystack = f"{host} {path}".replace("-", " ").replace("_", " ")
-        overlap = sum(1 for token in _query_tokens(query) if token in haystack)
-        score += min(overlap, 3)
+        score += 2
+
+    matched, ratio = _query_overlap_score(path, host, query)
+    score += min(matched * 2, 6)
+    if ratio >= 0.75:
+        score += 4
+    elif ratio >= 0.50:
+        score += 2
+
+    # Model/reference-like slugs are a useful product-detail signal even when
+    # merchants do not use /product/ routes.
+    if any(any(char.isdigit() for char in token) and any(char.isalpha() for char in token) for token in path_tokens):
+        score += 2
+
+    if any(marker in path for marker in AMBIGUOUS_PATH_MARKERS) and not _has_product_path(path):
+        score -= 3
+    if _looks_editorial(host, path) and not _has_product_path(path):
+        score -= 6
+
+    segments = [segment for segment in path.split("/") if segment]
+    if len(segments) <= 1 and not _has_product_path(path):
+        score -= 2
+
     if is_low_value_candidate_url(url, query=query):
-        score -= 10
+        score -= 20
     return score
 
 
 def filter_and_rank_candidate_urls(urls, health_score_func=None, query: str | None = None):
-    """Filter obvious noise and rank product-like URLs, optionally using domain health."""
+    """Filter obvious noise and rank strong product-detail candidates first."""
     unique = []
     seen = set()
     for url in urls or []:
