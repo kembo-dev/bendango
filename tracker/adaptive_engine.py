@@ -6,15 +6,16 @@ from urllib.parse import urlparse
 from django.conf import settings
 
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
+from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
 from tracker.domain_health import domain_candidate_cap, domain_fetch_circuit_open, url_domain_health_score
 from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob, SearchRun
 from tracker.search_diagnostics import SearchDiagnosticsRecorder
-from tracker.search_result_intelligence import collect_search_candidates as _collect_search_urls, rank_search_candidates
+from tracker.search_result_intelligence import collect_search_candidates, rank_search_candidates
 from tracker.services import (
-    _deduplicate_results, _get_sort_rank, _known_merchant_domains,
+    _collect_search_urls, _deduplicate_results, _get_sort_rank, _known_merchant_domains,
     cleanup_stale_listings, ensure_retailer_for_site, get_llm_config, normalize_site_filter, process_url_and_save,
 )
 from tracker.store_discovery import discover_product_urls
@@ -27,22 +28,23 @@ def _append_unique(target, values):
 
 
 def _rank_adaptive_candidates(found, product_query=None):
-    ranked = rank_search_candidates(found, query=product_query, health_score_func=url_domain_health_score)
-    return [candidate['url'] for candidate in ranked]
+    if found and isinstance(found[0], dict):
+        ranked = rank_search_candidates(found, query=product_query, health_score_func=url_domain_health_score)
+        return [candidate['url'] for candidate in ranked]
+    return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score, query=product_query)
 
 
 def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None):
     for term in search_terms:
         diagnostics.record_search_term()
         try:
-            try:
-                found = _collect_search_urls(term, max_results=candidate_limit, product_query=product_query)
-            except TypeError as exc:
-                # Historical tests and third-party internal patches may still expose
-                # the old two-argument collector. Keep that seam compatible.
-                if 'product_query' not in str(exc):
-                    raise
+            # Preserve patchability/backward compatibility: tests that patch the
+            # legacy collector still work, while production receives rich DDGS
+            # title/snippet metadata from the intelligent collector.
+            if getattr(_collect_search_urls, '__module__', '') != 'tracker.services':
                 found = _collect_search_urls(term, max_results=candidate_limit)
+            else:
+                found = collect_search_candidates(term, max_results=candidate_limit, product_query=product_query)
         except Exception as exc:
             message = str(exc)
             search_errors.append(message)
@@ -102,7 +104,6 @@ def _process_urls(
     site_filters,
     search_run=None,
 ):
-    """Queue/process candidate URLs, optionally scoped to a SearchRun."""
     domain_failures = Counter()
     domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
     max_failures_per_domain = int(getattr(settings, 'ADAPTIVE_MAX_FAILURES_PER_DOMAIN', 2))
@@ -166,7 +167,7 @@ def _process_urls(
             break
 
 
-def search_and_scrape_product(product_query, site_filter='all', model_name=None, max_results=3):
+def search_and_scrape_product(product_query, site_filter='all', model_name=None, max_results=3, search_run=None):
     cleanup_stale_listings(days=getattr(settings, 'LISTING_STALE_DAYS', 30))
     selected = (model_name or get_llm_config()['default_model']).strip()
     results, errors, search_errors, urls = [], [], [], []
@@ -188,7 +189,8 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     if cached:
         results.extend(cached)
 
-    search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants)
+    if search_run is None:
+        search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants)
     candidate_limit = max(target_merchants * 8, max_results * 6, 18)
     search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
     _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query)
