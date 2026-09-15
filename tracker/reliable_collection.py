@@ -55,9 +55,35 @@ def get_last_fetch_result():
     return _LAST_FETCH_RESULT.get()
 
 
+def fetch_cancel_requested() -> bool:
+    """Return True when the current worker policy says this work is no longer needed."""
+    policy = _FETCH_POLICY.get() or {}
+    check = policy.get("cancel_check")
+    if not callable(check):
+        return False
+    try:
+        return bool(check())
+    except Exception:
+        # Cancellation is an optimization. A transient DB/cache check failure must
+        # never break an otherwise valid product fetch.
+        return False
+
+
 def _remember(result: FetchResult) -> FetchResult:
     _LAST_FETCH_RESULT.set(result)
     return result
+
+
+def _cancelled_result(started, attempts=0, http_status=None):
+    return _remember(FetchResult(
+        html=None,
+        status="cancelled",
+        http_status=http_status,
+        attempts=attempts,
+        from_cache=False,
+        duration_ms=int((time.monotonic() - started) * 1000),
+        error="Recherche déjà satisfaite.",
+    ))
 
 
 def build_headers():
@@ -129,7 +155,7 @@ def fetch_html(
     max_attempts_override: int | None = None,
     timeout_override=None,
 ) -> FetchResult:
-    """Reliable fetch primitive with cache, pacing, retry/backoff and anti-bot detection."""
+    """Reliable fetch primitive with cache, pacing, retry/backoff and cancellation."""
     started = time.monotonic()
     session_factory = session_factory or requests.Session
     sleep_func = sleep_func or time.sleep
@@ -137,11 +163,16 @@ def fetch_html(
     if policy.get("use_cache"):
         force_refresh = False
 
+    if fetch_cancel_requested():
+        return _cancelled_result(started)
+
     ttl = int(getattr(settings, "COLLECTION_HTML_CACHE_TTL", 300))
     key = _cache_key(url)
     if not force_refresh and ttl > 0:
         cached = cache.get(key)
         if cached:
+            if fetch_cancel_requested():
+                return _cancelled_result(started)
             return _remember(FetchResult(html=cached, status="cache_hit", attempts=0, from_cache=True, duration_ms=int((time.monotonic() - started) * 1000)))
 
     if max_attempts_override is None:
@@ -159,21 +190,39 @@ def fetch_html(
     last_error = ""
     last_status = None
     for attempt in range(1, max_attempts + 1):
+        if fetch_cancel_requested():
+            return _cancelled_result(started, attempts=attempt - 1, http_status=last_status)
         if apply_rate_limit:
             _wait_for_domain_slot(url)
+            if fetch_cancel_requested():
+                return _cancelled_result(started, attempts=attempt - 1, http_status=last_status)
         try:
             response = session.get(url, timeout=timeout, allow_redirects=True)
             last_status = response.status_code
+
+            # We cannot safely interrupt requests.Session.get() mid-socket without
+            # a different transport, but we can stop immediately after it returns.
+            if fetch_cancel_requested():
+                return _cancelled_result(started, attempts=attempt, http_status=last_status)
+
             if response.status_code in TRANSIENT_STATUS_CODES:
                 last_error = f"HTTP {response.status_code}"
                 if attempt < max_attempts:
+                    if fetch_cancel_requested():
+                        return _cancelled_result(started, attempts=attempt, http_status=last_status)
                     sleep_func(backoff_base * (3 ** (attempt - 1)))
+                    if fetch_cancel_requested():
+                        return _cancelled_result(started, attempts=attempt, http_status=last_status)
                     continue
                 return _remember(FetchResult(None, "transient_failure", last_status, attempt, False, int((time.monotonic() - started) * 1000), last_error))
             if response.status_code >= 400:
                 return _remember(FetchResult(None, "http_error", last_status, attempt, False, int((time.monotonic() - started) * 1000), f"HTTP {response.status_code}"))
 
+            if fetch_cancel_requested():
+                return _cancelled_result(started, attempts=attempt, http_status=last_status)
             html = _clean_html(response.content, response.encoding)
+            if fetch_cancel_requested():
+                return _cancelled_result(started, attempts=attempt, http_status=last_status)
             if _is_anti_bot_page(html):
                 return _remember(FetchResult(None, "anti_bot", last_status, attempt, False, int((time.monotonic() - started) * 1000), "Protection anti-bot détectée"))
             if ttl > 0:
@@ -182,8 +231,12 @@ def fetch_html(
 
         except requests.RequestException as exc:
             last_error = str(exc)
+            if fetch_cancel_requested():
+                return _cancelled_result(started, attempts=attempt, http_status=last_status)
             if attempt < max_attempts:
                 sleep_func(backoff_base * (3 ** (attempt - 1)))
+                if fetch_cancel_requested():
+                    return _cancelled_result(started, attempts=attempt, http_status=last_status)
                 continue
 
     return _remember(FetchResult(None, "network_failure", last_status, max_attempts, False, int((time.monotonic() - started) * 1000), last_error))
