@@ -6,15 +6,15 @@ from urllib.parse import urlparse
 from django.conf import settings
 
 from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
-from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
 from tracker.domain_health import domain_candidate_cap, domain_fetch_circuit_open, url_domain_health_score
 from tracker.job_queue import claim_job, complete_job, enqueue_scrape_job, fail_job
 from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob, SearchRun
 from tracker.search_diagnostics import SearchDiagnosticsRecorder
+from tracker.search_result_intelligence import collect_search_candidates as _collect_search_urls, rank_search_candidates
 from tracker.services import (
-    _collect_search_urls, _deduplicate_results, _get_sort_rank, _known_merchant_domains,
+    _deduplicate_results, _get_sort_rank, _known_merchant_domains,
     cleanup_stale_listings, ensure_retailer_for_site, get_llm_config, normalize_site_filter, process_url_and_save,
 )
 from tracker.store_discovery import discover_product_urls
@@ -27,14 +27,22 @@ def _append_unique(target, values):
 
 
 def _rank_adaptive_candidates(found, product_query=None):
-    return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score, query=product_query)
+    ranked = rank_search_candidates(found, query=product_query, health_score_func=url_domain_health_score)
+    return [candidate['url'] for candidate in ranked]
 
 
 def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None):
     for term in search_terms:
         diagnostics.record_search_term()
         try:
-            found = _collect_search_urls(term, max_results=candidate_limit)
+            try:
+                found = _collect_search_urls(term, max_results=candidate_limit, product_query=product_query)
+            except TypeError as exc:
+                # Historical tests and third-party internal patches may still expose
+                # the old two-argument collector. Keep that seam compatible.
+                if 'product_query' not in str(exc):
+                    raise
+                found = _collect_search_urls(term, max_results=candidate_limit)
         except Exception as exc:
             message = str(exc)
             search_errors.append(message)
@@ -94,11 +102,7 @@ def _process_urls(
     site_filters,
     search_run=None,
 ):
-    """Queue/process candidate URLs, optionally scoped to a SearchRun.
-
-    search_run remains optional for backward compatibility with tests and legacy
-    internal callers. New user searches always pass a SearchRun instance.
-    """
+    """Queue/process candidate URLs, optionally scoped to a SearchRun."""
     domain_failures = Counter()
     domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
     max_failures_per_domain = int(getattr(settings, 'ADAPTIVE_MAX_FAILURES_PER_DOMAIN', 2))
