@@ -1,6 +1,6 @@
 from django.test import SimpleTestCase
 
-from tracker.candidate_filter import filter_and_rank_candidate_urls, is_low_value_candidate_url
+from tracker.candidate_filter import filter_and_rank_candidate_urls, is_low_value_candidate_url, product_url_score
 
 
 class CandidateFilterTests(SimpleTestCase):
@@ -59,3 +59,33 @@ class CandidateFilterTests(SimpleTestCase):
         generic = "https://merchant.example/shop/accessoire-musique"
         ranked = filter_and_rank_candidate_urls([generic, matching], query="guitare")
         self.assertEqual(ranked[0], matching)
+
+    def test_explicit_product_route_beats_generic_catalogue_page(self):
+        product = "https://shop.example/products/string-femme-coton-noir"
+        catalogue = "https://shop.example/catalogue/sous-vetements-femme"
+        self.assertGreater(
+            product_url_score(product, query="string femme"),
+            product_url_score(catalogue, query="string femme"),
+        )
+
+    def test_high_query_overlap_beats_unrelated_product_route(self):
+        matching = "https://merchant.example/products/string-femme-dentelle-noire"
+        unrelated = "https://merchant.example/products/chaussettes-homme-sport"
+        ranked = filter_and_rank_candidate_urls([unrelated, matching], query="string femme")
+        self.assertEqual(ranked[0], matching)
+
+    def test_model_reference_slug_gets_detail_bonus(self):
+        model = "https://merchant.example/catalogue/iphone-16e-256gb"
+        generic = "https://merchant.example/catalogue/smartphones-apple"
+        self.assertGreater(
+            product_url_score(model, query="iPhone 16e 256GB"),
+            product_url_score(generic, query="iPhone 16e 256GB"),
+        )
+
+    def test_editorial_candidate_is_penalized_without_product_route(self):
+        editorial = "https://reviews.example/guide/string-femme"
+        product = "https://merchant.example/products/string-femme"
+        self.assertGreater(
+            product_url_score(product, query="string femme"),
+            product_url_score(editorial, query="string femme"),
+        )
