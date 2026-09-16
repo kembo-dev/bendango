@@ -117,11 +117,11 @@ TEMPLATES = [
         'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
-            'context_processors': [
+            'context_processors': {
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-            ],
+            },
         },
     },
 ]
@@ -182,6 +182,11 @@ else:
             'LOCATION': 'bendango-local-cache',
         }
     }
+
+# Worker recovery -------------------------------------------------------------
+# A SearchRun left in discovery longer than this is considered abandoned and
+# is safely returned to the discovery queue when the search worker starts.
+SEARCH_RUN_DISCOVERY_TIMEOUT = int(os.environ.get('SEARCH_RUN_DISCOVERY_TIMEOUT', '300'))
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
