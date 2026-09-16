@@ -6,3 +6,4 @@ redis>=6.0,<7
 requests>=2.32,<3
 beautifulsoup4>=4.12,<5
 boto3>=1.40,<2
+gunicorn>=23.0,<24
