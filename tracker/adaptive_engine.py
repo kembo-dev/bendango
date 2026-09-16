@@ -61,6 +61,22 @@ def _domain(url):
     return urlparse(url).netloc.lower().removeprefix('www.')
 
 
+def _attach_cached_listings_to_run(search_run, listings, product_query, selected):
+    """Expose fresh cached listings through the current asynchronous SearchRun."""
+    if search_run is None:
+        return
+    for listing in listings or []:
+        job = enqueue_scrape_job(
+            url=listing.url,
+            query=product_query,
+            model_name=selected,
+            max_attempts=int(getattr(settings, 'SCRAPE_JOB_MAX_ATTEMPTS', 3)),
+            search_run=search_run,
+        )
+        if job.status != ScrapeJob.STATUS_SUCCESS or job.listing_id != listing.id or not job.from_cache:
+            complete_job(job, listing=listing, fetch_status='cache', from_cache=True)
+
+
 def _process_job_now(job, selected, product_query, diagnostics, errors, allowed_hosts=None):
     if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
         return job.listing
@@ -183,6 +199,8 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     target_merchants = 1 if site_filters else max(2, int(getattr(settings, 'MARKET_COVERAGE_TARGET', max_results)))
     diagnostics = SearchDiagnosticsRecorder(product_query, site_filter, target_merchants)
 
+    if cached and search_run is not None:
+        _attach_cached_listings_to_run(search_run, cached, product_query, selected)
     if cached and (site_filters or distinct_merchant_count(cached) >= target_merchants):
         diagnostics.save(cached)
         return cached, []
