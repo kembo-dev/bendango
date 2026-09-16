@@ -127,7 +127,6 @@ class PriceListing(models.Model):
 
 
 class PriceHistory(models.Model):
-    """Snapshot immuable créé lorsque le prix, la devise ou le stock change."""
     listing = models.ForeignKey(PriceListing, on_delete=models.CASCADE, related_name='history')
     price = models.DecimalField(max_digits=14, decimal_places=2)
     currency = models.CharField(max_length=10)
@@ -145,7 +144,6 @@ class PriceHistory(models.Model):
 
 
 class SearchDiagnostic(models.Model):
-    """Résumé technique d'une recherche pour mesurer et améliorer la couverture."""
     query = models.CharField(max_length=255, db_index=True)
     site_filter = models.CharField(max_length=255, default='all')
     search_terms_count = models.PositiveIntegerField(default=0)
@@ -169,24 +167,45 @@ class SearchDiagnostic(models.Model):
 
 
 class SearchRun(models.Model):
-    """One user search execution; isolates queue coverage from identical queries."""
+    """One user search execution, including asynchronous discovery state."""
+    STATUS_QUEUED = 'queued'
+    STATUS_DISCOVERING = 'discovering'
+    STATUS_RUNNING = 'running'
+    STATUS_COMPLETED = 'completed'
+    STATUS_FAILED = 'failed'
+    STATUS_CHOICES = [
+        (STATUS_QUEUED, 'Queued'),
+        (STATUS_DISCOVERING, 'Discovering'),
+        (STATUS_RUNNING, 'Running'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     query = models.CharField(max_length=255, db_index=True)
     site_filter = models.CharField(max_length=255, default='all')
     target_merchants = models.PositiveIntegerField(default=1)
+    model_name = models.CharField(max_length=255, blank=True, default='')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED, db_index=True)
+    discovery_sources = models.JSONField(default=list, blank=True)
+    discovery_error = models.TextField(blank=True, default='')
+    discovery_started_at = models.DateTimeField(blank=True, null=True)
+    discovery_finished_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ['-created_at']
-        indexes = [models.Index(fields=['query', 'created_at'], name='tracker_run_query_created_idx')]
+        indexes = [
+            models.Index(fields=['query', 'created_at'], name='tracker_run_query_created_idx'),
+            models.Index(fields=['status', 'created_at'], name='tracker_run_status_created_idx'),
+        ]
 
     def __str__(self):
         return f"{self.query} [{self.id}]"
 
 
 class ScrapeJob(models.Model):
-    """Persistent unit of scraping work, independent from the execution backend."""
     STATUS_PENDING = 'pending'
     STATUS_RUNNING = 'running'
     STATUS_RETRY = 'retry'
