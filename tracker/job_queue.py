@@ -148,7 +148,10 @@ def cancel_satisfied_run_jobs(job: ScrapeJob) -> int:
         return 0
     deleted, _ = _coverage_queryset(job).filter(status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY]).delete()
     if job.search_run_id:
-        SearchRun.objects.filter(pk=job.search_run_id, completed_at__isnull=True).update(completed_at=timezone.now())
+        SearchRun.objects.filter(pk=job.search_run_id).exclude(status=SearchRun.STATUS_COMPLETED).update(
+            status=SearchRun.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
     return deleted
 
 
