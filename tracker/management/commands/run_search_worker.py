@@ -1,5 +1,7 @@
 import time
+from datetime import timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -9,6 +11,45 @@ from tracker.discovery_sources import discover_social_sources
 from tracker.models import SearchRun
 
 
+def recover_stale_search_runs(timeout_seconds=None):
+    """Requeue SearchRun records abandoned while discovery was in progress."""
+    if timeout_seconds is None:
+        timeout_seconds = int(getattr(settings, 'SEARCH_RUN_DISCOVERY_TIMEOUT', 300))
+    cutoff = timezone.now() - timedelta(seconds=max(1, int(timeout_seconds)))
+    stale_ids = list(
+        SearchRun.objects.filter(
+            status=SearchRun.STATUS_DISCOVERING,
+            discovery_started_at__isnull=False,
+            discovery_started_at__lt=cutoff,
+            completed_at__isnull=True,
+        ).values_list('id', flat=True)
+    )
+    recovered = 0
+    for run_id in stale_ids:
+        with transaction.atomic():
+            search_run = SearchRun.objects.filter(
+                pk=run_id,
+                status=SearchRun.STATUS_DISCOVERING,
+                completed_at__isnull=True,
+            ).first()
+            if search_run is None:
+                continue
+            search_run.status = SearchRun.STATUS_QUEUED
+            search_run.discovery_started_at = None
+            search_run.discovery_finished_at = None
+            search_run.discovery_error = 'Découverte interrompue: SearchRun remis en file après expiration du worker.'
+            search_run.save(
+                update_fields=[
+                    'status',
+                    'discovery_started_at',
+                    'discovery_finished_at',
+                    'discovery_error',
+                ]
+            )
+            recovered += 1
+    return recovered
+
+
 class Command(BaseCommand):
     help = 'Process queued Bendango SearchRun discovery jobs.'
 
@@ -16,6 +57,7 @@ class Command(BaseCommand):
         parser.add_argument('--once', action='store_true')
         parser.add_argument('--poll-interval', type=float, default=1.0)
         parser.add_argument('--exit-when-empty', action='store_true')
+        parser.add_argument('--stale-timeout', type=int, default=None)
 
     def _claim_next_run(self):
         with transaction.atomic():
@@ -35,6 +77,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting Bendango SearchRun discovery worker'))
+        recovered = recover_stale_search_runs(options['stale_timeout'])
+        if recovered:
+            self.stdout.write(self.style.WARNING(f'{recovered} stale SearchRun discovery job(s) recovered'))
         while True:
             search_run = self._claim_next_run()
             if search_run is None:
