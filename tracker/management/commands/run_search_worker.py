@@ -1,3 +1,4 @@
+import signal
 import time
 from datetime import timedelta
 
@@ -9,6 +10,14 @@ from django.utils import timezone
 from tracker.adaptive_engine import search_and_scrape_product
 from tracker.discovery_sources import discover_social_sources, discovery_sources_to_json
 from tracker.models import SearchRun
+
+
+class SearchRunExecutionTimeout(Exception):
+    pass
+
+
+def _raise_search_timeout(signum, frame):
+    raise SearchRunExecutionTimeout('Délai maximal de découverte dépassé.')
 
 
 def recover_stale_search_runs(timeout_seconds=None):
@@ -58,6 +67,7 @@ class Command(BaseCommand):
         parser.add_argument('--poll-interval', type=float, default=1.0)
         parser.add_argument('--exit-when-empty', action='store_true')
         parser.add_argument('--stale-timeout', type=int, default=None)
+        parser.add_argument('--run-timeout', type=int, default=None)
 
     def _claim_next_run(self):
         with transaction.atomic():
@@ -80,6 +90,12 @@ class Command(BaseCommand):
         recovered = recover_stale_search_runs(options['stale_timeout'])
         if recovered:
             self.stdout.write(self.style.WARNING(f'{recovered} stale SearchRun discovery job(s) recovered'))
+
+        run_timeout = options['run_timeout']
+        if run_timeout is None:
+            run_timeout = int(getattr(settings, 'SEARCH_RUN_EXECUTION_TIMEOUT', 180))
+        run_timeout = max(10, int(run_timeout))
+
         while True:
             search_run = self._claim_next_run()
             if search_run is None:
@@ -89,10 +105,15 @@ class Command(BaseCommand):
                 continue
 
             run_label = str(search_run.pk)[:8]
+            self.stdout.write(f'run {run_label}: discovery started')
+            previous_handler = signal.signal(signal.SIGALRM, _raise_search_timeout)
+            signal.alarm(run_timeout)
             try:
                 # All external discovery work lives here, never in Gunicorn.
                 try:
                     social_sources = discover_social_sources(search_run.query)
+                except SearchRunExecutionTimeout:
+                    raise
                 except Exception as exc:
                     social_sources = []
                     self.stderr.write(f'run {run_label}: social discovery warning - {exc}')
@@ -124,6 +145,14 @@ class Command(BaseCommand):
                     search_run.completed_at = timezone.now()
                 search_run.save(update_fields=['status', 'discovery_finished_at', 'discovery_error', 'completed_at'])
                 self.stdout.write(self.style.SUCCESS(f'run {run_label}: discovery complete ({search_run.status})'))
+            except SearchRunExecutionTimeout as exc:
+                SearchRun.objects.filter(pk=search_run.pk).update(
+                    status=SearchRun.STATUS_FAILED,
+                    discovery_error=str(exc),
+                    discovery_finished_at=timezone.now(),
+                    completed_at=timezone.now(),
+                )
+                self.stderr.write(f'run {run_label}: discovery timed out after {run_timeout}s')
             except Exception as exc:
                 SearchRun.objects.filter(pk=search_run.pk).update(
                     status=SearchRun.STATUS_FAILED,
@@ -132,6 +161,9 @@ class Command(BaseCommand):
                     completed_at=timezone.now(),
                 )
                 self.stderr.write(f'run {run_label}: discovery failed - {exc}')
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, previous_handler)
 
             if options['once']:
                 break
