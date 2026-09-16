@@ -1,0 +1,20 @@
+[Unit]
+Description=Bendango Django web application
+After=network.target postgresql.service redis-server.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=alexandre
+Group=alexandre
+WorkingDirectory=/home/alexandre/Documents/bendango
+EnvironmentFile=/home/alexandre/Documents/bendango/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/alexandre/Documents/bendango/bendango/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 60 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
