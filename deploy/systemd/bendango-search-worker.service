@@ -1,0 +1,20 @@
+[Unit]
+Description=Bendango SearchRun discovery worker
+After=network.target postgresql.service redis-server.service bendango-web.service
+Wants=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=alexandre
+Group=alexandre
+WorkingDirectory=/home/alexandre/Documents/bendango
+EnvironmentFile=/home/alexandre/Documents/bendango/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/alexandre/.pyenv/versions/bendango/bin/python manage.py run_search_worker
+Restart=always
+RestartSec=3
+TimeoutStopSec=45
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
