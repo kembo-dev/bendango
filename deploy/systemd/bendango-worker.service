@@ -10,7 +10,7 @@ Group=alexandre
 WorkingDirectory=/home/alexandre/Documents/bendango
 EnvironmentFile=/home/alexandre/Documents/bendango/.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/home/alexandre/Documents/bendango/bendango/bin/python manage.py run_scrape_worker --workers 3
+ExecStart=/home/alexandre/.pyenv/versions/bendango/bin/python manage.py run_scrape_worker --workers 3
 Restart=always
 RestartSec=3
 TimeoutStopSec=45
