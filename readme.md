@@ -698,3 +698,19 @@ python manage.py check
 python manage.py makemigrations --check
 python manage.py test tracker --failfast
 ```
+
+sudo systemctl enable bendango-search-worker
+sudo systemctl enable bendango-worker
+sudo systemctl enable bendango-web
+
+sudo systemctl start bendango-search-worker
+sudo systemctl start bendango-worker
+sudo systemctl start bendango-web
+
+sudo systemctl stop bendango-search-worker
+sudo systemctl stop bendango-worker
+sudo systemctl stop bendango-web
+
+sudo systemctl status bendango-search-worker
+sudo systemctl status bendango-worker
+sudo systemctl status bendango-web
