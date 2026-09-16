@@ -1,7 +1,13 @@
 from django.core.exceptions import ValidationError
 from django.shortcuts import render
+
+from . import services
 from .forms import SearchOrScrapeForm
-from .services import process_url_and_save, search_and_scrape_product
+
+# Keep these names on tracker.views because the view tests patch them directly.
+# Binding them from the services module also makes the dependency explicit.
+process_url_and_save = services.process_url_and_save
+search_and_scrape_product = services.search_and_scrape_product
 
 
 def scrape_view(request):
