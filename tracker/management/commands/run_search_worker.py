@@ -7,7 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from tracker.adaptive_engine import search_and_scrape_product
-from tracker.discovery_sources import discover_social_sources
+from tracker.discovery_sources import discover_social_sources, discovery_sources_to_json
 from tracker.models import SearchRun
 
 
@@ -97,7 +97,7 @@ class Command(BaseCommand):
                     social_sources = []
                     self.stderr.write(f'run {run_label}: social discovery warning - {exc}')
 
-                search_run.discovery_sources = social_sources
+                search_run.discovery_sources = discovery_sources_to_json(social_sources)
                 search_run.save(update_fields=['discovery_sources'])
 
                 search_and_scrape_product(
