@@ -5,8 +5,6 @@ from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .adaptive_engine import search_and_scrape_product
-from .discovery_sources import discover_social_sources
 from .forms import SearchOrScrapeForm
 from .market_coverage import coverage_summary
 from .models import ScrapeJob, SearchRun
@@ -72,14 +70,22 @@ def _run_state(search_run):
     merchant_count = len(merchant_ids)
     target = max(1, int(search_run.target_merchants))
     coverage_reached = merchant_count >= target
-    if coverage_reached or search_run.completed_at:
+
+    if coverage_reached or search_run.status == SearchRun.STATUS_COMPLETED or search_run.completed_at:
         status = "completed"
-    elif active_count:
+    elif search_run.status == SearchRun.STATUS_FAILED:
+        status = "failed"
+    elif search_run.status == SearchRun.STATUS_QUEUED:
+        status = "queued"
+    elif search_run.status == SearchRun.STATUS_DISCOVERING:
+        status = "discovering"
+    elif active_count or search_run.status == SearchRun.STATUS_RUNNING:
         status = "running"
     elif total:
         status = "finished"
     else:
         status = "discovering"
+
     progress = min(100, round((merchant_count / target) * 100)) if target else 0
     return {
         "listings": listings,
@@ -97,7 +103,6 @@ def _run_state(search_run):
 
 
 def _async_job_state(query):
-    """Legacy query-scoped state kept for old links without a SearchRun id."""
     jobs = ScrapeJob.objects.filter(search_run__isnull=True, query__iexact=query)
     active = jobs.filter(status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY])
     successful = jobs.filter(status=ScrapeJob.STATUS_SUCCESS, listing__isnull=False).select_related("listing", "listing__product", "listing__retailer").order_by("-finished_at")
@@ -127,7 +132,8 @@ def search_run_status(request, run_id):
         "target_merchants": state["target_merchants"],
         "coverage_reached": state["coverage_reached"],
         "progress": state["progress"],
-        "completed": state["status"] in {"completed", "finished"},
+        "completed": state["status"] in {"completed", "finished", "failed"},
+        "discovery_error": search_run.discovery_error,
     })
 
 
@@ -156,10 +162,13 @@ def scrape_view(request):
         if search_run:
             run_state = _run_state(search_run)
             listings = run_state["listings"]
+            discovery_sources = search_run.discovery_sources or []
             async_active_jobs = run_state["active"]
-            async_waiting = run_state["status"] in {"discovering", "running"}
+            async_waiting = run_state["status"] in {"queued", "discovering", "running"}
             if async_waiting:
                 errors = [f"Recherche en cours : {run_state['processed']} source(s) analysée(s), {run_state['merchants']}/{run_state['target_merchants']} marchand(s) trouvé(s)."]
+            elif run_state["status"] == "failed" and not listings:
+                errors = [search_run.discovery_error or "Aucune offre marchande vérifiée n’a été trouvée."]
             elif not listings:
                 errors = [f"Aucune offre marchande vérifiée après traitement de {run_state['total']} source(s) ({run_state['failed']} échec(s))."]
         else:
@@ -171,7 +180,6 @@ def scrape_view(request):
                 errors = [f"Aucune offre marchande vérifiée après traitement de {total_jobs} source(s) ({failed_jobs} échec(s))."]
             elif not listings:
                 errors = ["Aucune recherche en cours pour ce produit."]
-        discovery_sources = discover_social_sources(query)
         if listings:
             listings, summary = _decorate_results(listings, query, site)
 
@@ -210,22 +218,20 @@ def scrape_view(request):
                 if error:
                     errors.append(error)
             else:
+                # Product searches are deliberately enqueue-only. No web search,
+                # social discovery or scraping is allowed to block Gunicorn.
                 target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
-                search_run = SearchRun.objects.create(query=query, site_filter=site, target_merchants=target_merchants)
-                listings, errors = search_and_scrape_product(
-                    product_query=query,
+                search_run = SearchRun.objects.create(
+                    query=query,
                     site_filter=site,
-                    model_name=model_name,
-                    search_run=search_run,
+                    target_merchants=target_merchants,
+                    model_name=model_name or "",
+                    status=SearchRun.STATUS_QUEUED,
                 )
-                discovery_sources = discover_social_sources(query)
-
-                queue_message = any("arrière-plan" in error or "file de collecte" in error for error in errors)
-                if not listings and queue_message:
-                    params = {"q": query, "run": str(search_run.pk)}
-                    if site != "all":
-                        params["site"] = site
-                    return redirect(f"/?{urlencode(params)}")
+                params = {"q": query, "run": str(search_run.pk)}
+                if site != "all":
+                    params["site"] = site
+                return redirect(f"/?{urlencode(params)}")
 
         if listings:
             listings, summary = _decorate_results(listings, query, site)
