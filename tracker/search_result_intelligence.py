@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 
 from ddgs import DDGS
+from django.conf import settings
 
 from tracker.candidate_filter import is_low_value_candidate_url, product_url_score
 
@@ -25,6 +26,8 @@ GENERIC_RESULT_TERMS = (
     'mode femme', 'mode homme', 'boutique en ligne', 'online store',
 )
 
+DEFAULT_DDGS_BACKENDS = ('auto', 'google,brave,duckduckgo', 'bing,yahoo')
+
 
 @dataclass(frozen=True)
 class SearchCandidate:
@@ -45,6 +48,35 @@ def _query_overlap(query: str | None, text: str) -> tuple[int, float]:
     haystack = (text or '').lower()
     matched = sum(1 for token in query_tokens if token in haystack)
     return matched, matched / max(1, len(query_tokens))
+
+
+def _ddgs_backend_attempts() -> tuple[str, ...]:
+    configured = getattr(settings, 'DDGS_BACKENDS', None)
+    if isinstance(configured, str) and configured.strip():
+        attempts = tuple(part.strip() for part in configured.split('|') if part.strip())
+        if attempts:
+            return attempts
+    if isinstance(configured, (list, tuple)):
+        attempts = tuple(str(part).strip() for part in configured if str(part).strip())
+        if attempts:
+            return attempts
+    return DEFAULT_DDGS_BACKENDS
+
+
+def _search_ddgs_with_fallback(search_term: str, max_results: int):
+    timeout = max(2, int(getattr(settings, 'DDGS_TIMEOUT', 8)))
+    last_error = None
+    for backend in _ddgs_backend_attempts():
+        try:
+            with DDGS(timeout=timeout) as ddgs:
+                results = ddgs.text(search_term, max_results=max_results, backend=backend)
+            if results:
+                return results
+        except Exception as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    return []
 
 
 def search_metadata_score(title: str, snippet: str, query: str | None = None) -> float:
@@ -102,26 +134,27 @@ def collect_search_candidates(search_term: str, max_results: int, product_query:
 
     Results remain dictionaries so adaptive_engine can gracefully consume mocked
     legacy URL strings and enriched production candidates through the same path.
+    DDGS is retried across independent backend groups so a single HTTP/2/TLS
+    backend failure does not abort merchant discovery.
     """
     candidates = []
     seen = set()
-    with DDGS() as ddgs:
-        for result in ddgs.text(search_term, max_results=max_results):
-            url = str(result.get('href') or '').strip()
-            if not url or url in seen or is_low_value_candidate_url(url, query=product_query):
-                continue
-            title = str(result.get('title') or '').strip()
-            snippet = str(result.get('body') or result.get('snippet') or '').strip()
-            if clearly_low_value_search_result(title, snippet, query=product_query):
-                continue
-            seen.add(url)
-            metadata_score = search_metadata_score(title, snippet, query=product_query)
-            candidates.append({
-                'url': url,
-                'title': title,
-                'snippet': snippet,
-                'search_score': metadata_score,
-            })
+    for result in _search_ddgs_with_fallback(search_term, max_results=max_results):
+        url = str(result.get('href') or '').strip()
+        if not url or url in seen or is_low_value_candidate_url(url, query=product_query):
+            continue
+        title = str(result.get('title') or '').strip()
+        snippet = str(result.get('body') or result.get('snippet') or '').strip()
+        if clearly_low_value_search_result(title, snippet, query=product_query):
+            continue
+        seen.add(url)
+        metadata_score = search_metadata_score(title, snippet, query=product_query)
+        candidates.append({
+            'url': url,
+            'title': title,
+            'snippet': snippet,
+            'search_score': metadata_score,
+        })
     return candidates
 
 
