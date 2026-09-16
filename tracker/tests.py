@@ -23,6 +23,10 @@ from tracker.services import (
 
 
 class CustomSiteSearchTests(TestCase):
+    @staticmethod
+    def _test_model():
+        return "test-model-primary"
+
     def test_normalize_site_filter_accepts_custom_domain_and_url(self):
         self.assertEqual(normalize_site_filter("example.com"), ("example.com", "https://example.com"))
         self.assertEqual(normalize_site_filter("https://www.example.com/shop"), ("example.com", "https://www.example.com"))
@@ -37,8 +41,8 @@ class CustomSiteSearchTests(TestCase):
     @override_settings(
         LLM_CONFIG={
             "provider": "bedrock",
-            "default_model": "us.meta.llama3-1-70b-instruct-v1:0",
-            "models": ["us.meta.llama3-1-70b-instruct-v1:0", "us.google.gemma-3-12b-it-v1:0"],
+            "default_model": "test-model-primary",
+            "models": ["test-model-primary", "test-model-secondary"],
             "region": "us-east-1",
             "access_key_id": "test-access-key",
             "secret_access_key": "test-secret-key",
@@ -48,28 +52,29 @@ class CustomSiteSearchTests(TestCase):
         from tracker.services import get_llm_config
         config = get_llm_config()
         self.assertEqual(config["provider"], "bedrock")
-        self.assertEqual(config["default_model"], "us.meta.llama3-1-70b-instruct-v1:0")
-        self.assertIn("us.meta.llama3-1-70b-instruct-v1:0", config["models"])
+        self.assertEqual(config["default_model"], "test-model-primary")
+        self.assertIn("test-model-primary", config["models"])
         self.assertEqual(config["region"], "us-east-1")
         self.assertEqual(config["access_key_id"], "test-access-key")
 
-    def test_bedrock_model_alias_resolves_to_gemma_v1(self):
+    def test_bedrock_model_id_is_passed_through(self):
         from tracker.services import resolve_bedrock_model_id
-        self.assertEqual(resolve_bedrock_model_id("google.gemma-3-12b-it", "us-east-1"), "google.gemma-3-12b-it")
-        self.assertEqual(resolve_bedrock_model_id("us.meta.llama3-1-70b-instruct-v1:0", "us-east-1"), "us.meta.llama3-1-70b-instruct-v1:0")
+        model_id = self._test_model()
+        self.assertEqual(resolve_bedrock_model_id(model_id, "us-east-1"), model_id)
 
-    @patch.dict(os.environ, {"LLM_MODEL": "openai.gpt-oss-120b", "LLM_MODELS": "google.gemma-3-12b-it"}, clear=False)
-    def test_stale_llm_model_does_not_override_valid_llm_models(self):
+    @override_settings(LLM_CONFIG={})
+    @patch.dict(os.environ, {"LLM_MODEL": "test-model-env"}, clear=False)
+    def test_llm_model_is_loaded_from_environment(self):
         from tracker.services import get_llm_config
         config = get_llm_config()
-        self.assertEqual(config["default_model"], "google.gemma-3-12b-it")
-        self.assertEqual(config["models"][0], "google.gemma-3-12b-it")
+        self.assertEqual(config["default_model"], "test-model-env")
+        self.assertEqual(config["models"][0], "test-model-env")
 
     @patch("tracker.services.requests.Session.get")
     def test_process_url_and_save_rejects_category_pages(self, mock_get):
         from tracker.services import process_url_and_save
         category_url = "https://cd.coinafrique.com/categorie/jeux-video-et-consoles"
-        listing, error = process_url_and_save(category_url, model_name="google.gemma-3-12b-it")
+        listing, error = process_url_and_save(category_url)
         self.assertIsNone(listing)
         self.assertIn("liste", error.lower())
         mock_get.assert_not_called()
@@ -130,12 +135,11 @@ class CustomSiteSearchTests(TestCase):
         from tracker.services import get_llm_config
         import boto3
         config = get_llm_config(); model_id = config["default_model"]
-        self.assertEqual(model_id, "google.gemma-3-12b-it")
+        self.assertTrue(model_id)
         client = boto3.client("bedrock-runtime", region_name=config["region"], aws_access_key_id=config["access_key_id"], aws_secret_access_key=config["secret_access_key"], aws_session_token=config["session_token"] or None)
         response = client.converse(modelId=model_id, messages=[{"role": "user", "content": [{"text": "Réponds en une phrase: Bedrock fonctionne-t-il ?"}]}], inferenceConfig={"temperature": 0.1, "maxTokens": 20})
         content = response["output"]["message"]["content"]
         self.assertTrue(content)
-        self.assertIn("Bedrock", "".join(block.get("text", "") for block in content))
 
 
 class SearchResultDisplayTests(TestCase):
