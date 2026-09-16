@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from urllib.parse import urlparse
 
 from ddgs import DDGS
@@ -40,6 +40,32 @@ class DiscoverySource:
     title: str
     snippet: str = ""
     relevance_score: float = 0.0
+
+
+def discovery_sources_to_json(sources) -> list[dict]:
+    """Return JSON-serializable discovery source dictionaries.
+
+    Discovery is represented internally with ``DiscoverySource`` dataclasses,
+    while ``SearchRun.discovery_sources`` is a Django ``JSONField``. Keep the
+    conversion at this boundary so workers never try to persist Python objects
+    directly into JSON storage.
+    """
+    serialized = []
+    for source in sources or []:
+        if isinstance(source, dict):
+            item = dict(source)
+        elif is_dataclass(source):
+            item = asdict(source)
+        else:
+            item = {
+                "url": str(getattr(source, "url", "") or ""),
+                "platform": str(getattr(source, "platform", "") or ""),
+                "title": str(getattr(source, "title", "") or ""),
+                "snippet": str(getattr(source, "snippet", "") or ""),
+                "relevance_score": float(getattr(source, "relevance_score", 0.0) or 0.0),
+            }
+        serialized.append(item)
+    return serialized
 
 
 def _normalized_host(url: str) -> str:
