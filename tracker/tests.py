@@ -10,7 +10,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from tracker.models import PriceListing, Product, Retailer
+from tracker.models import PriceListing, Product, Retailer, ScrapeJob, SearchRun
 from tracker.services import (
     ExtractedProductData,
     cleanup_stale_listings,
@@ -139,34 +139,170 @@ class CustomSiteSearchTests(TestCase):
 
 
 class SearchResultDisplayTests(TestCase):
-    @patch("tracker.views.search_and_scrape_product")
-    def test_scrape_view_renders_listings_for_each_result(self, mock_search):
-        retailer = Retailer.objects.create(name="Test Shop", base_url="https://example.com")
-        product = Product.objects.create(name="Produit test", sku_or_ean="ABC123")
-        mock_search.return_value = ([PriceListing.objects.create(product=product, retailer=retailer, url="https://example.com/produit", price="99.99", currency="EUR", in_stock=False)], [])
-        response = self.client.post(reverse("scrape_view"), {"site": "", "query": "Produit test", "model_name": "qwen2.5-coder:7b"})
-        self.assertContains(response, "Produit test"); self.assertContains(response, "Test Shop"); self.assertContains(response, "Rupture"); self.assertContains(response, "https://example.com/produit")
+    def _render_completed_search(self, query, listings):
+        search_run = SearchRun.objects.create(
+            query=query,
+            site_filter="all",
+            target_merchants=max(1, len({listing.retailer_id for listing in listings})),
+            model_name="qwen2.5-coder:7b",
+            status=SearchRun.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
 
-    @patch("tracker.views.search_and_scrape_product")
-    def test_scrape_view_marks_lowest_price(self, mock_search):
-        retailer_a = Retailer.objects.create(name="Shop A", base_url="https://shop-a.example"); retailer_b = Retailer.objects.create(name="Shop B", base_url="https://shop-b.example"); product = Product.objects.create(name="Produit test", sku_or_ean="XYZ789")
-        mock_search.return_value = ([PriceListing.objects.create(product=product, retailer=retailer_b, url="https://shop-b.example/produit", price="199.99", currency="EUR", in_stock=True), PriceListing.objects.create(product=product, retailer=retailer_a, url="https://shop-a.example/produit", price="99.99", currency="EUR", in_stock=True)], [])
-        response = self.client.post(reverse("scrape_view"), {"site": "", "query": "Produit test", "model_name": "qwen2.5-coder:7b"})
-        self.assertContains(response, "Prix le plus bas"); self.assertContains(response, "99.99 EUR")
+        for listing in listings:
+            ScrapeJob.objects.create(
+                search_run=search_run,
+                url=listing.url,
+                query=query,
+                model_name="qwen2.5-coder:7b",
+                status=ScrapeJob.STATUS_SUCCESS,
+                listing=listing,
+                finished_at=timezone.now(),
+            )
 
-    @patch("tracker.views.search_and_scrape_product")
-    def test_scrape_view_prefers_in_stock_offer_over_cheaper_out_of_stock(self, mock_search):
-        retailer_a = Retailer.objects.create(name="Shop A", base_url="https://shop-a.example"); retailer_b = Retailer.objects.create(name="Shop B", base_url="https://shop-b.example"); product = Product.objects.create(name="Produit stock test", sku_or_ean="XYZ790")
-        mock_search.return_value = ([PriceListing.objects.create(product=product, retailer=retailer_a, url="https://shop-a.example/produit", price="89.99", currency="EUR", in_stock=False), PriceListing.objects.create(product=product, retailer=retailer_b, url="https://shop-b.example/produit", price="95.00", currency="EUR", in_stock=True)], [])
-        response = self.client.post(reverse("scrape_view"), {"site": "", "query": "Produit stock test", "model_name": "qwen2.5-coder:7b"})
-        self.assertContains(response, "95.00 EUR"); self.assertContains(response, "En stock")
+        return self.client.get(
+            reverse("scrape_view"),
+            {
+                "q": query,
+                "run": str(search_run.pk),
+            },
+        )
 
-    @patch("tracker.views.search_and_scrape_product")
-    def test_scrape_view_hides_error_banner_when_valid_results_exist(self, mock_search):
-        retailer = Retailer.objects.create(name="Shop Valid", base_url="https://shop-valid.example"); product = Product.objects.create(name="Produit valide", sku_or_ean="VAL-001")
-        mock_search.return_value = ([PriceListing.objects.create(product=product, retailer=retailer, url="https://shop-valid.example/produit", price="59.99", currency="EUR", in_stock=True)], ["https://autre.example/produit: Données extraites invalides ou page non exploitable."])
-        response = self.client.post(reverse("scrape_view"), {"site": "", "query": "Produit valide", "model_name": "qwen2.5-coder:7b"})
-        self.assertContains(response, "Produit valide"); self.assertNotContains(response, "Aucun résultat exploitable")
+    def test_scrape_view_renders_listings_for_each_result(self):
+        retailer = Retailer.objects.create(
+            name="Test Shop",
+            base_url="https://example.com",
+        )
+        product = Product.objects.create(
+            name="Produit test",
+            sku_or_ean="ABC123",
+        )
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url="https://example.com/produit",
+            price="99.99",
+            currency="EUR",
+            in_stock=False,
+        )
+
+        response = self._render_completed_search(
+            "Produit test",
+            [listing],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Produit test")
+        self.assertContains(response, "Test Shop")
+        self.assertContains(response, "Rupture")
+        self.assertContains(response, "https://example.com/produit")
+
+    def test_scrape_view_marks_lowest_price(self):
+        retailer_a = Retailer.objects.create(
+            name="Shop A",
+            base_url="https://shop-a.example",
+        )
+        retailer_b = Retailer.objects.create(
+            name="Shop B",
+            base_url="https://shop-b.example",
+        )
+        product = Product.objects.create(
+            name="Produit test",
+            sku_or_ean="XYZ789",
+        )
+
+        expensive = PriceListing.objects.create(
+            product=product,
+            retailer=retailer_b,
+            url="https://shop-b.example/produit",
+            price="199.99",
+            currency="EUR",
+            in_stock=True,
+        )
+        cheapest = PriceListing.objects.create(
+            product=product,
+            retailer=retailer_a,
+            url="https://shop-a.example/produit",
+            price="99.99",
+            currency="EUR",
+            in_stock=True,
+        )
+
+        response = self._render_completed_search(
+            "Produit test",
+            [expensive, cheapest],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Prix le plus bas")
+        self.assertContains(response, "99.99 EUR")
+
+    def test_scrape_view_prefers_in_stock_offer_over_cheaper_out_of_stock(self):
+        retailer_a = Retailer.objects.create(
+            name="Shop A",
+            base_url="https://shop-a.example",
+        )
+        retailer_b = Retailer.objects.create(
+            name="Shop B",
+            base_url="https://shop-b.example",
+        )
+        product = Product.objects.create(
+            name="Produit stock test",
+            sku_or_ean="XYZ790",
+        )
+
+        unavailable = PriceListing.objects.create(
+            product=product,
+            retailer=retailer_a,
+            url="https://shop-a.example/produit",
+            price="89.99",
+            currency="EUR",
+            in_stock=False,
+        )
+        available = PriceListing.objects.create(
+            product=product,
+            retailer=retailer_b,
+            url="https://shop-b.example/produit",
+            price="95.00",
+            currency="EUR",
+            in_stock=True,
+        )
+
+        response = self._render_completed_search(
+            "Produit stock test",
+            [unavailable, available],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "95.00 EUR")
+        self.assertContains(response, "En stock")
+
+    def test_scrape_view_hides_error_banner_when_valid_results_exist(self):
+        retailer = Retailer.objects.create(
+            name="Shop Valid",
+            base_url="https://shop-valid.example",
+        )
+        product = Product.objects.create(
+            name="Produit valide",
+            sku_or_ean="VAL-001",
+        )
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url="https://shop-valid.example/produit",
+            price="59.99",
+            currency="EUR",
+            in_stock=True,
+        )
+
+        response = self._render_completed_search(
+            "Produit valide",
+            [listing],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Produit valide")
+        self.assertNotContains(response, "Aucun résultat exploitable")
 
     @patch("tracker.services.time.sleep")
     @patch("tracker.services.requests.Session")
