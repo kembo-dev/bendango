@@ -14,6 +14,7 @@ from tracker.models import ScrapeJob, SearchRun
 
 ACTIVE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY, ScrapeJob.STATUS_RUNNING)
 CLAIMABLE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY)
+LOCAL_MARKET_HINTS = ("rdc", "congo", "kinshasa", "goma", "lubumbashi")
 
 
 def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_attempts: int = 3, search_run: SearchRun | None = None) -> ScrapeJob:
@@ -90,13 +91,28 @@ def _successful_domains_for_job(job: ScrapeJob, limit: int = 20) -> set[str]:
     return {domain_from_url(url) for url in urls if url}
 
 
+def _local_market_bonus(url: str) -> float:
+    """Prefer credible DRC-market candidates without excluding global merchants."""
+    domain = domain_from_url(url)
+    normalized = (url or '').lower()
+    bonus = 0.0
+    if domain.endswith('.cd'):
+        bonus += 18.0
+    if any(hint in domain for hint in LOCAL_MARKET_HINTS):
+        bonus += 12.0
+    elif any(hint in normalized for hint in LOCAL_MARKET_HINTS):
+        bonus += 6.0
+    return min(24.0, bonus)
+
+
 def _queue_priority(job: ScrapeJob, successful_domains: set[str], health_cache: dict[str, float]) -> float:
     domain = domain_from_url(job.url)
     if domain not in health_cache:
         health_cache[domain] = float(url_domain_health_score(job.url))
     product_score = float(product_url_score(job.url, query=job.query))
     diversity_bonus = 0.0 if domain in successful_domains else 12.0
-    return (product_score * 10.0) + (health_cache[domain] * 8.0) + diversity_bonus
+    local_bonus = _local_market_bonus(job.url)
+    return (product_score * 10.0) + local_bonus + (health_cache[domain] * 8.0) + diversity_bonus
 
 
 def _claim_best_from_lane(status: str, now, window: int) -> ScrapeJob | None:
