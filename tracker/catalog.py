@@ -5,7 +5,8 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
-from tracker.models import PriceListing
+from tracker.markets import normalize_market_code
+from tracker.models import PriceListing, ScrapeJob
 from tracker.product_matching import match_product
 
 
@@ -13,14 +14,16 @@ def find_fresh_cached_listings(
     query: str,
     *,
     site_hosts: list[str] | None = None,
+    market_code: str | None = None,
     max_age_minutes: int | None = None,
     minimum_confidence: float | None = None,
 ) -> list[PriceListing]:
     """Return recent active offers that confidently match a product query.
 
-    The cache is conservative: only fresh, active and sufficiently confident
-    listings are returned. Matching is re-evaluated against the current query
-    so old catalog rows cannot bypass Product Matching V2.
+    When ``market_code`` is provided, a listing is reusable only if it has
+    already been validated successfully by a SearchRun for that same market.
+    This prevents a fresh offer discovered for one country from silently
+    leaking into another country's search cache.
     """
     if not query or not query.strip():
         return []
@@ -39,6 +42,16 @@ def find_fresh_cached_listings(
             confidence_score__gte=minimum_confidence,
         )
     )
+
+    if market_code:
+        market_code = normalize_market_code(market_code)
+        validated_listing_ids = ScrapeJob.objects.filter(
+            status=ScrapeJob.STATUS_SUCCESS,
+            listing__isnull=False,
+            search_run__isnull=False,
+            search_run__market_code=market_code,
+        ).values_list("listing_id", flat=True)
+        queryset = queryset.filter(pk__in=validated_listing_ids)
 
     normalized_hosts = {
         host.lower().removeprefix("www.")
@@ -63,7 +76,6 @@ def find_fresh_cached_listings(
         if not result.is_match:
             continue
 
-        # Keep the current matching quality visible even for cache hits.
         listing.match_score = result.score
         matches.append(listing)
 
