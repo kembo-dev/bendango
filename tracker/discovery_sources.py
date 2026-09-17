@@ -35,6 +35,9 @@ SOCIAL_PLATFORMS = {
     "Facebook", "Instagram", "TikTok", "YouTube", "Reddit", "Pinterest", "X", "LinkedIn",
 }
 
+COMPARISON_PLATFORMS = {"Kimovil", "Idealo", "123comparer", "Accio"}
+INFORMATIVE_PLATFORMS = {"Les Numériques", "ChooseYourMobile", "Kalvo", "Mobolist"}
+
 SOCIAL_COMMERCE_TERMS = {
     "prix", "price", "vente", "vendre", "vend", "acheter", "buy", "shop", "store", "boutique",
     "disponible", "available", "stock", "livraison", "delivery", "commande", "commander", "order",
@@ -68,6 +71,17 @@ class DiscoverySource:
     title: str
     snippet: str = ""
     relevance_score: float = 0.0
+    source_type: str = ""
+
+
+def source_type_for_platform(platform: str) -> str:
+    if platform in SOCIAL_PLATFORMS:
+        return "Réseau social"
+    if platform in COMPARISON_PLATFORMS:
+        return "Comparateur"
+    if platform in INFORMATIVE_PLATFORMS:
+        return "Fiche informative"
+    return "Autre source"
 
 
 def discovery_sources_to_json(sources) -> list[dict]:
@@ -84,7 +98,10 @@ def discovery_sources_to_json(sources) -> list[dict]:
                 "title": str(getattr(source, "title", "") or ""),
                 "snippet": str(getattr(source, "snippet", "") or ""),
                 "relevance_score": float(getattr(source, "relevance_score", 0.0) or 0.0),
+                "source_type": str(getattr(source, "source_type", "") or ""),
             }
+        if not item.get("source_type"):
+            item["source_type"] = source_type_for_platform(str(item.get("platform") or ""))
         serialized.append(item)
     return serialized
 
@@ -269,6 +286,7 @@ def discover_discovery_sources(query: str, max_results: int = 8) -> list[Discove
                         title=title,
                         snippet=snippet[:240],
                         relevance_score=score,
+                        source_type=source_type_for_platform(platform),
                     )
                 )
 
