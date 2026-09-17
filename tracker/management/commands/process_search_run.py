@@ -1,7 +1,11 @@
+import subprocess
+import sys
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from tracker.adaptive_engine import search_and_scrape_product
 from tracker.discovery_sources import discover_social_sources, discovery_sources_to_json
 from tracker.models import SearchRun
 
@@ -22,40 +26,37 @@ class Command(BaseCommand):
         run_label = str(search_run.pk)[:8]
         try:
             self.stdout.write(f'run {run_label}: merchant discovery phase started')
-            search_and_scrape_product(
-                product_query=search_run.query,
-                site_filter=search_run.site_filter,
-                model_name=search_run.model_name or None,
-                search_run=search_run,
-                market_code=search_run.market_code,
-            )
-            self.stdout.write(f'run {run_label}: merchant discovery phase finished')
+            merchant_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_MERCHANT_TIMEOUT', 45)))
+            manage_py = str(Path(settings.BASE_DIR) / 'manage.py')
+            try:
+                subprocess.run(
+                    [sys.executable, manage_py, 'process_merchant_search', str(search_run.pk)],
+                    cwd=str(settings.BASE_DIR),
+                    timeout=merchant_timeout,
+                    check=False,
+                )
+                self.stdout.write(f'run {run_label}: merchant discovery phase finished')
+            except subprocess.TimeoutExpired:
+                self.stdout.write(self.style.WARNING(
+                    f'run {run_label}: merchant discovery budget reached after {merchant_timeout}s; preserving partial coverage'
+                ))
 
-            # Social/comparison discovery enriches the result page but must never
-            # consume the whole run budget before merchant jobs are enqueued.
+            # Merchant discovery is best-effort and may use its full child budget.
+            # Social/comparison enrichment receives the remaining outer-run time.
             self.stdout.write(f'run {run_label}: social enrichment phase started')
             try:
-                social_sources = discover_social_sources(
-                    search_run.query,
-                    market_code=search_run.market_code,
-                )
+                social_sources = discover_social_sources(search_run.query, market_code=search_run.market_code)
             except Exception as exc:
                 social_sources = []
-                self.stderr.write(
-                    f'run {run_label}: social discovery warning - {exc}'
-                )
+                self.stderr.write(f'run {run_label}: social discovery warning - {exc}')
             search_run.discovery_sources = discovery_sources_to_json(social_sources)
             search_run.save(update_fields=['discovery_sources'])
             self.stdout.write(f'run {run_label}: social enrichment phase finished')
 
             search_run.refresh_from_db()
             now = timezone.now()
-            active_jobs = search_run.jobs.filter(
-                status__in=['pending', 'running', 'retry']
-            ).exists()
-            successful_jobs = search_run.jobs.filter(
-                status='success', listing__isnull=False
-            ).exists()
+            active_jobs = search_run.jobs.filter(status__in=['pending', 'running', 'retry']).exists()
+            successful_jobs = search_run.jobs.filter(status='success', listing__isnull=False).exists()
 
             search_run.discovery_finished_at = now
             if search_run.completed_at:
@@ -67,25 +68,11 @@ class Command(BaseCommand):
                 search_run.completed_at = now
             else:
                 search_run.status = SearchRun.STATUS_FAILED
-                search_run.discovery_error = (
-                    'Aucune page marchande exploitable n’a été trouvée.'
-                )
+                search_run.discovery_error = 'Aucune page marchande exploitable n’a été trouvée.'
                 search_run.completed_at = now
 
-            search_run.save(
-                update_fields=[
-                    'status',
-                    'discovery_finished_at',
-                    'discovery_error',
-                    'completed_at',
-                ]
-            )
+            search_run.save(update_fields=['status', 'discovery_finished_at', 'discovery_error', 'completed_at'])
         except Exception as exc:
             now = timezone.now()
-            SearchRun.objects.filter(pk=search_run.pk).update(
-                status=SearchRun.STATUS_FAILED,
-                discovery_error=str(exc),
-                discovery_finished_at=now,
-                completed_at=now,
-            )
+            SearchRun.objects.filter(pk=search_run.pk).update(status=SearchRun.STATUS_FAILED, discovery_error=str(exc), discovery_finished_at=now, completed_at=now)
             raise
