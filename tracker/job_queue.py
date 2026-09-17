@@ -17,8 +17,6 @@ CLAIMABLE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY)
 
 
 def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_attempts: int = 3, search_run: SearchRun | None = None) -> ScrapeJob:
-    # A SearchRun must never enqueue the same URL twice, even if the first job
-    # already succeeded or failed. Recovery/fallback passes reuse that job.
     lookup = {'url': url, 'query': query}
     if search_run is not None:
         lookup['search_run'] = search_run
@@ -151,6 +149,27 @@ def job_coverage_reached(job: ScrapeJob) -> bool:
     return distinct_merchant_count(listings) >= _coverage_target(job)
 
 
+def cancel_same_domain_run_jobs(job: ScrapeJob) -> int:
+    """Drop queued candidates from a domain that already yielded a valid offer.
+
+    Running jobs are intentionally left untouched because another worker may
+    already be fetching them. This optimization only removes pending/retry work.
+    """
+    if not job.search_run_id or job.status != ScrapeJob.STATUS_SUCCESS:
+        return 0
+    domain = domain_from_url(job.url)
+    if not domain:
+        return 0
+    candidates = _coverage_queryset(job).filter(
+        status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY]
+    ).exclude(pk=job.pk)
+    ids = [candidate.pk for candidate in candidates.only('id', 'url') if domain_from_url(candidate.url) == domain]
+    if not ids:
+        return 0
+    deleted, _ = ScrapeJob.objects.filter(pk__in=ids).delete()
+    return deleted
+
+
 def cancel_satisfied_run_jobs(job: ScrapeJob) -> int:
     if not job_coverage_reached(job):
         return 0
@@ -163,7 +182,6 @@ def cancel_satisfied_run_jobs(job: ScrapeJob) -> int:
     return deleted
 
 
-# Backward-compatible helpers for legacy callers/tests without SearchRun.
 def query_coverage_reached(query: str) -> bool:
     legacy = ScrapeJob(query=query, search_run=None)
     return job_coverage_reached(legacy)
