@@ -9,6 +9,26 @@ BLOCKED_HOSTS = {
     "studylib.net", "scribd.com", "academia.edu", "gist.github.com",
 }
 
+# These sources can be useful for discovery/research, but they are not direct
+# merchant product pages and therefore must not consume scrape-worker capacity
+# or count toward market coverage.
+DISCOVERY_ONLY_HOSTS = {
+    "facebook.com", "fb.com", "instagram.com", "tiktok.com",
+    "youtube.com", "youtu.be", "reddit.com", "pinterest.com",
+    "x.com", "twitter.com", "linkedin.com",
+}
+
+COMPARISON_EDITORIAL_HOSTS = {
+    "lesnumeriques.com",
+    "kimovil.com",
+    "idealo.fr",
+    "123comparer.fr",
+    "accio.com",
+    "chooseyourmobile.com",
+    "kalvo.com",
+    "mobolist.net",
+}
+
 BLOCKED_PATH_MARKERS = (
     "/privacy", "/privacy-policy", "/policies/", "/terms", "/conditions",
     "/forum", "/forums", "/thread", "/threads", "/viewtopic", "/blog/",
@@ -53,6 +73,14 @@ def _host_matches(host: str, blocked: str) -> bool:
     return host == blocked or host.endswith("." + blocked)
 
 
+def _is_discovery_only_host(host: str) -> bool:
+    return any(_host_matches(host, candidate) for candidate in DISCOVERY_ONLY_HOSTS)
+
+
+def _is_comparison_or_editorial_host(host: str) -> bool:
+    return any(_host_matches(host, candidate) for candidate in COMPARISON_EDITORIAL_HOSTS)
+
+
 def _query_tokens(query: str | None):
     return [token.lower() for token in re.findall(r"[a-zA-ZÀ-ÿ0-9]+", query or "") if len(token) > 1]
 
@@ -69,7 +97,11 @@ def _has_product_path(path: str) -> bool:
 
 
 def _looks_editorial(host: str, path: str) -> bool:
-    return any(marker in host for marker in EDITORIAL_HOST_MARKERS) or any(marker in path for marker in EDITORIAL_PATH_MARKERS)
+    return (
+        _is_comparison_or_editorial_host(host)
+        or any(marker in host for marker in EDITORIAL_HOST_MARKERS)
+        or any(marker in path for marker in EDITORIAL_PATH_MARKERS)
+    )
 
 
 def _looks_like_shopping_url(host: str, path: str) -> bool:
@@ -104,6 +136,10 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
     if not host:
         return True
     if any(_host_matches(host, blocked) for blocked in BLOCKED_HOSTS):
+        return True
+    if _is_discovery_only_host(host):
+        return True
+    if _is_comparison_or_editorial_host(host):
         return True
     if host == "bing.com" and path.startswith("/aclick"):
         return True
