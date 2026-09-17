@@ -62,7 +62,7 @@ class AsyncSearchRunCacheTests(TestCase):
             )
         return previous_run
 
-    @patch("tracker.management.commands.run_search_worker.discover_social_sources", return_value=[])
+    @patch("tracker.management.commands.process_search_run.discover_social_sources", return_value=[])
     def test_fresh_cache_completes_async_run_with_success_jobs(self, _mock_social):
         self._validate_listings_for_market("CD")
         search_run = SearchRun.objects.create(
