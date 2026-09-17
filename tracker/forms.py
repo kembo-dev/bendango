@@ -1,5 +1,6 @@
 from django import forms
 
+from .markets import DEFAULT_MARKET_CODE, market_choices
 from .services import get_llm_config
 
 
@@ -24,6 +25,13 @@ class SearchOrScrapeForm(forms.Form):
                 "placeholder": "Ex: iPhone 15 128Go",
             }
         ),
+    )
+    market = forms.ChoiceField(
+        label="Marché",
+        choices=market_choices(),
+        initial=DEFAULT_MARKET_CODE,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Choisissez le pays où Bendango doit privilégier les marchands et les offres.",
     )
     model_name = forms.CharField(
         label="Modèle LLM",
