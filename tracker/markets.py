@@ -15,6 +15,15 @@ class MarketProfile:
 
 
 MARKETS = {
+    "GLOBAL": MarketProfile(
+        "GLOBAL",
+        "🌍 N’importe où sur le Web",
+        "",
+        "",
+        (),
+        (),
+        (),
+    ),
     "CD": MarketProfile("CD", "🇨🇩 République démocratique du Congo", "RDC", "CDF", (".cd",), ("rdc", "drc", "congo"), ("kinshasa", "goma", "lubumbashi")),
     "FR": MarketProfile("FR", "🇫🇷 France", "France", "EUR", (".fr",), ("france",), ("paris", "lyon", "marseille")),
     "CI": MarketProfile("CI", "🇨🇮 Côte d’Ivoire", "Côte d’Ivoire", "XOF", (".ci",), ("cote d ivoire", "ivoire"), ("abidjan", "bouake")),
@@ -30,6 +39,7 @@ MARKETS = {
 }
 
 DEFAULT_MARKET_CODE = "CD"
+GLOBAL_MARKET_CODE = "GLOBAL"
 
 
 def normalize_market_code(code: str | None) -> str:
@@ -41,12 +51,18 @@ def get_market(code: str | None) -> MarketProfile:
     return MARKETS[normalize_market_code(code)]
 
 
+def is_global_market(code: str | None) -> bool:
+    return normalize_market_code(code) == GLOBAL_MARKET_CODE
+
+
 def market_choices() -> list[tuple[str, str]]:
     return [(profile.code, profile.label) for profile in MARKETS.values()]
 
 
 def market_search_label(code: str | None) -> str:
     profile = get_market(code)
+    if profile.code == GLOBAL_MARKET_CODE:
+        return ""
     if profile.cities:
         return f"{profile.country} {profile.cities[0]}"
     return profile.country
