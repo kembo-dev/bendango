@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import SearchOrScrapeForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
+from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
@@ -133,6 +134,8 @@ def search_run_status(request, run_id):
     return JsonResponse({
         "run_id": str(search_run.pk),
         "query": search_run.query,
+        "market": search_run.market_code,
+        "market_currency": search_run.market_currency,
         "status": state["status"],
         "sources": state["total"],
         "processed": state["processed"],
@@ -155,6 +158,7 @@ def scrape_view(request):
     summary = {}
     query = ""
     site = "all"
+    market_code = DEFAULT_MARKET_CODE
     async_waiting = False
     async_active_jobs = 0
     search_run = None
@@ -163,13 +167,19 @@ def scrape_view(request):
     if request.method == "GET" and request.GET.get("q"):
         query = request.GET.get("q", "").strip()
         site = request.GET.get("site", "all").strip() or "all"
+        market_code = normalize_market_code(request.GET.get("market", DEFAULT_MARKET_CODE))
         run_id = request.GET.get("run", "").strip()
-        form = SearchOrScrapeForm(initial={"query": query, "site": "" if site == "all" else site})
         if run_id:
             try:
                 search_run = SearchRun.objects.get(pk=run_id, query=query)
+                market_code = normalize_market_code(search_run.market_code)
             except (SearchRun.DoesNotExist, ValidationError, ValueError):
                 search_run = None
+        form = SearchOrScrapeForm(initial={
+            "query": query,
+            "site": "" if site == "all" else site,
+            "market": market_code,
+        })
         if search_run:
             run_state = _run_state(search_run)
             listings = run_state["listings"]
@@ -211,6 +221,8 @@ def scrape_view(request):
         if form.is_valid():
             site = form.cleaned_data["site"]
             query = form.cleaned_data["query"].strip()
+            market_code = normalize_market_code(form.cleaned_data["market"])
+            market = get_market(market_code)
             model_name = form.cleaned_data["model_name"]
             if site is not None:
                 site = site.strip()
@@ -235,9 +247,11 @@ def scrape_view(request):
                     site_filter=site,
                     target_merchants=target_merchants,
                     model_name=model_name or "",
+                    market_code=market.code,
+                    market_currency=market.currency,
                     status=SearchRun.STATUS_QUEUED,
                 )
-                params = {"q": query, "run": str(search_run.pk)}
+                params = {"q": query, "run": str(search_run.pk), "market": market.code}
                 if site != "all":
                     params["site"] = site
                 return redirect(f"/?{urlencode(params)}")
