@@ -58,4 +58,4 @@ class DiscoverySourceTypeTests(SimpleTestCase):
 
         self.assertIn("Réseau social", html)
         self.assertIn("Comparateur", html)
-        self.assertIn("Pertinence 1,00", html)
+        self.assertIn("Pertinence 1.00", html)
