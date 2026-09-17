@@ -63,12 +63,12 @@ class Command(BaseCommand):
             return search_run
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.SUCCESS('Starting Bendango SearchRun discovery worker'))
         recovered = recover_stale_search_runs(options['stale_timeout'])
         if recovered: self.stdout.write(self.style.WARNING(f'{recovered} stale SearchRun discovery job(s) recovered'))
         run_timeout = options['run_timeout']
         if run_timeout is None: run_timeout = int(getattr(settings, 'SEARCH_RUN_EXECUTION_TIMEOUT', 60))
         run_timeout = max(10, int(run_timeout))
+        self.stdout.write(self.style.SUCCESS(f'Starting Bendango SearchRun discovery worker (run budget: {run_timeout}s)'))
 
         while True:
             search_run = self._claim_next_run()
@@ -96,7 +96,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f'run {run_label}: discovery complete ({search_run.status})'))
             except SearchRunExecutionTimeout as exc:
                 now = timezone.now()
-                successful_jobs = search_run.jobs.filter(status=ScrapeJob.STATUS_SUCCESS, listing__isnull=False).exists() if False else search_run.jobs.filter(status='success', listing__isnull=False).exists()
+                successful_jobs = search_run.jobs.filter(status='success', listing__isnull=False).exists()
                 if successful_jobs:
                     SearchRun.objects.filter(pk=search_run.pk).update(status=SearchRun.STATUS_COMPLETED, discovery_error='', discovery_finished_at=now, completed_at=now)
                     self.stderr.write(f'run {run_label}: discovery budget reached after {run_timeout}s; partial coverage preserved')
