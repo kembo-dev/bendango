@@ -81,6 +81,21 @@ class Command(BaseCommand):
         fetch_ms = int(getattr(fetch_result, 'duration_ms', 0) or 0)
         return f'fetch_ms={fetch_ms}, process_ms={max(0, int(total_ms) - fetch_ms)}, source={getattr(listing, "extraction_source", "") or "-"}'
 
+    @staticmethod
+    def _allow_queue_retry(fetch_status: str, attempts: int, retryable: bool, budget: dict) -> bool:
+        """Apply queue retry policy with domain-health awareness.
+
+        The collector already spends the transport budget for the current domain.
+        If a domain is known as low/limited health, another persistent-queue pass
+        is usually lower value than trying the next ranked merchant candidate.
+        """
+        allowed = should_retry_job(fetch_status, attempts, retryable)
+        if not allowed:
+            return False
+        if fetch_status == 'fetch_failed' and budget.get('tier') in {'low', 'limited'}:
+            return False
+        return True
+
     def _run_parallel_supervisor(self, options):
         count = max(1, min(int(options['workers']), int(getattr(settings, 'SCRAPE_MAX_WORKERS', 4))))
         manage_py = str(Path(settings.BASE_DIR) / 'manage.py')
@@ -154,15 +169,10 @@ class Command(BaseCommand):
                     from_cache = bool(getattr(fetch_result, 'from_cache', False)); http_status = getattr(fetch_result, 'http_status', None)
                     timing = self._timing_label(duration_ms, fetch_result, listing)
 
-                    # Cooperative fetch cancellation is not a scrape failure and
-                    # must not damage domain health or consume another retry.
                     if getattr(fetch_result, 'status', '') == 'cancelled' or (not listing and job_coverage_reached(job)):
                         discard_running_job(job)
                         self.stdout.write(self.style.SUCCESS(f'job {job.pk}: skipped/coverage_reached ({duration_ms}ms, lane={lane}, run={run_label}, {timing})'))
                     elif listing:
-                        # A different worker may have reached coverage while this
-                        # page was being parsed. Keep the valid listing but avoid
-                        # scheduling any further work for the run.
                         complete_job(job, listing=listing, fetch_status='processed', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
                         self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success ({duration_ms}ms, lane={lane}, run={run_label}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'))
                         cancelled = cancel_satisfied_run_jobs(job)
@@ -170,7 +180,7 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.SUCCESS(f'run {run_label} coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'))
                     else:
                         fetch_status, retryable = classify_processing_error(error)
-                        retryable = False if job_coverage_reached(job) else should_retry_job(fetch_status, job.attempts, retryable)
+                        retryable = False if job_coverage_reached(job) else self._allow_queue_retry(fetch_status, job.attempts, retryable, budget)
                         fail_job(job, error or 'Échec de traitement.', retryable=retryable, fetch_status=fetch_status, http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
                         self.stdout.write(self.style.WARNING(f'job {job.pk}: {job.status}/{job.fetch_status} ({duration_ms}ms, lane={lane}, run={run_label}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing}) - {job.last_error}'))
                 except Exception as exc:
@@ -179,8 +189,9 @@ class Command(BaseCommand):
                         discard_running_job(job)
                         self.stdout.write(self.style.SUCCESS(f'job {job.pk}: skipped/coverage_reached ({duration_ms}ms, lane={lane}, run={run_label})'))
                     else:
-                        fail_job(job, str(exc), retryable=True, fetch_status='worker_exception', http_status=getattr(fetch_result, 'http_status', None), duration_ms=duration_ms, from_cache=bool(getattr(fetch_result, 'from_cache', False)))
-                        self.stderr.write(f'job {job.pk}: {job.status}/worker_exception (lane={lane}, run={run_label}) - {exc}')
+                        retryable = budget.get('tier') not in {'low', 'limited'}
+                        fail_job(job, str(exc), retryable=retryable, fetch_status='worker_exception', http_status=getattr(fetch_result, 'http_status', None), duration_ms=duration_ms, from_cache=bool(getattr(fetch_result, 'from_cache', False)))
+                        self.stderr.write(f'job {job.pk}: {job.status}/worker_exception (lane={lane}, run={run_label}, fetch={budget["tier"]}) - {exc}')
                 finally:
                     reset_fetch_policy(token)
             finally:
