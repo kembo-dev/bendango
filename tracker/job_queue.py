@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from tracker.candidate_filter import product_url_score
 from tracker.domain_health import domain_from_url, url_domain_health_score
+from tracker.market_coverage import distinct_merchant_count
 from tracker.models import ScrapeJob, SearchRun
 
 
@@ -16,11 +17,14 @@ CLAIMABLE_STATUSES = (ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RETRY)
 
 
 def enqueue_scrape_job(url: str, query: str = '', model_name: str = '', max_attempts: int = 3, search_run: SearchRun | None = None) -> ScrapeJob:
-    lookup = {'url': url, 'query': query, 'status__in': ACTIVE_STATUSES}
+    # A SearchRun must never enqueue the same URL twice, even if the first job
+    # already succeeded or failed. Recovery/fallback passes reuse that job.
+    lookup = {'url': url, 'query': query}
     if search_run is not None:
         lookup['search_run'] = search_run
     else:
         lookup['search_run__isnull'] = True
+        lookup['status__in'] = ACTIVE_STATUSES
     existing = ScrapeJob.objects.filter(**lookup).order_by('-created_at').first()
     if existing:
         return existing
@@ -139,8 +143,12 @@ def _coverage_target(job: ScrapeJob) -> int:
 def job_coverage_reached(job: ScrapeJob) -> bool:
     if not job.query and not job.search_run_id:
         return False
-    count = _coverage_queryset(job).filter(status=ScrapeJob.STATUS_SUCCESS, listing__isnull=False).values('listing__retailer_id').distinct().count()
-    return count >= _coverage_target(job)
+    successful = _coverage_queryset(job).filter(
+        status=ScrapeJob.STATUS_SUCCESS,
+        listing__isnull=False,
+    ).select_related('listing', 'listing__retailer')
+    listings = [item.listing for item in successful if item.listing_id]
+    return distinct_merchant_count(listings) >= _coverage_target(job)
 
 
 def cancel_satisfied_run_jobs(job: ScrapeJob) -> int:
