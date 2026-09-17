@@ -186,6 +186,8 @@ class SearchRun(models.Model):
     site_filter = models.CharField(max_length=255, default='all')
     target_merchants = models.PositiveIntegerField(default=1)
     model_name = models.CharField(max_length=255, blank=True, default='')
+    market_code = models.CharField(max_length=8, default='CD', db_index=True)
+    market_currency = models.CharField(max_length=8, default='CDF')
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_QUEUED, db_index=True)
     discovery_sources = models.JSONField(default=list, blank=True)
     discovery_error = models.TextField(blank=True, default='')
