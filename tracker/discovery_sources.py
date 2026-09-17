@@ -41,6 +41,11 @@ SOCIAL_COMMERCE_TERMS = {
     "promo", "promotion", "fc", "cdf", "usd", "eur", "$", "€",
 }
 
+LOCAL_DISCOVERY_TERMS = {
+    "rdc", "drc", "kinshasa", "congo", "congolais", "congolaise", "gombe", "lingwala",
+    "kasa-vubu", "kasavubu", "kintambo", "matonge", "limete", "ngaliema", "masina",
+}
+
 ACCESSORY_TERMS = {
     "chaise", "chair", "manette", "controller", "coque", "case", "cover", "cable", "câble",
     "chargeur", "charger", "support", "stand", "sac", "bag", "étui", "etui", "accessoire", "accessory",
@@ -93,7 +98,6 @@ def _host_matches(host: str, candidate: str) -> bool:
 
 
 def classify_url(url: str) -> str:
-    """Return verified_offer, discovery_source or ignored."""
     parsed = urlparse(url)
     host = parsed.netloc.lower().removeprefix("www.")
     path = parsed.path.lower()
@@ -131,6 +135,21 @@ def _token_coverage(query: str, text: str) -> float:
     return len(query_tokens & text_tokens) / len(query_tokens)
 
 
+def _reference_tokens(query: str) -> set[str]:
+    return {
+        token for token in re.findall(r"\b[a-z0-9-]+\b", normalize_product_name(query))
+        if any(char.isalpha() for char in token) and any(char.isdigit() for char in token)
+    }
+
+
+def _has_required_reference_tokens(query: str, text: str) -> bool:
+    references = _reference_tokens(query)
+    if not references:
+        return True
+    text_tokens = set(re.findall(r"\b[a-z0-9-]+\b", normalize_product_name(text)))
+    return references.issubset(text_tokens)
+
+
 def _has_important_numeric_token(query: str, text: str) -> bool:
     numbers = set(re.findall(r"\b\d+[a-z]*\b", normalize_product_name(query)))
     if not numbers:
@@ -143,6 +162,12 @@ def _has_social_commerce_signal(text: str) -> bool:
     normalized = normalize_product_name(text)
     tokens = set(normalized.split())
     return any(term in tokens or term in text.lower() for term in SOCIAL_COMMERCE_TERMS)
+
+
+def _has_local_signal(text: str) -> bool:
+    normalized = normalize_product_name(text)
+    tokens = set(normalized.split())
+    return any(term in tokens or term in normalized for term in LOCAL_DISCOVERY_TERMS)
 
 
 def _looks_like_accessory_for_broad_query(query: str, text: str) -> bool:
@@ -171,7 +196,11 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
             return False, match.score
         if not _has_important_numeric_token(query, combined):
             return False, match.score
+        if not _has_required_reference_tokens(query, combined):
+            return False, match.score
         if broad_query and not _has_social_commerce_signal(combined):
+            return False, match.score
+        if broad_query and not _has_local_signal(combined):
             return False, match.score
         if _looks_like_accessory_for_broad_query(query, combined):
             return False, match.score
@@ -182,7 +211,11 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
     if platform in SOCIAL_PLATFORMS:
         if coverage < 0.55:
             return False, match.score
+        if not _has_required_reference_tokens(query, combined):
+            return False, match.score
         if broad_query and not _has_social_commerce_signal(combined):
+            return False, match.score
+        if broad_query and not _has_local_signal(combined):
             return False, match.score
         if _looks_like_accessory_for_broad_query(query, combined):
             return False, match.score
@@ -192,13 +225,14 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
 
     if coverage < 0.50:
         return False, match.score
+    if not _has_required_reference_tokens(query, combined):
+        return False, match.score
     if not match.is_match and match.score < 0.62:
         return False, match.score
     return True, max(match.score, coverage)
 
 
 def discover_discovery_sources(query: str, max_results: int = 8) -> list[DiscoverySource]:
-    """Find useful non-merchant sources without treating them as verified offers."""
     if not query:
         return []
 
@@ -243,5 +277,4 @@ def discover_discovery_sources(query: str, max_results: int = 8) -> list[Discove
 
 
 def discover_social_sources(query: str, max_results: int = 8) -> list[DiscoverySource]:
-    """Backward-compatible alias for the generalized discovery collector."""
     return discover_discovery_sources(query, max_results=max_results)
