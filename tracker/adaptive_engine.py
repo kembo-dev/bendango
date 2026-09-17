@@ -36,17 +36,50 @@ def _rank_adaptive_candidates(found, product_query=None):
     return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score, query=product_query)
 
 
-def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None, search_run=None):
+def _search_terms_into_urls(
+    search_terms,
+    urls,
+    diagnostics,
+    search_errors,
+    candidate_limit,
+    product_query=None,
+    search_run=None,
+    stop_on_first_candidates=False,
+):
+    """Collect candidate URLs, optionally returning after the first useful batch.
+
+    Initial async discovery should enqueue work as soon as possible instead of
+    spending the whole SearchRun budget executing every web-search term before
+    scrape workers receive anything. Recovery passes may still aggregate more
+    terms when broader coverage is required.
+    """
     for term in search_terms:
-        if _search_run_completed(search_run): break
+        if _search_run_completed(search_run):
+            break
         diagnostics.record_search_term()
         try:
-            found = _collect_search_urls(term, max_results=candidate_limit) if getattr(_collect_search_urls, '__module__', '') != 'tracker.services' else collect_search_candidates(term, max_results=candidate_limit, product_query=product_query)
+            found = (
+                _collect_search_urls(term, max_results=candidate_limit)
+                if getattr(_collect_search_urls, '__module__', '') != 'tracker.services'
+                else collect_search_candidates(
+                    term,
+                    max_results=candidate_limit,
+                    product_query=product_query,
+                )
+            )
         except Exception as exc:
-            message = str(exc); search_errors.append(message); diagnostics.record_error(message); continue
+            message = str(exc)
+            search_errors.append(message)
+            diagnostics.record_error(message)
+            continue
         filtered = _rank_adaptive_candidates(found, product_query=product_query)
-        diagnostics.record_candidates(len(filtered)); _append_unique(urls, filtered)
-        if len(urls) >= candidate_limit: break
+        diagnostics.record_candidates(len(filtered))
+        before = len(urls)
+        _append_unique(urls, filtered)
+        if stop_on_first_candidates and len(urls) > before:
+            break
+        if len(urls) >= candidate_limit:
+            break
 
 
 def _domain(url): return urlparse(url).netloc.lower().removeprefix('www.')
@@ -168,7 +201,17 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     if search_run is None: search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants, market_code=market.code, market_currency=market.currency)
     candidate_limit = max(target_merchants * 5, max_results * 4, 15)
     search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
-    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query, search_run=search_run); allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
+    _search_terms_into_urls(
+        search_terms,
+        urls,
+        diagnostics,
+        search_errors,
+        candidate_limit,
+        product_query=product_query,
+        search_run=search_run,
+        stop_on_first_candidates=True,
+    )
+    allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
     initial_batch = max(1, int(getattr(settings, 'ADAPTIVE_INITIAL_SCRAPE_JOBS', 8))); expansion_batch = max(1, int(getattr(settings, 'ADAPTIVE_EXPANSION_SCRAPE_JOBS', 5)))
     _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run, max_new_jobs=initial_batch)
     if not _search_run_completed(search_run): _wait_for_batch(search_run, target_merchants)
