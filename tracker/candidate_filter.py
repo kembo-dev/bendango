@@ -24,6 +24,10 @@ COMPARISON_EDITORIAL_HOSTS = {
     "chooseyourmobile.com",
     "kalvo.com",
     "mobolist.net",
+    "smartprix.com",
+    "techspecs.info",
+    "gsmarena.com",
+    "versus.com",
 }
 
 BLOCKED_PATH_MARKERS = (
@@ -125,12 +129,6 @@ def _query_overlap_score(path: str, host: str, query: str | None) -> tuple[int, 
 
 
 def _looks_like_short_category_path(path: str, host: str, query: str | None) -> bool:
-    """Detect category-like slugs for broad product-family queries.
-
-    Example: /fr/1672-string-femme is a category page, not a unique offer.
-    Product-detail paths remain allowed, and model-specific queries are excluded
-    because they are not considered broad queries.
-    """
     if not _is_broad_query(query) or _has_product_path(path):
         return False
     segments = [segment for segment in path.split("/") if segment]
@@ -140,7 +138,6 @@ def _looks_like_short_category_path(path: str, host: str, query: str | None) -> 
     if overlap < 0.75:
         return False
     final_segment = segments[-1]
-    # A mixed alphanumeric model/reference token is a useful product-detail signal.
     tokens = re.findall(r"[a-zA-ZÀ-ÿ0-9]+", final_segment)
     has_model_reference = any(any(c.isalpha() for c in token) and any(c.isdigit() for c in token) for token in tokens)
     return not has_model_reference
