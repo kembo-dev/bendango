@@ -61,6 +61,22 @@ def _domain(url):
     return urlparse(url).netloc.lower().removeprefix('www.')
 
 
+def _max_scrape_jobs(search_run, target_merchants):
+    """Return the network-work budget for one search execution.
+
+    Discovery may collect many URLs, but only the strongest candidates should
+    consume scrape-worker capacity. Cached jobs count toward the budget because
+    they already contribute merchant coverage without network work.
+    """
+    configured = int(getattr(settings, 'ADAPTIVE_MAX_SCRAPE_JOBS', 15))
+    floor = max(6, int(target_merchants) * 3)
+    limit = max(floor, configured)
+    if search_run is None:
+        return limit, 0
+    existing = search_run.jobs.count()
+    return limit, existing
+
+
 def _attach_cached_listings_to_run(search_run, listings, product_query, selected):
     """Expose fresh cached listings through the current asynchronous SearchRun."""
     if search_run is None:
@@ -127,8 +143,14 @@ def _process_urls(
     sync_fallback = bool(getattr(settings, 'SCRAPE_QUEUE_SYNC_FALLBACK', True))
     domain_caps = {}
     circuit_state = {}
+    scrape_limit, existing_jobs = _max_scrape_jobs(search_run, target_merchants)
+    created_this_pass = 0
 
     for url in urls:
+        # Keep discovery broad, but bound expensive page collection. Recovery and
+        # fallback passes share the same SearchRun budget through existing_jobs.
+        if existing_jobs + created_this_pass >= scrape_limit:
+            break
         if url in processed_urls:
             continue
         host = _domain(url)
@@ -148,6 +170,7 @@ def _process_urls(
         if host:
             domain_seen[host] += 1
         diagnostics.record_processed()
+        before_count = search_run.jobs.count() if search_run is not None else None
         job = enqueue_scrape_job(
             url=url,
             query=product_query,
@@ -155,6 +178,12 @@ def _process_urls(
             max_attempts=int(getattr(settings, 'SCRAPE_JOB_MAX_ATTEMPTS', 3)),
             search_run=search_run,
         )
+        if search_run is not None:
+            after_count = search_run.jobs.count()
+            if after_count > before_count:
+                created_this_pass += 1
+        else:
+            created_this_pass += 1
 
         listing = None
         if job.status == ScrapeJob.STATUS_SUCCESS and job.listing_id:
@@ -209,7 +238,7 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
 
     if search_run is None:
         search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants)
-    candidate_limit = max(target_merchants * 8, max_results * 6, 18)
+    candidate_limit = max(target_merchants * 5, max_results * 4, 15)
     search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
     _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query)
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
