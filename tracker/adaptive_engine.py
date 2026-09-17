@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections import Counter
 from urllib.parse import urlparse
 
@@ -40,9 +41,6 @@ def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, cand
             break
         diagnostics.record_search_term()
         try:
-            # Preserve patchability/backward compatibility: tests that patch the
-            # legacy collector still work, while production receives rich DDGS
-            # title/snippet metadata from the intelligent collector.
             if getattr(_collect_search_urls, '__module__', '') != 'tracker.services':
                 found = _collect_search_urls(term, max_results=candidate_limit)
             else:
@@ -72,13 +70,44 @@ def _search_run_completed(search_run):
     return bool(state['completed_at']) or state['status'] == SearchRun.STATUS_COMPLETED
 
 
-def _max_scrape_jobs(search_run, target_merchants):
-    """Return the network-work budget for one search execution.
+def _successful_run_merchants(search_run):
+    if search_run is None:
+        return 0
+    return (
+        ScrapeJob.objects.filter(
+            search_run=search_run,
+            status=ScrapeJob.STATUS_SUCCESS,
+            listing__isnull=False,
+        )
+        .values('listing__retailer_id')
+        .distinct()
+        .count()
+    )
 
-    Discovery may collect many URLs, but only the strongest candidates should
-    consume scrape-worker capacity. Cached jobs count toward the budget because
-    they already contribute merchant coverage without network work.
-    """
+
+def _wait_for_batch(search_run, target_merchants, timeout_seconds=None):
+    """Give scrape workers a short chance to satisfy coverage before expanding."""
+    if search_run is None or getattr(settings, 'SCRAPE_QUEUE_SYNC_FALLBACK', True):
+        return _search_run_completed(search_run)
+    if timeout_seconds is None:
+        timeout_seconds = float(getattr(settings, 'ADAPTIVE_BATCH_WAIT_SECONDS', 8))
+    deadline = time.monotonic() + max(0.0, float(timeout_seconds))
+    poll = max(0.1, float(getattr(settings, 'ADAPTIVE_BATCH_POLL_SECONDS', 0.5)))
+    while time.monotonic() < deadline:
+        if _search_run_completed(search_run):
+            return True
+        if _successful_run_merchants(search_run) >= target_merchants:
+            return True
+        active = search_run.jobs.filter(
+            status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY]
+        ).exists()
+        if not active:
+            return False
+        time.sleep(poll)
+    return _search_run_completed(search_run) or _successful_run_merchants(search_run) >= target_merchants
+
+
+def _max_scrape_jobs(search_run, target_merchants):
     configured = int(getattr(settings, 'ADAPTIVE_MAX_SCRAPE_JOBS', 15))
     floor = max(6, int(target_merchants) * 3)
     limit = max(floor, configured)
@@ -89,7 +118,6 @@ def _max_scrape_jobs(search_run, target_merchants):
 
 
 def _attach_cached_listings_to_run(search_run, listings, product_query, selected):
-    """Expose fresh cached listings through the current asynchronous SearchRun."""
     if search_run is None:
         return
     for listing in listings or []:
@@ -146,6 +174,7 @@ def _process_urls(
     target_merchants,
     site_filters,
     search_run=None,
+    max_new_jobs=None,
 ):
     domain_failures = Counter()
     domain_seen = Counter(_domain(url) for url in processed_urls if _domain(url))
@@ -156,13 +185,14 @@ def _process_urls(
     circuit_state = {}
     scrape_limit, existing_jobs = _max_scrape_jobs(search_run, target_merchants)
     created_this_pass = 0
+    pass_limit = scrape_limit if max_new_jobs is None else max(0, int(max_new_jobs))
 
     for url in urls:
         if _search_run_completed(search_run):
             break
-        # Keep discovery broad, but bound expensive page collection. Recovery and
-        # fallback passes share the same SearchRun budget through existing_jobs.
         if existing_jobs + created_this_pass >= scrape_limit:
+            break
+        if created_this_pass >= pass_limit:
             break
         if url in processed_urls:
             continue
@@ -226,6 +256,8 @@ def _process_urls(
         if not site_filters and distinct_merchant_count(_deduplicate_results(results)) >= target_merchants:
             break
 
+    return created_this_pass
+
 
 def search_and_scrape_product(product_query, site_filter='all', model_name=None, max_results=3, search_run=None):
     cleanup_stale_listings(days=getattr(settings, 'LISTING_STALE_DAYS', 30))
@@ -253,11 +285,36 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
 
     if search_run is None:
         search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants)
+
     candidate_limit = max(target_merchants * 5, max_results * 4, 15)
     search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
     _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query, search_run=search_run)
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
-    _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run)
+
+    initial_batch = max(1, int(getattr(settings, 'ADAPTIVE_INITIAL_SCRAPE_JOBS', 8)))
+    expansion_batch = max(1, int(getattr(settings, 'ADAPTIVE_EXPANSION_SCRAPE_JOBS', 5)))
+
+    _process_urls(
+        urls, processed_urls, results, errors, diagnostics, selected, product_query,
+        allowed_hosts, target_merchants, site_filters, search_run,
+        max_new_jobs=initial_batch,
+    )
+
+    if not _search_run_completed(search_run):
+        _wait_for_batch(search_run, target_merchants)
+
+    if _search_run_completed(search_run):
+        diagnostics.save(_deduplicate_results(results))
+        return _deduplicate_results(results), []
+
+    _process_urls(
+        urls, processed_urls, results, errors, diagnostics, selected, product_query,
+        allowed_hosts, target_merchants, site_filters, search_run,
+        max_new_jobs=expansion_batch,
+    )
+
+    if not _search_run_completed(search_run):
+        _wait_for_batch(search_run, target_merchants)
 
     if _search_run_completed(search_run):
         diagnostics.save(_deduplicate_results(results))
@@ -269,7 +326,10 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
             before = len(urls)
             _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2, product_query=product_query, search_run=search_run)
             if len(urls) > before and not _search_run_completed(search_run):
-                _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run)
+                _process_urls(
+                    urls, processed_urls, results, errors, diagnostics, selected, product_query,
+                    allowed_hosts, target_merchants, site_filters, search_run,
+                )
 
     if _search_run_completed(search_run):
         diagnostics.save(_deduplicate_results(results))
