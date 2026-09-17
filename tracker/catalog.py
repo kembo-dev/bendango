@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
 
+from tracker.candidate_filter import is_low_value_candidate_url
 from tracker.markets import normalize_market_code
 from tracker.models import PriceListing, ScrapeJob
 from tracker.product_matching import match_product
@@ -20,10 +21,10 @@ def find_fresh_cached_listings(
 ) -> list[PriceListing]:
     """Return recent active offers that confidently match a product query.
 
-    When ``market_code`` is provided, a listing is reusable only if it has
-    already been validated successfully by a SearchRun for that same market.
-    This prevents a fresh offer discovered for one country from silently
-    leaking into another country's search cache.
+    Cached listings must still satisfy today's merchant-source policy. This is
+    important when a domain was accepted historically and is later classified
+    as comparison/editorial: old rows remain useful for audit/history but must
+    not silently count as a merchant in new SearchRuns.
     """
     if not query or not query.strip():
         return []
@@ -61,6 +62,8 @@ def find_fresh_cached_listings(
 
     matches: list[PriceListing] = []
     for listing in queryset:
+        if is_low_value_candidate_url(listing.url, query=query):
+            continue
         if normalized_hosts:
             retailer_host = (
                 listing.retailer.base_url.lower()
