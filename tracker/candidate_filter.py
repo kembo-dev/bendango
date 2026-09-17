@@ -147,6 +147,8 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
         return True
     if host.endswith("fnac.com") and FNAC_LISTING_PATTERN.search(path):
         return True
+    if host.endswith("ebay.com") and path.startswith("/shop"):
+        return True
     if "amazon." in host and path.rstrip("/").endswith("/s") and "k" in query_params:
         return True
     if re.search(r"\.(pdf|txt|docx?|epub|xml|csv|zip)$", path):
@@ -196,8 +198,6 @@ def product_url_score(url: str, query: str | None = None) -> int:
     elif ratio >= 0.50:
         score += 2
 
-    # Model/reference-like slugs are a useful product-detail signal even when
-    # merchants do not use /product/ routes.
     if any(any(char.isdigit() for char in token) and any(char.isalpha() for char in token) for token in path_tokens):
         score += 2
 
