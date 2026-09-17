@@ -20,15 +20,27 @@ DEFAULT_GLOBAL_TERMS = (
     '{query} magasin {country}',
 )
 
+# Broad category-like queries (for example "string femme" or "tournevis")
+# tend to surface category/listing pages. Ask the search engine for strong
+# product-detail URL shapes first, then broaden only if needed.
+BROAD_PRODUCT_DETAIL_TERMS = (
+    '"{query}" {country} inurl:product',
+    '"{query}" {country} inurl:produit',
+    '"{query}" {country} inurl:item',
+    '"{query}" inurl:product price',
+    '"{query}" inurl:produit prix',
+)
+
 BROAD_LOCAL_TERMS = (
+    '"{query}" {country} "ajouter au panier"',
     '"{query}" {country} acheter "en stock"',
     '"{query}" {country} acheter prix',
     '"{query}" {country} boutique livraison prix',
 )
 
 BROAD_GLOBAL_TERMS = (
-    '"{query}" acheter "en stock" prix',
     '"{query}" "ajouter au panier"',
+    '"{query}" acheter "en stock" prix',
     '"{query}" boutique en ligne prix',
     '"{query}" shop buy price',
 )
@@ -68,13 +80,19 @@ def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=No
     """Build search passes for the selected market without fixed merchant preference."""
     profile = Counter(diagnostics or recent_failure_profile(query))
     broad = is_broad_product_query(query)
-    local_templates = BROAD_LOCAL_TERMS if broad else DEFAULT_LOCAL_TERMS
-    global_templates = BROAD_GLOBAL_TERMS if broad else DEFAULT_GLOBAL_TERMS
-    terms = [template.format(query=query, country=country) for template in local_templates]
+
+    terms = []
+    if broad:
+        terms.extend(template.format(query=query, country=country) for template in BROAD_PRODUCT_DETAIL_TERMS)
+        terms.extend(template.format(query=query, country=country) for template in BROAD_LOCAL_TERMS)
+    else:
+        terms.extend(template.format(query=query, country=country) for template in DEFAULT_LOCAL_TERMS)
 
     if profile['product_mismatch']:
         if broad:
             terms.extend([
+                f'"{query}" {country} inurl:product',
+                f'"{query}" {country} inurl:produit',
                 f'"{query}" acheter produit prix',
                 f'"{query}" "en stock" boutique',
                 f'"{query}" product buy price',
@@ -94,6 +112,11 @@ def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=No
         ])
 
     if profile['fetch_failed'] or profile['not_found']:
+        if broad:
+            terms.extend([
+                f'"{query}" {country} inurl:product',
+                f'"{query}" {country} inurl:produit',
+            ])
         terms.extend([
             f'{query} boutique {country}',
             f'{query} revendeur {country}',
@@ -107,6 +130,7 @@ def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=No
             f'{query} online store',
         ])
 
+    global_templates = BROAD_GLOBAL_TERMS if broad else DEFAULT_GLOBAL_TERMS
     terms.extend(template.format(query=query, country=country) for template in global_templates)
     return _unique(terms)
 
