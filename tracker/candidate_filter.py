@@ -19,6 +19,7 @@ COMPARISON_EDITORIAL_HOSTS = {
     "lesnumeriques.com",
     "kimovil.com",
     "idealo.fr",
+    "ledenicheur.fr",
     "123comparer.fr",
     "accio.com",
     "chooseyourmobile.com",
