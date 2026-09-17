@@ -34,8 +34,10 @@ def _rank_adaptive_candidates(found, product_query=None):
     return filter_and_rank_candidate_urls(found, health_score_func=url_domain_health_score, query=product_query)
 
 
-def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None):
+def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=None, search_run=None):
     for term in search_terms:
+        if _search_run_completed(search_run):
+            break
         diagnostics.record_search_term()
         try:
             # Preserve patchability/backward compatibility: tests that patch the
@@ -59,6 +61,15 @@ def _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, cand
 
 def _domain(url):
     return urlparse(url).netloc.lower().removeprefix('www.')
+
+
+def _search_run_completed(search_run):
+    if search_run is None:
+        return False
+    state = SearchRun.objects.filter(pk=search_run.pk).values('status', 'completed_at').first()
+    if not state:
+        return False
+    return bool(state['completed_at']) or state['status'] == SearchRun.STATUS_COMPLETED
 
 
 def _max_scrape_jobs(search_run, target_merchants):
@@ -147,6 +158,8 @@ def _process_urls(
     created_this_pass = 0
 
     for url in urls:
+        if _search_run_completed(search_run):
+            break
         # Keep discovery broad, but bound expensive page collection. Recovery and
         # fallback passes share the same SearchRun budget through existing_jobs.
         if existing_jobs + created_this_pass >= scrape_limit:
@@ -208,6 +221,8 @@ def _process_urls(
             current = ScrapeJob.objects.filter(pk=job.pk).first()
             if current and current.status == ScrapeJob.STATUS_FAILED and host:
                 domain_failures[host] += 1
+        if _search_run_completed(search_run):
+            break
         if not site_filters and distinct_merchant_count(_deduplicate_results(results)) >= target_merchants:
             break
 
@@ -240,22 +255,30 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
         search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants)
     candidate_limit = max(target_merchants * 5, max_results * 4, 15)
     search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
-    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query)
+    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query, search_run=search_run)
     allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]
     _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run)
+
+    if _search_run_completed(search_run):
+        diagnostics.save(_deduplicate_results(results))
+        return _deduplicate_results(results), []
 
     if not site_filters and distinct_merchant_count(_deduplicate_results(results)) < target_merchants:
         recovery_terms = [term for term in build_recovery_terms(product_query, errors + search_errors, country=country) if term not in search_terms]
         if recovery_terms:
             before = len(urls)
-            _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2, product_query=product_query)
-            if len(urls) > before:
+            _search_terms_into_urls(recovery_terms, urls, diagnostics, search_errors, candidate_limit * 2, product_query=product_query, search_run=search_run)
+            if len(urls) > before and not _search_run_completed(search_run):
                 _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run)
+
+    if _search_run_completed(search_run):
+        diagnostics.save(_deduplicate_results(results))
+        return _deduplicate_results(results), []
 
     deduped = _deduplicate_results(results)
     if distinct_merchant_count(deduped) < target_merchants:
         fallback_domains = cache_hosts or _known_merchant_domains(limit=max(20, target_merchants * 5))
-        if fallback_domains:
+        if fallback_domains and not _search_run_completed(search_run):
             try:
                 fallback_urls = _rank_adaptive_candidates(discover_product_urls(product_query, fallback_domains, max_results=max(target_merchants * 4, max_results * 2)), product_query=product_query)
             except Exception as exc:
