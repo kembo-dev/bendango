@@ -28,7 +28,7 @@ class ProcessSearchRunOrderTests(TestCase):
             return []
 
         with patch(
-            'tracker.management.commands.process_search_run.search_and_scrape_product',
+            'tracker.management.commands.process_merchant_search.search_and_scrape_product',
             side_effect=fake_search,
         ), patch(
             'tracker.management.commands.process_search_run.discover_social_sources',
