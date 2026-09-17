@@ -47,14 +47,7 @@ def recover_stale_search_runs(timeout_seconds=None):
             search_run.discovery_started_at = None
             search_run.discovery_finished_at = None
             search_run.discovery_error = 'Découverte interrompue: SearchRun remis en file après expiration du worker.'
-            search_run.save(
-                update_fields=[
-                    'status',
-                    'discovery_started_at',
-                    'discovery_finished_at',
-                    'discovery_error',
-                ]
-            )
+            search_run.save(update_fields=['status', 'discovery_started_at', 'discovery_finished_at', 'discovery_error'])
             recovered += 1
     return recovered
 
@@ -105,13 +98,12 @@ class Command(BaseCommand):
                 continue
 
             run_label = str(search_run.pk)[:8]
-            self.stdout.write(f'run {run_label}: discovery started')
+            self.stdout.write(f'run {run_label}: discovery started [{search_run.market_code}]')
             previous_handler = signal.signal(signal.SIGALRM, _raise_search_timeout)
             signal.alarm(run_timeout)
             try:
-                # All external discovery work lives here, never in Gunicorn.
                 try:
-                    social_sources = discover_social_sources(search_run.query)
+                    social_sources = discover_social_sources(search_run.query, market_code=search_run.market_code)
                 except SearchRunExecutionTimeout:
                     raise
                 except Exception as exc:
@@ -126,6 +118,7 @@ class Command(BaseCommand):
                     site_filter=search_run.site_filter,
                     model_name=search_run.model_name or None,
                     search_run=search_run,
+                    market_code=search_run.market_code,
                 )
 
                 search_run.refresh_from_db()
