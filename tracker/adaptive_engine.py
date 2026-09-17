@@ -160,7 +160,7 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     market_code = normalize_market_code(market_code or (getattr(search_run, 'market_code', None) if search_run else None) or DEFAULT_MARKET_CODE); market = get_market(market_code); country = market.country
     site_filters = [] if site_filter == 'all' else [part.strip() for part in site_filter.split(',') if part.strip()]
     for site in site_filters: ensure_retailer_for_site(site)
-    cache_hosts = [normalize_site_filter(site)[0] for site in site_filters]; cached = find_fresh_cached_listings(product_query, site_hosts=cache_hosts)
+    cache_hosts = [normalize_site_filter(site)[0] for site in site_filters]; cached = find_fresh_cached_listings(product_query, site_hosts=cache_hosts, market_code=market.code)
     target_merchants = 1 if site_filters else max(2, int(getattr(settings, 'MARKET_COVERAGE_TARGET', max_results))); diagnostics = SearchDiagnosticsRecorder(product_query, site_filter, target_merchants)
     if cached and search_run is not None: _attach_cached_listings_to_run(search_run, cached, product_query, selected)
     if cached and (site_filters or distinct_merchant_count(cached) >= target_merchants): diagnostics.save(cached); return cached, []
