@@ -23,6 +23,15 @@ class CandidateFilterTests(SimpleTestCase):
         ]
         self.assertTrue(all(is_low_value_candidate_url(url) for url in urls))
 
+    def test_rejects_specs_and_comparison_domains_as_merchants(self):
+        urls = [
+            "https://us.smartprix.com/mobiles/samsung-galaxy-a56-5g-256-gb-ppd1l0gwasfl",
+            "https://www.techspecs.info/samsung-galaxy-a56/",
+            "https://www.gsmarena.com/samsung_galaxy_a56-13603.php",
+            "https://versus.com/en/samsung-galaxy-a56-5g",
+        ]
+        self.assertTrue(all(is_low_value_candidate_url(url, query="Samsung Galaxy A56 5G 8GB 256GB") for url in urls))
+
     def test_keeps_real_product_detail_pages(self):
         urls = [
             "https://boutique.likonzi.com/disque-dur-externe-toshiba-1tb-1to/yMYer022bOB",
