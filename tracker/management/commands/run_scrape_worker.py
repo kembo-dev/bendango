@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand
 
 from tracker.domain_health import domain_fetch_circuit_open, domain_from_url, url_fetch_budget
 from tracker.job_outcomes import classify_processing_error, should_retry_job
-from tracker.job_queue import cancel_satisfied_run_jobs, claim_next_job, complete_job, defer_job, discard_running_job, fail_job, job_coverage_reached, recover_stale_running_jobs
+from tracker.job_queue import cancel_same_domain_run_jobs, cancel_satisfied_run_jobs, claim_next_job, complete_job, defer_job, discard_running_job, fail_job, job_coverage_reached, recover_stale_running_jobs
 from tracker.reliable_collection import clear_last_fetch_result, get_last_fetch_result, reset_fetch_policy, set_fetch_policy
 from tracker.services import process_url_and_save
 
@@ -83,12 +83,6 @@ class Command(BaseCommand):
 
     @staticmethod
     def _allow_queue_retry(fetch_status: str, attempts: int, retryable: bool, budget: dict) -> bool:
-        """Apply queue retry policy with domain-health awareness.
-
-        The collector already spends the transport budget for the current domain.
-        If a domain is known as low/limited health, another persistent-queue pass
-        is usually lower value than trying the next ranked merchant candidate.
-        """
         allowed = should_retry_job(fetch_status, attempts, retryable)
         if not allowed:
             return False
@@ -175,6 +169,9 @@ class Command(BaseCommand):
                     elif listing:
                         complete_job(job, listing=listing, fetch_status='processed', http_status=http_status, duration_ms=duration_ms, from_cache=from_cache)
                         self.stdout.write(self.style.SUCCESS(f'job {job.pk}: success ({duration_ms}ms, lane={lane}, run={run_label}, fetch={budget["tier"]}, cache={"hit" if from_cache else "miss"}, {timing})'))
+                        same_domain_cancelled = cancel_same_domain_run_jobs(job)
+                        if same_domain_cancelled:
+                            self.stdout.write(self.style.SUCCESS(f'run {run_label}: cancelled {same_domain_cancelled} queued duplicate-domain job(s) for {domain}'))
                         cancelled = cancel_satisfied_run_jobs(job)
                         if cancelled:
                             self.stdout.write(self.style.SUCCESS(f'run {run_label} coverage reached: cancelled {cancelled} queued job(s) for {job.query!r}'))
