@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import SearchOrScrapeForm
-from .market_coverage import coverage_summary
+from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .models import ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
@@ -17,11 +17,25 @@ def _comparison_price(listing):
     return float(listing.normalized_price if listing.normalized_price is not None else listing.price)
 
 
+def _best_listing_per_merchant(listings):
+    """Keep the highest-ranked offer for each normalized merchant identity."""
+    best = []
+    seen_merchants = set()
+    for listing in listings:
+        key = merchant_key(listing)
+        if key in seen_merchants:
+            continue
+        seen_merchants.add(key)
+        best.append(listing)
+    return best
+
+
 def _decorate_results(listings, query, site="all"):
     if not listings:
         return [], {}
     listings = attach_offer_quality(listings)
     listings = sorted(listings, key=offer_sort_key)
+    listings = _best_listing_per_merchant(listings)
     listings = attach_price_history_stats(listings)
     recommended_listing = listings[0]
     in_stock_listings = [item for item in listings if item.in_stock]
@@ -55,19 +69,16 @@ def _run_state(search_run):
     ).order_by("-finished_at")
     listings = []
     seen = set()
-    merchant_ids = set()
     for job in successful:
         if not job.listing_id or job.listing_id in seen:
             continue
         seen.add(job.listing_id)
         listings.append(job.listing)
-        if job.listing.retailer_id:
-            merchant_ids.add(job.listing.retailer_id)
     total = jobs.count()
     active_count = active.count()
     failed_count = jobs.filter(status=ScrapeJob.STATUS_FAILED).count()
     processed_count = jobs.filter(status__in=[ScrapeJob.STATUS_SUCCESS, ScrapeJob.STATUS_FAILED]).count()
-    merchant_count = len(merchant_ids)
+    merchant_count = distinct_merchant_count(listings)
     target = max(1, int(search_run.target_merchants))
     coverage_reached = merchant_count >= target
 
@@ -218,8 +229,6 @@ def scrape_view(request):
                 if error:
                     errors.append(error)
             else:
-                # Product searches are deliberately enqueue-only. No web search,
-                # social discovery or scraping is allowed to block Gunicorn.
                 target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
                 search_run = SearchRun.objects.create(
                     query=query,
