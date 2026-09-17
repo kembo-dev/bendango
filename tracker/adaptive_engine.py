@@ -73,16 +73,33 @@ def _search_run_completed(search_run):
 def _successful_run_merchants(search_run):
     if search_run is None:
         return 0
-    return (
-        ScrapeJob.objects.filter(
-            search_run=search_run,
-            status=ScrapeJob.STATUS_SUCCESS,
-            listing__isnull=False,
-        )
-        .values('listing__retailer_id')
-        .distinct()
-        .count()
-    )
+    successful = ScrapeJob.objects.filter(
+        search_run=search_run,
+        status=ScrapeJob.STATUS_SUCCESS,
+        listing__isnull=False,
+    ).select_related('listing', 'listing__retailer')
+    listings = [job.listing for job in successful if job.listing_id]
+    return distinct_merchant_count(listings)
+
+
+def _run_has_active_jobs(search_run):
+    if search_run is None:
+        return False
+    return search_run.jobs.filter(
+        status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY]
+    ).exists()
+
+
+def _partial_async_coverage_exhausted(search_run):
+    """Return True when workers found something useful and have no work left.
+
+    Once the initial and expansion batches are exhausted, expensive recovery and
+    fallback discovery should not keep a user waiting for minutes just to chase
+    the target merchant count. The partial result is preserved and returned.
+    """
+    if search_run is None or getattr(settings, 'SCRAPE_QUEUE_SYNC_FALLBACK', True):
+        return False
+    return _successful_run_merchants(search_run) > 0 and not _run_has_active_jobs(search_run)
 
 
 def _wait_for_batch(search_run, target_merchants, timeout_seconds=None):
@@ -98,10 +115,7 @@ def _wait_for_batch(search_run, target_merchants, timeout_seconds=None):
             return True
         if _successful_run_merchants(search_run) >= target_merchants:
             return True
-        active = search_run.jobs.filter(
-            status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY]
-        ).exists()
-        if not active:
+        if not _run_has_active_jobs(search_run):
             return False
         time.sleep(poll)
     return _search_run_completed(search_run) or _successful_run_merchants(search_run) >= target_merchants
@@ -317,6 +331,14 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
         _wait_for_batch(search_run, target_merchants)
 
     if _search_run_completed(search_run):
+        diagnostics.save(_deduplicate_results(results))
+        return _deduplicate_results(results), []
+
+    # In async mode the worker results live in the DB, not necessarily in the
+    # local `results` list. If both planned batches are exhausted and at least
+    # one valid merchant was found, keep that useful partial coverage instead
+    # of launching potentially expensive recovery/fallback discovery.
+    if _partial_async_coverage_exhausted(search_run):
         diagnostics.save(_deduplicate_results(results))
         return _deduplicate_results(results), []
 
