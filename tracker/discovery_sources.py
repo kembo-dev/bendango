@@ -21,6 +21,18 @@ DISCOVERY_HOSTS = {
     "x.com": "X",
     "twitter.com": "X",
     "linkedin.com": "LinkedIn",
+    "lesnumeriques.com": "Les Numériques",
+    "kimovil.com": "Kimovil",
+    "idealo.fr": "Idealo",
+    "123comparer.fr": "123comparer",
+    "accio.com": "Accio",
+    "chooseyourmobile.com": "ChooseYourMobile",
+    "kalvo.com": "Kalvo",
+    "mobolist.net": "Mobolist",
+}
+
+SOCIAL_PLATFORMS = {
+    "Facebook", "Instagram", "TikTok", "YouTube", "Reddit", "Pinterest", "X", "LinkedIn",
 }
 
 IGNORED_HOSTS = {
@@ -43,13 +55,6 @@ class DiscoverySource:
 
 
 def discovery_sources_to_json(sources) -> list[dict]:
-    """Return JSON-serializable discovery source dictionaries.
-
-    Discovery is represented internally with ``DiscoverySource`` dataclasses,
-    while ``SearchRun.discovery_sources`` is a Django ``JSONField``. Keep the
-    conversion at this boundary so workers never try to persist Python objects
-    directly into JSON storage.
-    """
     serialized = []
     for source in sources or []:
         if isinstance(source, dict):
@@ -86,7 +91,7 @@ def classify_url(url: str) -> str:
         return "ignored"
     if path.endswith(IGNORED_EXTENSIONS):
         return "ignored"
-    if any(_host_matches(host, social) for social in DISCOVERY_HOSTS):
+    if any(_host_matches(host, candidate) for candidate in DISCOVERY_HOSTS):
         return "discovery_source"
     return "verified_offer"
 
@@ -132,8 +137,6 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
     match = match_product(query, combined, threshold=0.72)
 
     if platform == "Facebook":
-        # Facebook search snippets are particularly noisy. Require strong token
-        # coverage, compatible numeric/model tokens and a high matcher score.
         if coverage < 0.75:
             return False, match.score
         if not _has_important_numeric_token(query, combined):
@@ -142,22 +145,32 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
             return False, match.score
         return True, match.score
 
-    # Other discovery platforms remain useful but still need reasonable evidence.
-    if coverage < 0.55:
+    if platform in SOCIAL_PLATFORMS:
+        if coverage < 0.55:
+            return False, match.score
+        if not match.is_match and match.score < 0.68:
+            return False, match.score
+        return True, max(match.score, coverage)
+
+    # Comparison/editorial pages are useful as context, but must still clearly
+    # refer to the requested product before they are shown to the user.
+    if coverage < 0.50:
         return False, match.score
-    if not match.is_match and match.score < 0.68:
+    if not match.is_match and match.score < 0.62:
         return False, match.score
     return True, max(match.score, coverage)
 
 
-def discover_social_sources(query: str, max_results: int = 8) -> list[DiscoverySource]:
-    """Find social/discovery results without treating them as verified offers."""
+def discover_discovery_sources(query: str, max_results: int = 8) -> list[DiscoverySource]:
+    """Find useful non-merchant sources without treating them as verified offers."""
     if not query:
         return []
 
+    # Keep this to two DDGS passes: one local/social-oriented and one broader
+    # product-information pass that naturally surfaces comparison/editorial pages.
     search_terms = [
         f'"{query}" RDC Kinshasa Facebook Instagram TikTok',
-        f'"{query}" Kinshasa YouTube Reddit',
+        f'"{query}" prix avis comparatif fiche technique',
     ]
     found: list[DiscoverySource] = []
     seen: set[str] = set()
@@ -193,3 +206,8 @@ def discover_social_sources(query: str, max_results: int = 8) -> list[DiscoveryS
 
     found.sort(key=lambda item: item.relevance_score, reverse=True)
     return found[:max_results]
+
+
+def discover_social_sources(query: str, max_results: int = 8) -> list[DiscoverySource]:
+    """Backward-compatible alias for the generalized discovery collector."""
+    return discover_discovery_sources(query, max_results=max_results)
