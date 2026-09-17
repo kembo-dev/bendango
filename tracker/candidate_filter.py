@@ -9,9 +9,6 @@ BLOCKED_HOSTS = {
     "studylib.net", "scribd.com", "academia.edu", "gist.github.com",
 }
 
-# These sources can be useful for discovery/research, but they are not direct
-# merchant product pages and therefore must not consume scrape-worker capacity
-# or count toward market coverage.
 DISCOVERY_ONLY_HOSTS = {
     "facebook.com", "fb.com", "instagram.com", "tiktok.com",
     "youtube.com", "youtu.be", "reddit.com", "pinterest.com",
@@ -35,6 +32,7 @@ BLOCKED_PATH_MARKERS = (
     "/category", "/categories", "/categorie", "/cat/", "/collection", "/collections",
     "/search", "/browse/", "/brand/", "/brands/", "/price-list", "/comparatif", "/compare",
     "/meilleur", "/best-", "/wiki", "/dictionary/", "/policies/",
+    "/recommandation/", "/recommandations/", "/recommendation/", "/recommendations/",
 )
 
 PRODUCT_PATH_MARKERS = (
@@ -126,6 +124,28 @@ def _query_overlap_score(path: str, host: str, query: str | None) -> tuple[int, 
     return matched, matched / max(1, len(query_tokens))
 
 
+def _looks_like_short_category_path(path: str, host: str, query: str | None) -> bool:
+    """Detect category-like slugs for broad product-family queries.
+
+    Example: /fr/1672-string-femme is a category page, not a unique offer.
+    Product-detail paths remain allowed, and model-specific queries are excluded
+    because they are not considered broad queries.
+    """
+    if not _is_broad_query(query) or _has_product_path(path):
+        return False
+    segments = [segment for segment in path.split("/") if segment]
+    if not 1 <= len(segments) <= 2:
+        return False
+    _, overlap = _query_overlap_score(path, host, query)
+    if overlap < 0.75:
+        return False
+    final_segment = segments[-1]
+    # A mixed alphanumeric model/reference token is a useful product-detail signal.
+    tokens = re.findall(r"[a-zA-ZÀ-ÿ0-9]+", final_segment)
+    has_model_reference = any(any(c.isalpha() for c in token) and any(c.isdigit() for c in token) for token in tokens)
+    return not has_model_reference
+
+
 def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
     parsed = urlparse(url or "")
     host = parsed.netloc.lower().removeprefix("www.")
@@ -159,6 +179,8 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
     if query and _is_broad_query(query):
         if _looks_editorial(host, path) and not _has_product_path(path):
             return True
+        if _looks_like_short_category_path(path, host, query):
+            return True
         segments = [segment for segment in path.split("/") if segment]
         if len(segments) <= 1 and not _looks_like_shopping_url(host, path):
             return True
@@ -167,70 +189,37 @@ def is_low_value_candidate_url(url: str, query: str | None = None) -> bool:
 
 
 def product_url_score(url: str, query: str | None = None) -> int:
-    """Estimate product-detail quality before spending a network fetch.
-
-    This is intentionally ranking-oriented rather than a hard filter: ambiguous
-    merchants remain explorable, but strong product-detail URLs are fetched first.
-    """
     parsed = urlparse(url or "")
     host = parsed.netloc.lower().removeprefix("www.")
     path = unquote(parsed.path or "").lower()
     score = 0
 
-    if _has_product_path(path):
-        score += 8
-    if re.search(r"\b(\d+)(gb|go|tb|to|ssd|hdd)\b", path):
-        score += 2
-
+    if _has_product_path(path): score += 8
+    if re.search(r"\b(\d+)(gb|go|tb|to|ssd|hdd)\b", path): score += 2
     path_tokens = _path_tokens(path)
-    if len(path_tokens) >= 3:
-        score += 2
-    elif len(path_tokens) >= 1:
-        score += 1
-
-    if _looks_like_shopping_url(host, path):
-        score += 2
-
+    if len(path_tokens) >= 3: score += 2
+    elif len(path_tokens) >= 1: score += 1
+    if _looks_like_shopping_url(host, path): score += 2
     matched, ratio = _query_overlap_score(path, host, query)
     score += min(matched * 2, 6)
-    if ratio >= 0.75:
-        score += 4
-    elif ratio >= 0.50:
-        score += 2
-
-    if any(any(char.isdigit() for char in token) and any(char.isalpha() for char in token) for token in path_tokens):
-        score += 2
-
-    if any(marker in path for marker in AMBIGUOUS_PATH_MARKERS) and not _has_product_path(path):
-        score -= 3
-    if _looks_editorial(host, path) and not _has_product_path(path):
-        score -= 6
-
+    if ratio >= 0.75: score += 4
+    elif ratio >= 0.50: score += 2
+    if any(any(char.isdigit() for char in token) and any(char.isalpha() for char in token) for token in path_tokens): score += 2
+    if any(marker in path for marker in AMBIGUOUS_PATH_MARKERS) and not _has_product_path(path): score -= 3
+    if _looks_editorial(host, path) and not _has_product_path(path): score -= 6
     segments = [segment for segment in path.split("/") if segment]
-    if len(segments) <= 1 and not _has_product_path(path):
-        score -= 2
-
-    if is_low_value_candidate_url(url, query=query):
-        score -= 20
+    if len(segments) <= 1 and not _has_product_path(path): score -= 2
+    if is_low_value_candidate_url(url, query=query): score -= 20
     return score
 
 
 def filter_and_rank_candidate_urls(urls, health_score_func=None, query: str | None = None):
-    """Filter obvious noise and rank strong product-detail candidates first."""
     unique = []
     seen = set()
     for url in urls or []:
-        if not url or url in seen:
-            continue
+        if not url or url in seen: continue
         seen.add(url)
-        if not is_low_value_candidate_url(url, query=query):
-            unique.append(url)
-
+        if not is_low_value_candidate_url(url, query=query): unique.append(url)
     if health_score_func is None:
         return sorted(unique, key=lambda value: product_url_score(value, query=query), reverse=True)
-
-    return sorted(
-        unique,
-        key=lambda value: (product_url_score(value, query=query), health_score_func(value)),
-        reverse=True,
-    )
+    return sorted(unique, key=lambda value: (product_url_score(value, query=query), health_score_func(value)), reverse=True)
