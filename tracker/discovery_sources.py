@@ -35,6 +35,17 @@ SOCIAL_PLATFORMS = {
     "Facebook", "Instagram", "TikTok", "YouTube", "Reddit", "Pinterest", "X", "LinkedIn",
 }
 
+SOCIAL_COMMERCE_TERMS = {
+    "prix", "price", "vente", "vendre", "vend", "acheter", "buy", "shop", "store", "boutique",
+    "disponible", "available", "stock", "livraison", "delivery", "commande", "commander", "order",
+    "promo", "promotion", "fc", "cdf", "usd", "eur", "$", "€",
+}
+
+ACCESSORY_TERMS = {
+    "chaise", "chair", "manette", "controller", "coque", "case", "cover", "cable", "câble",
+    "chargeur", "charger", "support", "stand", "sac", "bag", "étui", "etui", "accessoire", "accessory",
+}
+
 IGNORED_HOSTS = {
     "archive.org",
     "web.archive.org",
@@ -128,6 +139,24 @@ def _has_important_numeric_token(query: str, text: str) -> bool:
     return numbers.issubset(text_numbers)
 
 
+def _has_social_commerce_signal(text: str) -> bool:
+    normalized = normalize_product_name(text)
+    tokens = set(normalized.split())
+    return any(term in tokens or term in text.lower() for term in SOCIAL_COMMERCE_TERMS)
+
+
+def _looks_like_accessory_for_broad_query(query: str, text: str) -> bool:
+    query_tokens = _meaningful_query_tokens(query)
+    if len(query_tokens) > 1:
+        return False
+    normalized_query = normalize_product_name(query)
+    normalized_text = normalize_product_name(text)
+    query_mentions_accessory = any(term in normalized_query.split() for term in ACCESSORY_TERMS)
+    if query_mentions_accessory:
+        return False
+    return any(term in normalized_text.split() for term in ACCESSORY_TERMS)
+
+
 def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet: str) -> tuple[bool, float]:
     combined = f"{title} {snippet}".strip()
     if not combined:
@@ -135,11 +164,16 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
 
     coverage = _token_coverage(query, combined)
     match = match_product(query, combined, threshold=0.72)
+    broad_query = len(_meaningful_query_tokens(query)) <= 1
 
     if platform == "Facebook":
         if coverage < 0.75:
             return False, match.score
         if not _has_important_numeric_token(query, combined):
+            return False, match.score
+        if broad_query and not _has_social_commerce_signal(combined):
+            return False, match.score
+        if _looks_like_accessory_for_broad_query(query, combined):
             return False, match.score
         if not match.is_match or match.score < 0.82:
             return False, match.score
@@ -148,12 +182,14 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
     if platform in SOCIAL_PLATFORMS:
         if coverage < 0.55:
             return False, match.score
+        if broad_query and not _has_social_commerce_signal(combined):
+            return False, match.score
+        if _looks_like_accessory_for_broad_query(query, combined):
+            return False, match.score
         if not match.is_match and match.score < 0.68:
             return False, match.score
         return True, max(match.score, coverage)
 
-    # Comparison/editorial pages are useful as context, but must still clearly
-    # refer to the requested product before they are shown to the user.
     if coverage < 0.50:
         return False, match.score
     if not match.is_match and match.score < 0.62:
@@ -166,8 +202,6 @@ def discover_discovery_sources(query: str, max_results: int = 8) -> list[Discove
     if not query:
         return []
 
-    # Keep this to two DDGS passes: one local/social-oriented and one broader
-    # product-information pass that naturally surfaces comparison/editorial pages.
     search_terms = [
         f'"{query}" RDC Kinshasa Facebook Instagram TikTok',
         f'"{query}" prix avis comparatif fiche technique',
