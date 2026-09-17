@@ -21,6 +21,19 @@ class Command(BaseCommand):
 
         run_label = str(search_run.pk)[:8]
         try:
+            self.stdout.write(f'run {run_label}: merchant discovery phase started')
+            search_and_scrape_product(
+                product_query=search_run.query,
+                site_filter=search_run.site_filter,
+                model_name=search_run.model_name or None,
+                search_run=search_run,
+                market_code=search_run.market_code,
+            )
+            self.stdout.write(f'run {run_label}: merchant discovery phase finished')
+
+            # Social/comparison discovery enriches the result page but must never
+            # consume the whole run budget before merchant jobs are enqueued.
+            self.stdout.write(f'run {run_label}: social enrichment phase started')
             try:
                 social_sources = discover_social_sources(
                     search_run.query,
@@ -31,17 +44,9 @@ class Command(BaseCommand):
                 self.stderr.write(
                     f'run {run_label}: social discovery warning - {exc}'
                 )
-
             search_run.discovery_sources = discovery_sources_to_json(social_sources)
             search_run.save(update_fields=['discovery_sources'])
-
-            search_and_scrape_product(
-                product_query=search_run.query,
-                site_filter=search_run.site_filter,
-                model_name=search_run.model_name or None,
-                search_run=search_run,
-                market_code=search_run.market_code,
-            )
+            self.stdout.write(f'run {run_label}: social enrichment phase finished')
 
             search_run.refresh_from_db()
             now = timezone.now()
