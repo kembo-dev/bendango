@@ -12,6 +12,8 @@ ACCESSORY_TOKENS = {
     "boitier", "boîtier", "enclosure", "dock", "station",
 }
 
+VARIANT_TOKENS = {"pro", "plus", "ultra", "max"}
+
 STORAGE_PATTERN = re.compile(r"\b(\d+)\s*(gb|go|tb|to|mb)\b", re.IGNORECASE)
 RAM_PATTERN = re.compile(r"\b(\d+)\s*(?:gb|go)\s*(?:ram)?\b", re.IGNORECASE)
 
@@ -54,6 +56,10 @@ def _model_number_tokens(value: str) -> set[str]:
     return set(re.findall(r"\b[a-z]{0,3}\d{1,4}[a-z]{0,3}\b", normalized))
 
 
+def _variant_tokens(value: str) -> set[str]:
+    return _tokens(value) & VARIANT_TOKENS
+
+
 def _is_accessory(value: str) -> bool:
     return bool(_tokens(value) & ACCESSORY_TOKENS)
 
@@ -68,6 +74,11 @@ def _variant_conflict(query: str, candidate: str) -> str | None:
     candidate_models = _model_number_tokens(candidate)
     if query_models and candidate_models and query_models.isdisjoint(candidate_models):
         return "référence ou modèle différent"
+
+    query_variants = _variant_tokens(query)
+    candidate_variants = _variant_tokens(candidate)
+    if query_variants != candidate_variants and (query_variants or candidate_variants):
+        return "variante produit différente"
 
     return None
 
