@@ -129,9 +129,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database -------------------------------------------------------------------
-# Keep SQLite as a zero-config fallback, but local/prod PostgreSQL can be
-# enabled with DB_ENGINE=postgresql. The recommended local database name is
-# "bendango".
 DB_ENGINE = os.environ.get('DB_ENGINE', 'sqlite').strip().lower()
 if DB_ENGINE in {'postgres', 'postgresql', 'psql'}:
     DATABASES = {
@@ -143,9 +140,7 @@ if DB_ENGINE in {'postgres', 'postgresql', 'psql'}:
             'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
             'PORT': os.environ.get('POSTGRES_PORT', '5432'),
             'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
-            'OPTIONS': {
-                'connect_timeout': int(os.environ.get('POSTGRES_CONNECT_TIMEOUT', '5')),
-            },
+            'OPTIONS': {'connect_timeout': int(os.environ.get('POSTGRES_CONNECT_TIMEOUT', '5'))},
         }
     }
 else:
@@ -157,8 +152,6 @@ else:
     }
 
 # Redis / Django cache --------------------------------------------------------
-# REDIS_URL enables a shared cache usable by all web/worker processes. When it
-# is absent, tests and zero-config development keep using local memory.
 REDIS_URL = os.environ.get('REDIS_URL', '').strip()
 if REDIS_URL:
     CACHES = {
@@ -184,9 +177,10 @@ else:
     }
 
 # Worker recovery -------------------------------------------------------------
-# A SearchRun left in discovery longer than this is considered abandoned and
-# is safely returned to the discovery queue when the search worker starts.
 SEARCH_RUN_DISCOVERY_TIMEOUT = int(os.environ.get('SEARCH_RUN_DISCOVERY_TIMEOUT', '300'))
+# Hard per-run execution budget. Difficult searches should return useful partial
+# coverage instead of holding the discovery worker for several minutes.
+SEARCH_RUN_EXECUTION_TIMEOUT = int(os.environ.get('SEARCH_RUN_EXECUTION_TIMEOUT', '60'))
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
