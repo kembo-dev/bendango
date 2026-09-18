@@ -72,7 +72,8 @@ else: CACHES={'default':{'BACKEND':'django.core.cache.backends.locmem.LocMemCach
 
 SEARCH_RUN_DISCOVERY_TIMEOUT = int(os.environ.get('SEARCH_RUN_DISCOVERY_TIMEOUT', '300'))
 SEARCH_RUN_EXECUTION_TIMEOUT = int(os.environ.get('SEARCH_RUN_EXECUTION_TIMEOUT', '60'))
-SEARCH_RUN_MERCHANT_TIMEOUT = int(os.environ.get('SEARCH_RUN_MERCHANT_TIMEOUT', '45'))
+SEARCH_RUN_MERCHANT_TIMEOUT = int(os.environ.get('SEARCH_RUN_MERCHANT_TIMEOUT', '40'))
+SEARCH_RUN_SOCIAL_TIMEOUT = int(os.environ.get('SEARCH_RUN_SOCIAL_TIMEOUT', '8'))
 
 AUTH_PASSWORD_VALIDATORS=[{'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},{'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator'},{'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},{'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'}]
 LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True; STATIC_URL='static/'
