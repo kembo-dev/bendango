@@ -13,7 +13,7 @@ from django.core.management.base import BaseCommand
 
 from tracker.domain_health import domain_fetch_circuit_open, domain_from_url, url_fetch_budget
 from tracker.job_outcomes import classify_processing_error, should_retry_job
-from tracker.job_queue import cancel_same_domain_run_jobs, cancel_satisfied_run_jobs, claim_next_job, complete_job, defer_job, discard_running_job, fail_job, job_coverage_reached, recover_stale_running_jobs
+from tracker.job_queue import cancel_same_domain_run_jobs, cancel_satisfied_run_jobs, claim_next_job, complete_job, defer_job, discard_running_job, fail_job, finalize_exhausted_search_run, job_coverage_reached, recover_stale_running_jobs
 from tracker.reliable_collection import clear_last_fetch_result, get_last_fetch_result, reset_fetch_policy, set_fetch_policy
 from tracker.services import process_url_and_save
 
@@ -193,5 +193,13 @@ class Command(BaseCommand):
                     reset_fetch_policy(token)
             finally:
                 domain_lock.release()
+
+            finalized = finalize_exhausted_search_run(job.search_run_id)
+            if finalized:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f'run {run_label}: exhausted scrape work finalized as {finalized}'
+                    )
+                )
             processed += 1
             if options['once'] or (options['max_jobs'] and processed >= options['max_jobs']): break
