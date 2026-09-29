@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 
-from tracker.adaptive_search import build_adaptive_search_terms, build_recovery_terms
+from tracker.adaptive_search import build_adaptive_search_terms, build_global_fallback_terms, build_recovery_terms
 from tracker.candidate_filter import filter_and_rank_candidate_urls
 from tracker.catalog import find_fresh_cached_listings
 from tracker.domain_health import domain_candidate_cap, domain_fetch_circuit_open, url_domain_health_score
@@ -71,12 +71,11 @@ def _run_has_active_jobs(search_run):
 
 
 def _partial_async_coverage_exhausted(search_run):
-    if search_run is None or getattr(settings, 'SCRAPE_QUEUE_SYNC_FALLBACK', True): return False
-    # GLOBAL explicitly asks for broad web coverage. One cached/successful merchant
-    # must not suppress recovery searches merely because the first queue batch ended.
-    if normalize_market_code(getattr(search_run, 'market_code', None)) == GLOBAL_MARKET_CODE:
+    if search_run is None or getattr(settings, 'SCRAPE_QUEUE_SYNC_FALLBACK', True):
         return False
-    return _successful_run_merchants(search_run) > 0 and not _run_has_active_jobs(search_run)
+    # An empty queue with only partial coverage is not exhaustion: discovery must
+    # continue with broader terms until the target is reached or the run budget ends.
+    return False
 
 
 def _wait_for_batch(search_run, target_merchants, timeout_seconds=None):
@@ -91,7 +90,7 @@ def _wait_for_batch(search_run, target_merchants, timeout_seconds=None):
 
 
 def _max_scrape_jobs(search_run, target_merchants):
-    configured = int(getattr(settings, 'ADAPTIVE_MAX_SCRAPE_JOBS', 15)); floor = max(6, int(target_merchants) * 3); limit = max(floor, configured)
+    configured = int(getattr(settings, 'ADAPTIVE_MAX_SCRAPE_JOBS', 30)); floor = max(6, int(target_merchants) * 3); limit = max(floor, configured)
     return (limit, search_run.jobs.count() if search_run is not None else 0)
 
 
@@ -164,8 +163,8 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     if cached and (site_filters or distinct_merchant_count(cached) >= target_merchants): diagnostics.save(cached); return cached, []
     if cached: results.extend(cached)
     if search_run is None: search_run = SearchRun.objects.create(query=product_query, site_filter=site_filter, target_merchants=target_merchants, market_code=market.code, market_currency=market.currency)
-    candidate_limit = max(target_merchants * 5, max_results * 4, 15); search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
-    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query, search_run=search_run, stop_on_first_candidates=True); allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]; initial_batch = max(1, int(getattr(settings, 'ADAPTIVE_INITIAL_SCRAPE_JOBS', 8))); expansion_batch = max(1, int(getattr(settings, 'ADAPTIVE_EXPANSION_SCRAPE_JOBS', 5)))
+    candidate_limit = max(target_merchants * 8, max_results * 6, 30); search_terms = [f'site:{normalize_site_filter(site)[0]} {product_query}' for site in site_filters] if site_filters else build_adaptive_search_terms(product_query, country=country)
+    _search_terms_into_urls(search_terms, urls, diagnostics, search_errors, candidate_limit, product_query=product_query, search_run=search_run, stop_on_first_candidates=True); allowed_hosts = [normalize_site_filter(site)[0] for site in site_filters]; initial_batch = max(1, int(getattr(settings, 'ADAPTIVE_INITIAL_SCRAPE_JOBS', 10))); expansion_batch = max(1, int(getattr(settings, 'ADAPTIVE_EXPANSION_SCRAPE_JOBS', 10)))
     _process_urls(urls, processed_urls, results, errors, diagnostics, selected, product_query, allowed_hosts, target_merchants, site_filters, search_run, max_new_jobs=initial_batch)
     if not _search_run_completed(search_run): _wait_for_batch(search_run, target_merchants)
     if _search_run_completed(search_run):
@@ -174,6 +173,38 @@ def search_and_scrape_product(product_query, site_filter='all', model_name=None,
     if not _search_run_completed(search_run): _wait_for_batch(search_run, target_merchants)
     if _search_run_completed(search_run) or _partial_async_coverage_exhausted(search_run):
         db_results = _deduplicate_results([*results, *_successful_run_listings(search_run)]); diagnostics.save(db_results); return db_results, []
+
+    current_coverage = distinct_merchant_count(_deduplicate_results([*results, *_successful_run_listings(search_run)]))
+    if not site_filters and market.code != GLOBAL_MARKET_CODE and current_coverage < target_merchants:
+        global_terms = build_global_fallback_terms(product_query)
+        before = len(urls)
+        _search_terms_into_urls(
+            global_terms,
+            urls,
+            diagnostics,
+            search_errors,
+            candidate_limit * 2,
+            product_query=product_query,
+            search_run=search_run,
+        )
+        if len(urls) > before and not _search_run_completed(search_run):
+            _process_urls(
+                urls,
+                processed_urls,
+                results,
+                errors,
+                diagnostics,
+                selected,
+                product_query,
+                allowed_hosts,
+                target_merchants,
+                site_filters,
+                search_run,
+                max_new_jobs=expansion_batch,
+            )
+            if not _search_run_completed(search_run):
+                _wait_for_batch(search_run, target_merchants, timeout_seconds=4)
+
     if not site_filters and distinct_merchant_count(_deduplicate_results([*results, *_successful_run_listings(search_run)])) < target_merchants:
         recovery_terms = [term for term in build_recovery_terms(product_query, errors + search_errors, country=country) if term not in search_terms]
         if recovery_terms:
