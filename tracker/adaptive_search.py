@@ -45,6 +45,22 @@ BROAD_GLOBAL_TERMS = (
     '"{query}" shop buy price',
 )
 
+GLOBAL_FALLBACK_TERMS = (
+    '"{query}" buy price',
+    '"{query}" shop online',
+    '"{query}" online store',
+    '"{query}" inurl:product',
+    '"{query}" inurl:produit',
+)
+
+BROAD_GLOBAL_FALLBACK_TERMS = (
+    '"{query}" shop buy price',
+    '"{query}" product price',
+    '"{query}" inurl:product',
+    '"{query}" inurl:produit',
+    '"{query}" "add to cart"',
+)
+
 
 def _unique(values):
     seen = set()
@@ -138,3 +154,9 @@ def build_adaptive_search_terms(query: str, country: str = 'RDC', diagnostics=No
 def build_recovery_terms(query: str, errors, country: str = 'RDC'):
     reasons = Counter(classify_search_error(error) for error in (errors or []))
     return build_adaptive_search_terms(query, country=country, diagnostics=reasons)
+
+
+def build_global_fallback_terms(query: str):
+    """Build country-agnostic recovery terms used only after local coverage is insufficient."""
+    templates = BROAD_GLOBAL_FALLBACK_TERMS if is_broad_product_query(query) else GLOBAL_FALLBACK_TERMS
+    return _unique(template.format(query=query) for template in templates)
