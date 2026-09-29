@@ -28,10 +28,10 @@ class PartialAsyncCoverageTests(TestCase):
             status=ScrapeJob.STATUS_SUCCESS, listing=self.listing, finished_at=timezone.now(),
         )
 
-    def test_partial_coverage_is_exhausted_when_success_exists_and_no_jobs_are_active(self):
+    def test_local_partial_coverage_keeps_discovery_open_for_global_fallback(self):
         self._success_job()
         self.assertEqual(_successful_run_merchants(self.run), 1)
-        self.assertTrue(_partial_async_coverage_exhausted(self.run))
+        self.assertFalse(_partial_async_coverage_exhausted(self.run))
 
     def test_global_partial_coverage_keeps_discovery_open(self):
         self.run.market_code = 'GLOBAL'
