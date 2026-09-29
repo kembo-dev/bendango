@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from ddgs import DDGS
 
-from tracker.markets import DEFAULT_MARKET_CODE, get_market, market_search_label
+from tracker.markets import DEFAULT_MARKET_CODE, GLOBAL_MARKET_CODE, get_market, market_search_label, normalize_market_code
 from tracker.product_matching import match_product, normalize_product_name
 
 
@@ -166,16 +166,22 @@ def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet
     if platform == "Facebook":
         if coverage < 0.75 or not _has_important_numeric_token(query, combined) or not _has_required_reference_tokens(query, combined):
             return False, match.score
-        if broad_query and (not _has_social_commerce_signal(combined) or not _has_local_signal(combined, market_code)):
-            return False, match.score
+        if broad_query:
+            if not _has_social_commerce_signal(combined):
+                return False, match.score
+            if normalize_market_code(market_code) != GLOBAL_MARKET_CODE and not _has_local_signal(combined, market_code):
+                return False, match.score
         if _looks_like_accessory_for_broad_query(query, combined) or not match.is_match or match.score < 0.82:
             return False, match.score
         return True, match.score
     if platform in SOCIAL_PLATFORMS:
         if coverage < 0.55 or not _has_required_reference_tokens(query, combined):
             return False, match.score
-        if broad_query and (not _has_social_commerce_signal(combined) or not _has_local_signal(combined, market_code)):
-            return False, match.score
+        if broad_query:
+            if not _has_social_commerce_signal(combined):
+                return False, match.score
+            if normalize_market_code(market_code) != GLOBAL_MARKET_CODE and not _has_local_signal(combined, market_code):
+                return False, match.score
         if _looks_like_accessory_for_broad_query(query, combined) or (not match.is_match and match.score < 0.68):
             return False, match.score
         return True, max(match.score, coverage)
@@ -188,10 +194,17 @@ def discover_discovery_sources(query: str, max_results: int = 8, market_code: st
     if not query:
         return []
     local_label = market_search_label(market_code)
-    search_terms = [
-        f'"{query}" {local_label} Facebook Instagram TikTok',
-        f'"{query}" {get_market(market_code).country} prix price avis comparatif fiche technique',
-    ]
+    if normalize_market_code(market_code) == GLOBAL_MARKET_CODE:
+        search_terms = [
+            f'"{query}" Facebook Instagram TikTok price buy',
+            f'"{query}" YouTube Reddit Pinterest review price',
+            f'"{query}" prix price avis comparatif fiche technique',
+        ]
+    else:
+        search_terms = [
+            f'"{query}" {local_label} Facebook Instagram TikTok',
+            f'"{query}" {get_market(market_code).country} prix price avis comparatif fiche technique',
+        ]
     found: list[DiscoverySource] = []; seen: set[str] = set()
     with DDGS() as ddgs:
         for term in search_terms:
