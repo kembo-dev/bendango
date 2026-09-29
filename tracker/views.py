@@ -195,9 +195,19 @@ def scrape_view(request):
             if async_waiting:
                 errors = [f"Recherche en cours : {run_state['processed']} source(s) analysée(s), {run_state['merchants']}/{run_state['target_merchants']} marchand(s) trouvé(s)."]
             elif run_state["status"] == "failed" and not listings:
-                errors = [search_run.discovery_error or "Aucune offre marchande vérifiée n’a été trouvée."]
+                if discovery_sources:
+                    errors = [
+                        "Aucune offre marchande vérifiée, mais Bendango a trouvé des sources utiles sur d’autres plateformes."
+                    ]
+                else:
+                    errors = [search_run.discovery_error or "Aucune offre marchande vérifiée n’a été trouvée."]
             elif not listings:
-                errors = [f"Aucune offre marchande vérifiée après traitement de {run_state['total']} source(s) ({run_state['failed']} échec(s))."]
+                if discovery_sources:
+                    errors = [
+                        f"Aucune offre marchande vérifiée après traitement de {run_state['total']} source(s), mais {len(discovery_sources)} source(s) utile(s) ont été trouvée(s) sur d’autres plateformes."
+                    ]
+                else:
+                    errors = [f"Aucune offre marchande vérifiée après traitement de {run_state['total']} source(s) ({run_state['failed']} échec(s))."]
         else:
             listings, async_active_jobs, failed_jobs, total_jobs = _async_job_state(query)
             if async_active_jobs:
