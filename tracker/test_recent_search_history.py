@@ -75,3 +75,31 @@ class RecentSearchHistoryTests(TestCase):
         self.assertContains(response, 'Boutique historique')
         self.assertContains(response, 'TikTok')
         self.assertContains(response, 'Réseaux sociaux et autres sources')
+
+
+    def test_search_history_filters_by_product_query(self):
+        other = SearchRun.objects.create(
+            query='iPhone 16 Pro 256GB',
+            site_filter='all',
+            target_merchants=3,
+            market_code='GLOBAL',
+            market_currency='',
+            status=SearchRun.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('search_history'), {'q': 'Samsung Galaxy'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.run.query)
+        self.assertNotContains(response, other.query)
+        self.assertContains(response, 'Résultats pour « Samsung Galaxy ».')
+
+    def test_search_history_empty_filter_message(self):
+        response = self.client.get(reverse('search_history'), {'q': 'Produit introuvable xyz'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'Aucune recherche enregistrée ne correspond à « Produit introuvable xyz ».',
+        )
