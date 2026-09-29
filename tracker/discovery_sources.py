@@ -257,39 +257,40 @@ def discover_discovery_sources(query: str, max_results: int = 8, market_code: st
             f'site:reddit.com "{query}"',
             f'site:pinterest.com "{query}"',
         ]
-        for term in fallback_terms:
-            if len(found) >= max_results:
-                break
-            try:
-                results = ddgs.text(term, max_results=max(6, max_results))
-            except Exception:
-                continue
-            for result in results:
-                url = str(result.get("href") or "").strip()
-                if not url or url in seen or classify_url(url) != "discovery_source":
+        with DDGS() as fallback_ddgs:
+            for term in fallback_terms:
+                if len(found) >= max_results:
+                    break
+                try:
+                    results = fallback_ddgs.text(term, max_results=max(6, max_results))
+                except Exception:
                     continue
-                platform = platform_for_url(url)
-                title = str(result.get("title") or platform).strip()
-                snippet = str(result.get("body") or result.get("snippet") or "").strip()
-                relevant, score = _is_relevant_social_fallback(
-                    query,
-                    platform,
-                    title,
-                    snippet,
-                )
-                if not relevant:
-                    continue
-                seen.add(url)
-                found.append(
-                    DiscoverySource(
-                        url=url,
-                        platform=platform,
-                        title=title,
-                        snippet=snippet[:240],
-                        relevance_score=score,
-                        source_type=source_type_for_platform(platform),
+                for result in results:
+                    url = str(result.get("href") or "").strip()
+                    if not url or url in seen or classify_url(url) != "discovery_source":
+                        continue
+                    platform = platform_for_url(url)
+                    title = str(result.get("title") or platform).strip()
+                    snippet = str(result.get("body") or result.get("snippet") or "").strip()
+                    relevant, score = _is_relevant_social_fallback(
+                        query,
+                        platform,
+                        title,
+                        snippet,
                     )
-                )
+                    if not relevant:
+                        continue
+                    seen.add(url)
+                    found.append(
+                        DiscoverySource(
+                            url=url,
+                            platform=platform,
+                            title=title,
+                            snippet=snippet[:240],
+                            relevance_score=score,
+                            source_type=source_type_for_platform(platform),
+                        )
+                    )
 
     found.sort(key=lambda item: item.relevance_score, reverse=True)
     return found[:max_results]
