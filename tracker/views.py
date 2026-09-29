@@ -2,6 +2,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -120,6 +121,52 @@ def _run_state(search_run):
     }
 
 
+def _recent_search_runs(limit=8):
+    return (
+        SearchRun.objects.annotate(
+            job_count=Count("jobs", distinct=True),
+            offer_count=Count(
+                "jobs",
+                filter=Q(jobs__status=ScrapeJob.STATUS_SUCCESS, jobs__listing__isnull=False),
+                distinct=True,
+            ),
+        )
+        .order_by("-created_at")[:max(1, int(limit))]
+    )
+
+
+def search_history(request):
+    searches = _recent_search_runs(limit=50)
+    return render(request, "tracker/search_history.html", {
+        "searches": searches,
+    })
+
+
+def search_run_detail(request, run_id):
+    search_run = get_object_or_404(SearchRun, pk=run_id)
+    run_state = _run_state(search_run)
+    listings = run_state["listings"]
+    summary = {}
+    if listings:
+        listings, summary = _decorate_results(
+            listings,
+            search_run.query,
+            search_run.site_filter,
+        )
+    jobs = (
+        search_run.jobs.select_related("listing", "listing__product", "listing__retailer")
+        .order_by("-created_at")
+    )
+    return render(request, "tracker/search_run_detail.html", {
+        "search_run": search_run,
+        "run_state": run_state,
+        "listings": listings,
+        "summary": summary,
+        "discovery_sources": search_run.discovery_sources or [],
+        "jobs": jobs,
+    })
+
+
 def _async_job_state(query):
     jobs = ScrapeJob.objects.filter(search_run__isnull=True, query__iexact=query)
     active = jobs.filter(status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY])
@@ -158,6 +205,7 @@ def search_run_status(request, run_id):
 
 
 def scrape_view(request):
+    recent_searches = _recent_search_runs(limit=8)
     listings = []
     discovery_sources = []
     errors = []
@@ -230,6 +278,7 @@ def scrape_view(request):
             "async_active_jobs": async_active_jobs,
             "search_run": search_run,
             "run_state": run_state,
+            "recent_searches": recent_searches,
         })
 
     if request.method == "POST":
@@ -287,4 +336,5 @@ def scrape_view(request):
         "async_active_jobs": async_active_jobs,
         "search_run": search_run,
         "run_state": run_state,
+        "recent_searches": recent_searches,
     })
