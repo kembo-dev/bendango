@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historique des recherches - Bendango</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+        <div>
+            <div class="text-primary text-uppercase fw-bold small mb-2">Bendango Compare</div>
+            <h1 class="h2 mb-1">Recherches récentes</h1>
+            <p class="text-muted mb-0">Historique enregistré dans la base de données Bendango.</p>
+        </div>
+        <a href="{% url 'scrape_view' %}" class="btn btn-primary">Nouvelle recherche</a>
+    </div>
+
+    {% if searches %}
+    <div class="row g-3">
+        {% for item in searches %}
+        <div class="col-lg-6">
+            <a href="{% url 'search_run_detail' item.pk %}" class="text-decoration-none text-reset">
+                <div class="card h-100 shadow-sm border-0 search-card">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between gap-2 flex-wrap mb-2">
+                            <div>
+                                <span class="badge text-bg-light border">Marché {{ item.market_code }}</span>
+                                {% if item.site_filter != 'all' %}<span class="badge text-bg-light border">{{ item.site_filter }}</span>{% endif %}
+                            </div>
+                            {% if item.status == 'completed' %}<span class="badge text-bg-success">Terminée</span>
+                            {% elif item.status == 'failed' %}<span class="badge text-bg-danger">Échec</span>
+                            {% elif item.status == 'queued' %}<span class="badge text-bg-secondary">En attente</span>
+                            {% else %}<span class="badge text-bg-primary">En cours</span>{% endif %}
+                        </div>
+                        <h2 class="h5 mb-2">{{ item.query }}</h2>
+                        <div class="small text-muted mb-3">{{ item.created_at|date:"d/m/Y H:i" }} · Run {{ item.pk|stringformat:"s"|slice:":8" }}</div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <span class="metric-pill">{{ item.offer_count }} offre{{ item.offer_count|pluralize }}</span>
+                            <span class="metric-pill">{{ item.job_count }} source{{ item.job_count|pluralize }}</span>
+                            <span class="metric-pill">Objectif {{ item.target_merchants }} marchand{{ item.target_merchants|pluralize }}</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">Aucune recherche n'est encore enregistrée.</div>
+    {% endif %}
+</div>
+<style>
+.search-card{border-radius:18px!important;transition:transform .15s ease,box-shadow .15s ease}
+.search-card:hover{transform:translateY(-2px);box-shadow:0 .7rem 1.6rem rgba(18,32,51,.12)!important}
+.metric-pill{background:#f8f9fa;border:1px solid #e9ecef;border-radius:999px;padding:.3rem .75rem;font-size:.82rem}
+</style>
+</body>
+</html>
