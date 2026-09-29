@@ -136,9 +136,21 @@ def _recent_search_runs(limit=8):
 
 
 def search_history(request):
-    searches = _recent_search_runs(limit=50)
+    product_query = (request.GET.get("q") or "").strip()
+    searches = SearchRun.objects.annotate(
+        job_count=Count("jobs", distinct=True),
+        offer_count=Count(
+            "jobs",
+            filter=Q(jobs__status=ScrapeJob.STATUS_SUCCESS, jobs__listing__isnull=False),
+            distinct=True,
+        ),
+    )
+    if product_query:
+        searches = searches.filter(query__icontains=product_query)
+    searches = searches.order_by("-created_at")[:50]
     return render(request, "tracker/search_history.html", {
         "searches": searches,
+        "product_query": product_query,
     })
 
 
