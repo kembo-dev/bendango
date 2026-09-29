@@ -27,7 +27,7 @@ class Command(BaseCommand):
         run_label = str(search_run.pk)[:8]
         try:
             self.stdout.write(f'run {run_label}: merchant discovery phase started')
-            merchant_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_MERCHANT_TIMEOUT', 45)))
+            merchant_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_MERCHANT_TIMEOUT', 40)))
             if getattr(settings, 'TESTING', False):
                 # Test DBs may be in-memory and cannot safely be shared with a
                 # nested OS process. Production still gets the hard child cap.
@@ -49,14 +49,33 @@ class Command(BaseCommand):
                     ))
 
             self.stdout.write(f'run {run_label}: social enrichment phase started')
-            try:
-                social_sources = discover_social_sources(search_run.query, market_code=search_run.market_code)
-            except Exception as exc:
-                social_sources = []
-                self.stderr.write(f'run {run_label}: social discovery warning - {exc}')
-            search_run.discovery_sources = discovery_sources_to_json(social_sources)
-            search_run.save(update_fields=['discovery_sources'])
-            self.stdout.write(f'run {run_label}: social enrichment phase finished')
+            social_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_SOCIAL_TIMEOUT', 8)))
+            if getattr(settings, 'TESTING', False):
+                try:
+                    social_sources = discover_social_sources(
+                        search_run.query,
+                        market_code=search_run.market_code,
+                    )
+                except Exception as exc:
+                    social_sources = []
+                    self.stderr.write(f'run {run_label}: social discovery warning - {exc}')
+                search_run.discovery_sources = discovery_sources_to_json(social_sources)
+                search_run.save(update_fields=['discovery_sources'])
+                self.stdout.write(f'run {run_label}: social enrichment phase finished')
+            else:
+                manage_py = str(Path(settings.BASE_DIR) / 'manage.py')
+                try:
+                    subprocess.run(
+                        [sys.executable, manage_py, 'process_social_discovery', str(search_run.pk)],
+                        cwd=str(settings.BASE_DIR),
+                        timeout=social_timeout,
+                        check=False,
+                    )
+                    self.stdout.write(f'run {run_label}: social enrichment phase finished')
+                except subprocess.TimeoutExpired:
+                    self.stdout.write(self.style.WARNING(
+                        f'run {run_label}: social enrichment budget reached after {social_timeout}s; preserving merchant results'
+                    ))
 
             search_run.refresh_from_db()
             now = timezone.now()
