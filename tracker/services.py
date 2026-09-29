@@ -1,7 +1,7 @@
 import os
 import re
 import time  # Compatibility import: legacy tests patch tracker.services.time.sleep.
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
 import requests  # Compatibility import: legacy tests patch tracker.services.requests.
@@ -22,6 +22,7 @@ try:
 except ImportError:
     ollama = None
 
+from tracker.candidate_filter import is_low_value_candidate_url
 from tracker.catalog import find_fresh_cached_listings
 from tracker.catalog_matching import get_or_create_canonical_product
 from tracker.currency import normalize_currency_code, normalize_to_usd
@@ -143,12 +144,29 @@ def _confidence_for(source,match_score,has_sku):
     base={"jsonld":.92,"shopify":.88,"meta":.84,"llm":.76,"html":.62,"cache":.70}.get(source,.55);score=base+(.04 if has_sku else 0)+(.04*max(0,min(match_score,1)));return Decimal(str(round(min(score,.99),4)))
 
 
+def _safe_price_decimal(value):
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+    if not amount.is_finite() or amount <= 0:
+        return None
+    try:
+        return amount.quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _is_plausible_price(price,currency):
-    try:amount=Decimal(str(price))
-    except Exception:return False
-    if amount<=0:return False
+    amount=_safe_price_decimal(price)
+    if amount is None:return False
     normalized=normalize_to_usd(amount,currency)
     if normalized is None:return True
+    try:
+        normalized=Decimal(str(normalized))
+    except (InvalidOperation,ValueError,TypeError):
+        return False
+    if not normalized.is_finite() or normalized<=0:return False
     return normalized<=Decimal(str(getattr(settings,"BENDANGO_MAX_NORMALIZED_PRICE_USD",100000)))
 
 
@@ -232,8 +250,8 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
             source="llm" if extracted else "html"
     if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
     page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text)
-    name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=Decimal(str(extracted.price)).quantize(Decimal("0.01"))
-    if not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
+    name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=_safe_price_decimal(extracted.price)
+    if price is None or not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")
     match=match_product(expected_query,name) if expected_query else None
     if match and not match.is_match:return (cached,None) if cached else (None,f"Produit non pertinent ({match.reason}, score={match.score:.2f}).")
     match_score=match.score if match else 1.0;host=(parsed.netloc or "").lower().removeprefix("www.");base=f"{parsed.scheme}://{parsed.netloc}"
@@ -256,11 +274,16 @@ def _is_homepage_url(url):
 
 
 def _is_category_or_listing_url(url):
-    path=(urlparse(url).path or "").lower();return ".oembed" in path or path.endswith("/oembed") or any(t in path for t in ("/categorie/","/category/","/categories/","/collections/","/collection/","/shop/","/search/","/ads/","/annonces/","/market/","/en/ads/"))
+    path=(urlparse(url).path or "").lower()
+    stripped=path.strip("/")
+    if ".oembed" in path or path.endswith("/oembed"):return True
+    if stripped in {"shop","store","boutique","products","produits","catalog","catalogue"}:return True
+    return any(t in path for t in ("/categorie/","/category/","/categories/","/collections/","/collection/","/search/","/ads/","/annonces/","/market/","/en/ads/"))
 def _is_comparator_url(url):
     combined=f"{urlparse(url).netloc} {urlparse(url).path}".lower();return any(t in combined for t in ["comparateur","comparaison","compare","comparison","meilleur-prix","best-price","price-comparison","pricecomparison"])
 def _is_low_quality_source_url(url):
-    parsed=urlparse(url);host=parsed.netloc.lower().removeprefix("www.");path=parsed.path.lower();blocked=("facebook.com","fb.com","instagram.com","tiktok.com","x.com","twitter.com","pinterest.com","youtube.com","youtu.be","reddit.com","quora.com","wikipedia.org","archive.org","web.archive.org","linkedin.com","discord.com","discord.gg","telegram.org","t.me","whatsapp.com")
+    parsed=urlparse(url);host=parsed.netloc.lower().removeprefix("www.");path=parsed.path.lower();blocked=("quora.com","wikipedia.org","archive.org","web.archive.org","discord.com","discord.gg","telegram.org","t.me","whatsapp.com")
+    if is_low_value_candidate_url(url):return True
     if any(host==b or host.endswith("."+b) for b in blocked):return True
     if path.endswith((".txt",".pdf",".epub",".doc",".docx",".xml",".csv",".zip")):return True
     return any(t in f"{host} {path}" for t in ["/forum/","/forums/","/blog/","/discussion/","/topic/","/wiki/","/stream/"])
