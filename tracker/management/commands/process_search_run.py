@@ -49,7 +49,7 @@ class Command(BaseCommand):
                     ))
 
             self.stdout.write(f'run {run_label}: social enrichment phase started')
-            social_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_SOCIAL_TIMEOUT', 8)))
+            social_timeout = max(1, int(getattr(settings, 'SEARCH_RUN_SOCIAL_TIMEOUT', 12)))
             if getattr(settings, 'TESTING', False):
                 try:
                     social_sources = discover_social_sources(
