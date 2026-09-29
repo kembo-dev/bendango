@@ -67,8 +67,13 @@ def _is_accessory(value: str) -> bool:
 def _variant_conflict(query: str, candidate: str) -> str | None:
     query_capacities = _capacity_tokens(query)
     candidate_capacities = _capacity_tokens(candidate)
-    if query_capacities and candidate_capacities and query_capacities.isdisjoint(candidate_capacities):
-        return "capacité différente"
+    if query_capacities and candidate_capacities:
+        if query_capacities.isdisjoint(candidate_capacities):
+            return "capacité différente"
+        # When both sides explicitly expose multiple capacities (typically RAM
+        # and storage), sharing only the storage value must not hide a RAM conflict.
+        if len(query_capacities) >= 2 and len(candidate_capacities) >= 2 and query_capacities != candidate_capacities:
+            return "configuration mémoire différente"
 
     query_models = _model_number_tokens(query)
     candidate_models = _model_number_tokens(candidate)
