@@ -157,6 +157,28 @@ def _looks_like_accessory_for_broad_query(query: str, text: str) -> bool:
     return any(term in normalized_text.split() for term in ACCESSORY_TERMS)
 
 
+def _is_relevant_social_fallback(query: str, platform: str, title: str, snippet: str) -> tuple[bool, float]:
+    """Looser fallback used only when strict discovery found too little.
+
+    Fallback social sources are discovery links, not verified merchant offers, so
+    they may be useful even without an explicit price or local-market signal.
+    """
+    combined = f"{title} {snippet}".strip()
+    if not combined or platform not in SOCIAL_PLATFORMS:
+        return False, 0.0
+    coverage = _token_coverage(query, combined)
+    if coverage < 0.50:
+        return False, coverage
+    if not _has_required_reference_tokens(query, combined):
+        return False, coverage
+    if _looks_like_accessory_for_broad_query(query, combined):
+        return False, coverage
+    match = match_product(query, combined, threshold=0.60)
+    if not match.is_match and max(match.score, coverage) < 0.60:
+        return False, max(match.score, coverage)
+    return True, max(match.score, coverage)
+
+
 def _is_relevant_discovery_result(query: str, platform: str, title: str, snippet: str, market_code: str = DEFAULT_MARKET_CODE) -> tuple[bool, float]:
     combined = f"{title} {snippet}".strip()
     if not combined:
@@ -223,9 +245,55 @@ def discover_discovery_sources(query: str, max_results: int = 8, market_code: st
                     continue
                 seen.add(url)
                 found.append(DiscoverySource(url=url, platform=platform, title=title, snippet=snippet[:240], relevance_score=score, source_type=source_type_for_platform(platform)))
+    # If strict discovery returns too little, broaden toward social platforms.
+    # These links are displayed as discovery sources only and never counted as
+    # verified merchant offers.
+    if len(found) < max(3, min(max_results, 4)):
+        fallback_terms = [
+            f'site:tiktok.com "{query}"',
+            f'site:facebook.com "{query}"',
+            f'site:instagram.com "{query}"',
+            f'site:youtube.com "{query}"',
+            f'site:reddit.com "{query}"',
+            f'site:pinterest.com "{query}"',
+        ]
+        for term in fallback_terms:
+            if len(found) >= max_results:
+                break
+            try:
+                results = ddgs.text(term, max_results=max(6, max_results))
+            except Exception:
+                continue
+            for result in results:
+                url = str(result.get("href") or "").strip()
+                if not url or url in seen or classify_url(url) != "discovery_source":
+                    continue
+                platform = platform_for_url(url)
+                title = str(result.get("title") or platform).strip()
+                snippet = str(result.get("body") or result.get("snippet") or "").strip()
+                relevant, score = _is_relevant_social_fallback(
+                    query,
+                    platform,
+                    title,
+                    snippet,
+                )
+                if not relevant:
+                    continue
+                seen.add(url)
+                found.append(
+                    DiscoverySource(
+                        url=url,
+                        platform=platform,
+                        title=title,
+                        snippet=snippet[:240],
+                        relevance_score=score,
+                        source_type=source_type_for_platform(platform),
+                    )
+                )
+
     found.sort(key=lambda item: item.relevance_score, reverse=True)
     return found[:max_results]
 
 
-def discover_social_sources(query: str, max_results: int = 8, market_code: str = DEFAULT_MARKET_CODE) -> list[DiscoverySource]:
+def discover_social_sources(query: str, max_results: int = 12, market_code: str = DEFAULT_MARKET_CODE) -> list[DiscoverySource]:
     return discover_discovery_sources(query, max_results=max_results, market_code=market_code)
