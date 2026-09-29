@@ -74,6 +74,10 @@ SEARCH_RUN_DISCOVERY_TIMEOUT = int(os.environ.get('SEARCH_RUN_DISCOVERY_TIMEOUT'
 SEARCH_RUN_EXECUTION_TIMEOUT = int(os.environ.get('SEARCH_RUN_EXECUTION_TIMEOUT', '60'))
 SEARCH_RUN_MERCHANT_TIMEOUT = int(os.environ.get('SEARCH_RUN_MERCHANT_TIMEOUT', '40'))
 SEARCH_RUN_SOCIAL_TIMEOUT = int(os.environ.get('SEARCH_RUN_SOCIAL_TIMEOUT', '8'))
+ADAPTIVE_MAX_SCRAPE_JOBS = int(os.environ.get('ADAPTIVE_MAX_SCRAPE_JOBS', '30'))
+ADAPTIVE_INITIAL_SCRAPE_JOBS = int(os.environ.get('ADAPTIVE_INITIAL_SCRAPE_JOBS', '10'))
+ADAPTIVE_EXPANSION_SCRAPE_JOBS = int(os.environ.get('ADAPTIVE_EXPANSION_SCRAPE_JOBS', '10'))
+ADAPTIVE_BATCH_WAIT_SECONDS = float(os.environ.get('ADAPTIVE_BATCH_WAIT_SECONDS', '5'))
 
 AUTH_PASSWORD_VALIDATORS=[{'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},{'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator'},{'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},{'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'}]
 LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True; STATIC_URL='static/'
