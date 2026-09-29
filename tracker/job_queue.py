@@ -189,6 +189,41 @@ def cancel_same_domain_run_jobs(job: ScrapeJob) -> int:
     return deleted
 
 
+
+def finalize_exhausted_search_run(search_run_id) -> str | None:
+    """Finalize a SearchRun once discovery ended and no scrape work remains.
+
+    This prevents partial-coverage runs (for example 1/3 merchants) from
+    staying in STATUS_RUNNING forever after the last job becomes terminal.
+    """
+    if not search_run_id:
+        return None
+    search_run = SearchRun.objects.filter(pk=search_run_id).first()
+    if search_run is None or search_run.completed_at or not search_run.discovery_finished_at:
+        return None
+    active = search_run.jobs.filter(status__in=ACTIVE_STATUSES).exists()
+    if active:
+        return None
+    now = timezone.now()
+    successful = search_run.jobs.filter(
+        status=ScrapeJob.STATUS_SUCCESS,
+        listing__isnull=False,
+    ).exists()
+    if successful:
+        SearchRun.objects.filter(pk=search_run_id, completed_at__isnull=True).update(
+            status=SearchRun.STATUS_COMPLETED,
+            discovery_error='',
+            completed_at=now,
+        )
+        return SearchRun.STATUS_COMPLETED
+    SearchRun.objects.filter(pk=search_run_id, completed_at__isnull=True).update(
+        status=SearchRun.STATUS_FAILED,
+        discovery_error='Aucune page marchande exploitable n’a été trouvée.',
+        completed_at=now,
+    )
+    return SearchRun.STATUS_FAILED
+
+
 def cancel_satisfied_run_jobs(job: ScrapeJob) -> int:
     if not job_coverage_reached(job):
         return 0
