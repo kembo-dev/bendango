@@ -91,7 +91,13 @@ def _run_state(search_run):
         status = "queued"
     elif search_run.status == SearchRun.STATUS_DISCOVERING:
         status = "discovering"
-    elif active_count or search_run.status == SearchRun.STATUS_RUNNING:
+    elif active_count:
+        status = "running"
+    elif search_run.discovery_finished_at and total:
+        # Discovery is over and every scrape job is terminal. A run with partial
+        # coverage must stop polling instead of remaining "running" forever.
+        status = "finished"
+    elif search_run.status == SearchRun.STATUS_RUNNING:
         status = "running"
     elif total:
         status = "finished"
