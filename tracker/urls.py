@@ -2,6 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from .views import (
+    pro_dashboard,
     request_business_account,
     scrape_view,
     search_history,
@@ -20,6 +21,7 @@ urlpatterns = [
     ),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('account/pro-request/', request_business_account, name='business_account_request'),
+    path('pro/', pro_dashboard, name='pro_dashboard'),
     path('searches/', search_history, name='search_history'),
     path('searches/<uuid:run_id>/', search_run_detail, name='search_run_detail'),
     path('api/search-runs/<uuid:run_id>/status/', search_run_status, name='search_run_status'),
