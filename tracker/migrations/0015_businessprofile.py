@@ -3,6 +3,24 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def activate_existing_approved_requests(apps, schema_editor):
+    BusinessAccountRequest = apps.get_model('tracker', 'BusinessAccountRequest')
+    BusinessProfile = apps.get_model('tracker', 'BusinessProfile')
+    for request in BusinessAccountRequest.objects.filter(status='approved').order_by('created_at'):
+        BusinessProfile.objects.update_or_create(
+            user_id=request.user_id,
+            defaults={
+                'business_name': request.business_name,
+                'business_type': request.business_type,
+                'website': request.website,
+                'phone': request.phone,
+                'description': request.description,
+                'is_verified': True,
+                'approved_request_id': request.pk,
+            },
+        )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -36,5 +54,9 @@ class Migration(migrations.Migration):
                     models.Index(fields=['is_verified'], name='tracker_biz_verified_idx'),
                 ],
             },
+        ),
+        migrations.RunPython(
+            activate_existing_approved_requests,
+            migrations.RunPython.noop,
         ),
     ]
