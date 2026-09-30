@@ -77,7 +77,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='businessprofile',
             name='slug',
-            field=models.SlugField(blank=True, default='', max_length=220),
+            field=models.CharField(blank=True, default='', max_length=220),
             preserve_default=False,
         ),
         migrations.AddField(
