@@ -247,7 +247,7 @@ def request_business_account(request):
 
 @login_required
 def pro_dashboard(request):
-    profile = BusinessProfile.objects.filter(user=request.user).first()
+    profile = BusinessProfile.objects.filter(user=request.user, is_verified=True).first()
     if profile is None:
         approved = BusinessAccountRequest.objects.filter(
             user=request.user,
@@ -329,7 +329,7 @@ def search_run_status(request, run_id):
 def scrape_view(request):
     recent_searches = _recent_search_runs(limit=8, user=request.user)
     business_profile = (
-        BusinessProfile.objects.filter(user=request.user).first()
+        BusinessProfile.objects.filter(user=request.user, is_verified=True).first()
         if request.user.is_authenticated
         else None
     )
