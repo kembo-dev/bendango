@@ -9,10 +9,13 @@ def attach_existing_business_retailers(apps, schema_editor):
         base_url = (profile.website or '').strip()
         if not base_url:
             base_url = f"https://bendango.local/business/{profile.pk}/"
+        retailer_name = profile.business_name[:100]
+        if Retailer.objects.filter(name=retailer_name).exclude(base_url=base_url).exists():
+            retailer_name = f"{profile.business_name[:80]} #{profile.pk}"[:100]
         retailer, _ = Retailer.objects.get_or_create(
             base_url=base_url,
             defaults={
-                'name': profile.business_name[:100],
+                'name': retailer_name,
                 'trust_score': '0.8500',
                 'trust_level': 'verified',
                 'is_active': True,
