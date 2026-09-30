@@ -11,7 +11,11 @@
         {% if request.user.is_authenticated %}
             <span class="small text-muted">Bonjour {{ request.user.username }}</span>
             <a href="{% url 'search_history' %}" class="btn btn-outline-primary btn-sm">Mes recherches</a>
+            {% if business_profile %}
+            <a href="{% url 'pro_dashboard' %}" class="btn btn-dark btn-sm">Espace Pro</a>
+            {% else %}
             <a href="{% url 'business_account_request' %}" class="btn btn-outline-dark btn-sm">Compte Pro</a>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}" class="d-inline">{% csrf_token %}<button class="btn btn-light border btn-sm" type="submit">Déconnexion</button></form>
         {% else %}
             <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">Connexion</a>
