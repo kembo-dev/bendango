@@ -187,6 +187,7 @@ class AccountWorkflowTests(TestCase):
             'website': 'https://dashboard.example',
             'phone': '+243222222222',
             'country': 'RDC',
+            'market_code': 'CD',
             'address': 'Kinshasa',
             'logo_url': 'https://dashboard.example/logo.png',
             'description': 'Profil professionnel mis à jour.',
