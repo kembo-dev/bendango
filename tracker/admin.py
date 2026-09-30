@@ -79,7 +79,7 @@ class BusinessAccountRequestAdmin(admin.ModelAdmin):
 
 @admin.register(BusinessProfile)
 class BusinessProfileAdmin(admin.ModelAdmin):
-    list_display = ('business_name', 'user', 'business_type', 'country', 'is_verified', 'updated_at')
-    list_filter = ('is_verified', 'country', 'business_type')
+    list_display = ('business_name', 'user', 'business_type', 'market_code', 'country', 'retailer', 'is_verified', 'updated_at')
+    list_filter = ('is_verified', 'market_code', 'country', 'business_type')
     search_fields = ('business_name', 'user__username', 'user__email', 'website', 'phone', 'country')
-    readonly_fields = ('approved_request', 'created_at', 'updated_at')
+    readonly_fields = ('approved_request', 'retailer', 'created_at', 'updated_at')
