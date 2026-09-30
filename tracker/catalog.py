@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import timedelta
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from tracker.candidate_filter import is_low_value_candidate_url
-from tracker.markets import normalize_market_code
+from tracker.markets import GLOBAL_MARKET_CODE, normalize_market_code
 from tracker.models import PriceListing, ScrapeJob
 from tracker.product_matching import match_product
 
@@ -52,7 +53,14 @@ def find_fresh_cached_listings(
             search_run__isnull=False,
             search_run__market_code=market_code,
         ).values_list("listing_id", flat=True)
-        queryset = queryset.filter(pk__in=validated_listing_ids)
+        pro_filter = Q(
+            retailer__business_profile__is_verified=True,
+        )
+        if market_code != GLOBAL_MARKET_CODE:
+            pro_filter &= Q(retailer__business_profile__market_code=market_code)
+        queryset = queryset.filter(
+            Q(pk__in=validated_listing_ids) | pro_filter
+        ).distinct()
 
     normalized_hosts = {
         host.lower().removeprefix("www.")
