@@ -1,5 +1,7 @@
 from django.contrib import admin
-from tracker.models import PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic
+from django.utils import timezone
+
+from tracker.models import BusinessAccountRequest, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
 
 
 @admin.register(Product)
@@ -40,3 +42,28 @@ class SearchDiagnosticAdmin(admin.ModelAdmin):
     @admin.display(description='Couverture')
     def coverage_percent(self, obj):
         return f'{obj.coverage_ratio * 100:.0f}%'
+
+
+
+@admin.register(SearchRun)
+class SearchRunAdmin(admin.ModelAdmin):
+    list_display = ('query', 'user', 'market_code', 'status', 'created_at', 'completed_at')
+    list_filter = ('market_code', 'status', 'created_at')
+    search_fields = ('query', 'user__username', 'user__email')
+
+
+@admin.register(BusinessAccountRequest)
+class BusinessAccountRequestAdmin(admin.ModelAdmin):
+    list_display = ('business_name', 'user', 'business_type', 'status', 'created_at', 'reviewed_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('business_name', 'business_type', 'user__username', 'user__email', 'phone', 'website')
+    readonly_fields = ('created_at',)
+    actions = ('approve_requests', 'reject_requests')
+
+    @admin.action(description='Approuver les demandes sélectionnées')
+    def approve_requests(self, request, queryset):
+        queryset.update(status=BusinessAccountRequest.STATUS_APPROVED, reviewed_at=timezone.now())
+
+    @admin.action(description='Refuser les demandes sélectionnées')
+    def reject_requests(self, request, queryset):
+        queryset.update(status=BusinessAccountRequest.STATUS_REJECTED, reviewed_at=timezone.now())
