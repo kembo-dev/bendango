@@ -414,6 +414,7 @@ def scrape_view(request):
             "run_state": run_state,
             "recent_searches": recent_searches,
             "business_profile": business_profile,
+            "anonymous_search_used": anonymous_search_used,
         })
 
     if request.method == "POST":
@@ -480,4 +481,5 @@ def scrape_view(request):
         "run_state": run_state,
         "recent_searches": recent_searches,
         "business_profile": business_profile,
+        "anonymous_search_used": anonymous_search_used,
     })
