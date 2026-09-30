@@ -285,6 +285,13 @@ class BusinessProfile(models.Model):
         null=True,
         related_name='activated_profile',
     )
+    retailer = models.OneToOneField(
+        Retailer,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='business_profile',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -294,6 +301,37 @@ class BusinessProfile(models.Model):
             models.Index(fields=['business_name'], name='tracker_biz_name_idx'),
             models.Index(fields=['is_verified'], name='tracker_biz_verified_idx'),
         ]
+
+    def ensure_retailer(self):
+        if self.retailer_id:
+            return self.retailer
+        base_url = (self.website or '').strip()
+        if not base_url:
+            base_url = f"https://bendango.local/business/{self.pk}/"
+        retailer, _ = Retailer.objects.get_or_create(
+            base_url=base_url,
+            defaults={
+                'name': self.business_name[:100],
+                'trust_score': Decimal('0.85'),
+                'trust_level': 'verified',
+                'is_active': True,
+            },
+        )
+        changed = False
+        if retailer.name != self.business_name[:100]:
+            retailer.name = self.business_name[:100]
+            changed = True
+        if retailer.trust_level != 'verified':
+            retailer.trust_level = 'verified'
+            changed = True
+        if not retailer.is_active:
+            retailer.is_active = True
+            changed = True
+        if changed:
+            retailer.save()
+        self.retailer = retailer
+        self.save(update_fields=['retailer'])
+        return retailer
 
     def __str__(self):
         return self.business_name
