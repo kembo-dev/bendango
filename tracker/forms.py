@@ -138,3 +138,67 @@ class BusinessProfileForm(forms.ModelForm):
             'logo_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
         }
+
+
+
+class ProCatalogProductForm(forms.Form):
+    name = forms.CharField(
+        label='Nom du produit',
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    brand = forms.CharField(
+        label='Marque',
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    model = forms.CharField(
+        label='Modèle',
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    sku_or_ean = forms.CharField(
+        label='SKU / EAN',
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    category = forms.CharField(
+        label='Catégorie',
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    image_url = forms.URLField(
+        label='Image du produit',
+        required=False,
+        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+    )
+    price = forms.DecimalField(
+        label='Prix',
+        min_value=0.01,
+        max_digits=14,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+    )
+    currency = forms.CharField(
+        label='Devise',
+        max_length=10,
+        initial='USD',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'USD, EUR, CDF...'}),
+    )
+    in_stock = forms.BooleanField(
+        label='En stock',
+        required=False,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
+    sale_url = forms.URLField(
+        label='Lien de vente',
+        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+    )
+
+    def clean_currency(self):
+        return self.cleaned_data['currency'].strip().upper()
