@@ -34,6 +34,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='businessprofile',
+            name='market_code',
+            field=models.CharField(db_index=True, default='CD', max_length=8),
+        ),
+        migrations.AddField(
+            model_name='businessprofile',
             name='retailer',
             field=models.OneToOneField(
                 blank=True,
