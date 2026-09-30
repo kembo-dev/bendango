@@ -261,6 +261,44 @@ class ScrapeJob(models.Model):
 
 
 
+class BusinessProfile(models.Model):
+    """Professional business profile unlocked after an approved Pro request."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='business_profile',
+    )
+    business_name = models.CharField(max_length=180)
+    business_type = models.CharField(max_length=120, blank=True, default='')
+    website = models.URLField(max_length=2048, blank=True, default='')
+    phone = models.CharField(max_length=40, blank=True, default='')
+    country = models.CharField(max_length=100, blank=True, default='')
+    address = models.CharField(max_length=255, blank=True, default='')
+    logo_url = models.URLField(max_length=2048, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    is_verified = models.BooleanField(default=True, db_index=True)
+    approved_request = models.OneToOneField(
+        'BusinessAccountRequest',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='activated_profile',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['business_name']
+        indexes = [
+            models.Index(fields=['business_name'], name='tracker_biz_name_idx'),
+            models.Index(fields=['is_verified'], name='tracker_biz_verified_idx'),
+        ]
+
+    def __str__(self):
+        return self.business_name
+
+
 class BusinessAccountRequest(models.Model):
     STATUS_PENDING = 'pending'
     STATUS_APPROVED = 'approved'
@@ -292,6 +330,50 @@ class BusinessAccountRequest(models.Model):
             models.Index(fields=['user', 'created_at'], name='tracker_biz_user_created_idx'),
             models.Index(fields=['status', 'created_at'], name='tracker_biz_status_created_idx'),
         ]
+
+    def activate_profile(self):
+        """Create or refresh the user's professional profile from this request."""
+        if self.status != self.STATUS_APPROVED:
+            return None
+        profile, _ = BusinessProfile.objects.get_or_create(
+            user=self.user,
+            defaults={
+                'business_name': self.business_name,
+                'business_type': self.business_type,
+                'website': self.website,
+                'phone': self.phone,
+                'description': self.description,
+                'is_verified': True,
+                'approved_request': self,
+            },
+        )
+        changed = False
+        source_fields = {
+            'business_name': self.business_name,
+            'business_type': self.business_type,
+            'website': self.website,
+            'phone': self.phone,
+            'description': self.description,
+        }
+        for field, value in source_fields.items():
+            if not getattr(profile, field):
+                setattr(profile, field, value)
+                changed = True
+        if not profile.is_verified:
+            profile.is_verified = True
+            changed = True
+        if profile.approved_request_id != self.pk:
+            profile.approved_request = self
+            changed = True
+        if changed:
+            profile.save()
+        return profile
+
+    def save(self, *args, **kwargs):
+        result = super().save(*args, **kwargs)
+        if self.status == self.STATUS_APPROVED:
+            self.activate_profile()
+        return result
 
     def __str__(self):
         return f"{self.business_name} - {self.user}"
