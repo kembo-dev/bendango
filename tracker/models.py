@@ -373,6 +373,11 @@ class BusinessAccountRequest(models.Model):
         result = super().save(*args, **kwargs)
         if self.status == self.STATUS_APPROVED:
             self.activate_profile()
+        elif self.status == self.STATUS_REJECTED:
+            BusinessProfile.objects.filter(
+                user=self.user,
+                approved_request=self,
+            ).update(is_verified=False)
         return result
 
     def __str__(self):
