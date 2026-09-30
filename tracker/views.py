@@ -327,6 +327,10 @@ def search_run_status(request, run_id):
 
 
 def scrape_view(request):
+    anonymous_search_used = (
+        not request.user.is_authenticated
+        and bool(request.session.get("anonymous_search_used"))
+    )
     recent_searches = _recent_search_runs(limit=8, user=request.user)
     business_profile = (
         BusinessProfile.objects.filter(user=request.user, is_verified=True).first()
