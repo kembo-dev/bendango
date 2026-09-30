@@ -417,6 +417,8 @@ def scrape_view(request):
         })
 
     if request.method == "POST":
+        if anonymous_search_used:
+            return redirect("signup")
         form = SearchOrScrapeForm(request.POST)
         if form.is_valid():
             site = form.cleaned_data["site"]
@@ -440,6 +442,8 @@ def scrape_view(request):
                     listings.append(listing)
                 if error:
                     errors.append(error)
+                if not request.user.is_authenticated:
+                    request.session["anonymous_search_used"] = True
             else:
                 target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
                 search_run = SearchRun.objects.create(
@@ -452,6 +456,8 @@ def scrape_view(request):
                     market_currency=market.currency,
                     status=SearchRun.STATUS_QUEUED,
                 )
+                if not request.user.is_authenticated:
+                    request.session["anonymous_search_used"] = True
                 params = {"q": query, "run": str(search_run.pk), "market": market.code}
                 if site != "all":
                     params["site"] = site
