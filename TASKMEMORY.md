@@ -712,7 +712,9 @@ Every roadmap implementation should follow these rules:
 
 Current milestone:
 
-**Phase 1 implementation — Generalize Business model**
+**Phase 2 implementation — General Offer model**
+
+Phase 1 is functionally complete and validated by migration + test suite.
 
 Implemented in this milestone:
 
@@ -728,21 +730,30 @@ Implemented in this milestone:
 - Existing BusinessProfile migration/backfill
 - Public storefront regression tests
 
-Still to validate locally before closing Phase 1:
+Phase 1 validation:
 
-- [x] Run Django checks
-- [x] Apply migration 0016
-- [ ] Apply migration 0017 after PostgreSQL slug-index fix
-- [ ] Run full test suite after migration 0017 succeeds
-- [ ] Smoke-test an approved Business public page
+- [x] Django system checks pass
+- [x] Migration 0016 applied
+- [x] Migration 0017 applied after PostgreSQL slug-index fix
+- [x] Full suite passes: 214 tests, 1 skipped
+- [ ] Smoke-test an approved Business public page in the browser
 
 Validation note:
 - 0017 initially failed on PostgreSQL because the temporary SlugField and the later unique SlugField alteration both scheduled the same pattern-ops index.
 - Fixed by using a temporary CharField during slug backfill, then converting it once to the final unique SlugField.
 
-Next architectural objective after validation:
+Current architectural objective:
 
 > Introduce the general Offer model while preserving the existing Product and
 > PriceListing comparison core.
+
+Immediate Phase 2 sequence:
+
+1. Add Offer model and offer-type taxonomy.
+2. Add optional Product/PriceListing bridges for comparable goods.
+3. Backfill existing Pro catalog listings into Offer rows.
+4. Add quick-publish flow where website/sale URL is optional.
+5. Add public Offer pages and WhatsApp-first CTA.
+6. Search Bendango Offers before external web sources.
 
 Last roadmap update: 2026-09-30.
