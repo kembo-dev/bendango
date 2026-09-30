@@ -207,8 +207,21 @@ def signup(request):
 @login_required
 def request_business_account(request):
     existing = BusinessAccountRequest.objects.filter(user=request.user).order_by("-created_at").first()
+    blocking_request = BusinessAccountRequest.objects.filter(
+        user=request.user,
+        status__in=[
+            BusinessAccountRequest.STATUS_PENDING,
+            BusinessAccountRequest.STATUS_APPROVED,
+        ],
+    ).order_by("-created_at").first()
     if request.method == "POST":
         form = BusinessAccountRequestForm(request.POST)
+        if blocking_request:
+            messages.info(
+                request,
+                "Vous avez déjà une demande Pro en attente ou approuvée.",
+            )
+            return redirect("business_account_request")
         if form.is_valid():
             BusinessAccountRequest.objects.create(
                 user=request.user,
