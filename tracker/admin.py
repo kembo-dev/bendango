@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from tracker.models import BusinessAccountRequest, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessProfile, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
 
 
 @admin.register(Product)
@@ -62,8 +62,20 @@ class BusinessAccountRequestAdmin(admin.ModelAdmin):
 
     @admin.action(description='Approuver les demandes sélectionnées')
     def approve_requests(self, request, queryset):
-        queryset.update(status=BusinessAccountRequest.STATUS_APPROVED, reviewed_at=timezone.now())
+        reviewed_at = timezone.now()
+        for item in queryset:
+            item.status = BusinessAccountRequest.STATUS_APPROVED
+            item.reviewed_at = reviewed_at
+            item.save(update_fields=['status', 'reviewed_at'])
 
     @admin.action(description='Refuser les demandes sélectionnées')
     def reject_requests(self, request, queryset):
         queryset.update(status=BusinessAccountRequest.STATUS_REJECTED, reviewed_at=timezone.now())
+
+
+@admin.register(BusinessProfile)
+class BusinessProfileAdmin(admin.ModelAdmin):
+    list_display = ('business_name', 'user', 'business_type', 'country', 'is_verified', 'updated_at')
+    list_filter = ('is_verified', 'country', 'business_type')
+    search_fields = ('business_name', 'user__username', 'user__email', 'website', 'phone', 'country')
+    readonly_fields = ('approved_request', 'created_at', 'updated_at')
