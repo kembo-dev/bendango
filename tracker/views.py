@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -258,6 +259,31 @@ def _verified_business_profile(request):
         if approved:
             profile = approved.activate_profile()
     return profile
+
+
+def public_business(request, slug):
+    profile = get_object_or_404(
+        BusinessProfile.objects.select_related("category", "retailer"),
+        slug=slug,
+        is_public=True,
+        is_active=True,
+    )
+    listings = []
+    if profile.retailer_id:
+        listings = list(
+            PriceListing.objects.filter(
+                retailer=profile.retailer,
+                is_active=True,
+            )
+            .select_related("product")
+            .order_by("-scraped_at")
+        )
+    whatsapp_digits = re.sub(r"\D+", "", profile.whatsapp or profile.phone or "")
+    return render(request, "tracker/public_business.html", {
+        "profile": profile,
+        "listings": listings,
+        "whatsapp_url": f"https://wa.me/{whatsapp_digits}" if whatsapp_digits else "",
+    })
 
 
 @login_required
