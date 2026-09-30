@@ -66,6 +66,12 @@ class SignUpForm(UserCreationForm):
         for name in ('password1', 'password2'):
             self.fields[name].widget.attrs.update({'class': 'form-control'})
 
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('Un compte utilise déjà cette adresse e-mail.')
+        return email
+
 
 class BusinessAccountRequestForm(forms.Form):
     business_name = forms.CharField(
