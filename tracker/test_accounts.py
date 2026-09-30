@@ -234,3 +234,58 @@ class AccountWorkflowTests(TestCase):
         profile.refresh_from_db()
 
         self.assertFalse(profile.is_verified)
+
+
+    def test_anonymous_user_gets_only_one_search_per_session(self):
+        first = self.client.post(reverse('scrape_view'), {
+            'site': '',
+            'query': 'Samsung Galaxy A56 5G 8GB 256GB',
+            'market': 'CD',
+            'model_name': 'test-model',
+        })
+
+        self.assertEqual(first.status_code, 302)
+        self.assertEqual(SearchRun.objects.filter(user__isnull=True).count(), 1)
+        session = self.client.session
+        self.assertTrue(session.get('anonymous_search_used'))
+
+        second = self.client.post(reverse('scrape_view'), {
+            'site': '',
+            'query': 'iPhone 16 Pro 256GB',
+            'market': 'GLOBAL',
+            'model_name': 'test-model',
+        })
+
+        self.assertRedirects(second, reverse('signup'))
+        self.assertEqual(SearchRun.objects.filter(user__isnull=True).count(), 1)
+
+    def test_authenticated_user_is_not_limited_by_anonymous_trial(self):
+        user = User.objects.create_user(
+            username='unlimited',
+            password='StrongPass123!',
+        )
+        self.client.login(username='unlimited', password='StrongPass123!')
+
+        for query in ('Samsung Galaxy A56', 'iPhone 16 Pro'):
+            response = self.client.post(reverse('scrape_view'), {
+                'site': '',
+                'query': query,
+                'market': 'CD',
+                'model_name': 'test-model',
+            })
+            self.assertEqual(response.status_code, 302)
+
+        self.assertEqual(SearchRun.objects.filter(user=user).count(), 2)
+
+    def test_homepage_explains_anonymous_trial_limit(self):
+        response = self.client.get(reverse('scrape_view'))
+        self.assertContains(response, '1 recherche gratuite sans compte.')
+
+        session = self.client.session
+        session['anonymous_search_used'] = True
+        session.save()
+
+        response = self.client.get(reverse('scrape_view'))
+        self.assertContains(response, 'Votre recherche gratuite a déjà été utilisée.')
+        self.assertContains(response, 'Créer un compte')
+        self.assertContains(response, 'Se connecter')
