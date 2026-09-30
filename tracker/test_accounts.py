@@ -80,3 +80,48 @@ class AccountWorkflowTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn(reverse('login'), response.url)
+
+
+    def test_duplicate_active_pro_request_is_not_created(self):
+        user = User.objects.create_user(
+            username='proowner',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Business One',
+            status=BusinessAccountRequest.STATUS_PENDING,
+        )
+        self.client.login(username='proowner', password='StrongPass123!')
+
+        response = self.client.post(reverse('business_account_request'), {
+            'business_name': 'Business Two',
+            'business_type': 'Retail',
+            'website': '',
+            'phone': '',
+            'description': 'Deuxième demande',
+        })
+
+        self.assertRedirects(response, reverse('business_account_request'))
+        self.assertEqual(
+            BusinessAccountRequest.objects.filter(user=user).count(),
+            1,
+        )
+
+    def test_duplicate_email_is_rejected_at_signup(self):
+        User.objects.create_user(
+            username='existing',
+            email='same@example.com',
+            password='StrongPass123!',
+        )
+
+        response = self.client.post(reverse('signup'), {
+            'username': 'another',
+            'email': 'SAME@example.com',
+            'password1': 'StrongPass123!',
+            'password2': 'StrongPass123!',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Un compte utilise déjà cette adresse e-mail.')
+        self.assertFalse(User.objects.filter(username='another').exists())
