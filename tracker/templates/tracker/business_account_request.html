@@ -16,7 +16,7 @@
         <a href="{% url 'scrape_view' %}" class="btn btn-outline-secondary">Retour</a>
     </div>
 
-    {% if messages %}{% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}{% endif %}
+    {% if messages %}{% for message in messages %}<div class="alert {% if message.tags == 'info' %}alert-info{% elif message.tags == 'error' %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>{% endfor %}{% endif %}
 
     {% if existing_request %}
     <div class="alert {% if existing_request.status == 'approved' %}alert-success{% elif existing_request.status == 'rejected' %}alert-danger{% else %}alert-info{% endif %}">
@@ -25,6 +25,7 @@
     </div>
     {% endif %}
 
+    {% if not blocking_request %}
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4 p-md-5">
             <form method="post">{% csrf_token %}
