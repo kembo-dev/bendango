@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from tracker.models import BusinessAccountRequest, BusinessProfile, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
 
 
 @admin.register(Product)
@@ -77,9 +77,18 @@ class BusinessAccountRequestAdmin(admin.ModelAdmin):
             item.save(update_fields=['status', 'reviewed_at'])
 
 
+
+
+@admin.register(BusinessCategory)
+class BusinessCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'is_active', 'sort_order')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'slug')
+    ordering = ('sort_order', 'name')
+
 @admin.register(BusinessProfile)
 class BusinessProfileAdmin(admin.ModelAdmin):
-    list_display = ('business_name', 'user', 'business_type', 'market_code', 'country', 'retailer', 'is_verified', 'updated_at')
-    list_filter = ('is_verified', 'market_code', 'country', 'business_type')
+    list_display = ('business_name', 'category', 'user', 'market_code', 'city', 'verification_level', 'is_public', 'is_active', 'updated_at')
+    list_filter = ('verification_level', 'is_public', 'is_active', 'market_code', 'country', 'category')
     search_fields = ('business_name', 'user__username', 'user__email', 'website', 'phone', 'country')
     readonly_fields = ('approved_request', 'retailer', 'created_at', 'updated_at')
