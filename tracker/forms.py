@@ -3,6 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, market_choices
+from .models import BusinessProfile
 from .services import get_llm_config
 
 
@@ -101,3 +102,39 @@ class BusinessAccountRequestForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
     )
+
+
+
+class BusinessProfileForm(forms.ModelForm):
+    class Meta:
+        model = BusinessProfile
+        fields = (
+            'business_name',
+            'business_type',
+            'website',
+            'phone',
+            'country',
+            'address',
+            'logo_url',
+            'description',
+        )
+        labels = {
+            'business_name': "Nom de l'entreprise",
+            'business_type': 'Activité',
+            'website': 'Site web',
+            'phone': 'Téléphone',
+            'country': 'Pays',
+            'address': 'Adresse',
+            'logo_url': 'URL du logo',
+            'description': 'Description',
+        }
+        widgets = {
+            'business_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'business_type': forms.TextInput(attrs={'class': 'form-control'}),
+            'website': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+            'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'country': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: RDC'}),
+            'address': forms.TextInput(attrs={'class': 'form-control'}),
+            'logo_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+        }
