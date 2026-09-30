@@ -9,10 +9,10 @@ from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import BusinessAccountRequestForm, BusinessProfileForm, SearchOrScrapeForm, SignUpForm
+from .forms import BusinessAccountRequestForm, BusinessProfileForm, ProCatalogProductForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import BusinessAccountRequest, BusinessProfile, ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, BusinessProfile, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save
@@ -245,9 +245,11 @@ def request_business_account(request):
     })
 
 
-@login_required
-def pro_dashboard(request):
-    profile = BusinessProfile.objects.filter(user=request.user, is_verified=True).first()
+def _verified_business_profile(request):
+    profile = BusinessProfile.objects.filter(
+        user=request.user,
+        is_verified=True,
+    ).first()
     if profile is None:
         approved = BusinessAccountRequest.objects.filter(
             user=request.user,
@@ -255,6 +257,12 @@ def pro_dashboard(request):
         ).order_by("-reviewed_at", "-created_at").first()
         if approved:
             profile = approved.activate_profile()
+    return profile
+
+
+@login_required
+def pro_dashboard(request):
+    profile = _verified_business_profile(request)
     if profile is None:
         messages.info(
             request,
@@ -277,7 +285,157 @@ def pro_dashboard(request):
         "form": form,
         "recent_searches": recent_searches,
         "search_count": SearchRun.objects.filter(user=request.user).count(),
+        "product_count": (
+            PriceListing.objects.filter(retailer=profile.retailer).count()
+            if profile.retailer_id
+            else 0
+        ),
     })
+
+
+@login_required
+def pro_products(request):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        messages.info(request, "Votre espace Pro doit être approuvé avant de gérer un catalogue.")
+        return redirect("business_account_request")
+    retailer = profile.ensure_retailer()
+    listings = (
+        PriceListing.objects.filter(retailer=retailer)
+        .select_related("product")
+        .order_by("-scraped_at")
+    )
+    return render(request, "tracker/pro_products.html", {
+        "profile": profile,
+        "retailer": retailer,
+        "listings": listings,
+    })
+
+
+@login_required
+def pro_product_create(request):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        messages.info(request, "Votre espace Pro doit être approuvé avant d'ajouter des produits.")
+        return redirect("business_account_request")
+    retailer = profile.ensure_retailer()
+    if request.method == "POST":
+        form = ProCatalogProductForm(request.POST)
+        if form.is_valid():
+            product = Product.objects.create(
+                name=form.cleaned_data["name"],
+                brand=form.cleaned_data["brand"],
+                model=form.cleaned_data["model"],
+                sku_or_ean=form.cleaned_data["sku_or_ean"] or None,
+                category=form.cleaned_data["category"],
+                image_url=form.cleaned_data["image_url"],
+            )
+            PriceListing.objects.create(
+                product=product,
+                retailer=retailer,
+                url=form.cleaned_data["sale_url"],
+                price=form.cleaned_data["price"],
+                currency=form.cleaned_data["currency"],
+                confidence_score=1,
+                match_score=1,
+                extraction_source="unknown",
+                in_stock=form.cleaned_data["in_stock"],
+                is_active=True,
+            )
+            messages.success(request, "Le produit a été ajouté à votre catalogue Pro.")
+            return redirect("pro_products")
+    else:
+        form = ProCatalogProductForm()
+    return render(request, "tracker/pro_product_form.html", {
+        "profile": profile,
+        "form": form,
+        "page_title": "Ajouter un produit",
+        "submit_label": "Ajouter au catalogue",
+    })
+
+
+@login_required
+def pro_product_edit(request, listing_id):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        messages.info(request, "Votre espace Pro doit être approuvé avant de modifier un produit.")
+        return redirect("business_account_request")
+    retailer = profile.ensure_retailer()
+    listing = get_object_or_404(
+        PriceListing.objects.select_related("product"),
+        pk=listing_id,
+        retailer=retailer,
+    )
+    product = listing.product
+    initial = {
+        "name": product.name,
+        "brand": product.brand,
+        "model": product.model,
+        "sku_or_ean": product.sku_or_ean or "",
+        "category": product.category,
+        "image_url": product.image_url,
+        "price": listing.price,
+        "currency": listing.currency,
+        "in_stock": listing.in_stock,
+        "sale_url": listing.url,
+    }
+    if request.method == "POST":
+        form = ProCatalogProductForm(request.POST)
+        if form.is_valid():
+            if product.listings.exclude(retailer=retailer).exists():
+                product = Product.objects.create(
+                    name=form.cleaned_data["name"],
+                    brand=form.cleaned_data["brand"],
+                    model=form.cleaned_data["model"],
+                    sku_or_ean=form.cleaned_data["sku_or_ean"] or None,
+                    category=form.cleaned_data["category"],
+                    image_url=form.cleaned_data["image_url"],
+                )
+                listing.product = product
+            else:
+                product.name = form.cleaned_data["name"]
+                product.brand = form.cleaned_data["brand"]
+                product.model = form.cleaned_data["model"]
+                product.sku_or_ean = form.cleaned_data["sku_or_ean"] or None
+                product.category = form.cleaned_data["category"]
+                product.image_url = form.cleaned_data["image_url"]
+                product.save()
+            listing.url = form.cleaned_data["sale_url"]
+            listing.price = form.cleaned_data["price"]
+            listing.currency = form.cleaned_data["currency"]
+            listing.in_stock = form.cleaned_data["in_stock"]
+            listing.is_active = True
+            listing.confidence_score = 1
+            listing.match_score = 1
+            listing.save()
+            messages.success(request, "Le produit a été mis à jour.")
+            return redirect("pro_products")
+    else:
+        form = ProCatalogProductForm(initial=initial)
+    return render(request, "tracker/pro_product_form.html", {
+        "profile": profile,
+        "form": form,
+        "listing": listing,
+        "page_title": "Modifier le produit",
+        "submit_label": "Enregistrer les modifications",
+    })
+
+
+@login_required
+def pro_product_toggle(request, listing_id):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect("business_account_request")
+    retailer = profile.ensure_retailer()
+    listing = get_object_or_404(PriceListing, pk=listing_id, retailer=retailer)
+    if request.method == "POST":
+        listing.is_active = not listing.is_active
+        listing.save(update_fields=["is_active"])
+        messages.success(
+            request,
+            "Produit activé." if listing.is_active else "Produit désactivé.",
+        )
+    return redirect("pro_products")
 
 
 def _async_job_state(query):
