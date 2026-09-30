@@ -274,6 +274,7 @@ class BusinessProfile(models.Model):
     website = models.URLField(max_length=2048, blank=True, default='')
     phone = models.CharField(max_length=40, blank=True, default='')
     country = models.CharField(max_length=100, blank=True, default='')
+    market_code = models.CharField(max_length=8, default='CD', db_index=True)
     address = models.CharField(max_length=255, blank=True, default='')
     logo_url = models.URLField(max_length=2048, blank=True, default='')
     description = models.TextField(blank=True, default='')
