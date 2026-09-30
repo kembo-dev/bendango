@@ -1,15 +1,18 @@
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import SearchOrScrapeForm
+from .forms import BusinessAccountRequestForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save
@@ -121,9 +124,14 @@ def _run_state(search_run):
     }
 
 
-def _recent_search_runs(limit=8):
+def _recent_search_runs(limit=8, user=None):
+    queryset = SearchRun.objects.all()
+    if user is not None and getattr(user, "is_authenticated", False):
+        queryset = queryset.filter(user=user)
+    else:
+        queryset = queryset.none()
     return (
-        SearchRun.objects.annotate(
+        queryset.annotate(
             job_count=Count("jobs", distinct=True),
             offer_count=Count(
                 "jobs",
@@ -135,9 +143,10 @@ def _recent_search_runs(limit=8):
     )
 
 
+@login_required
 def search_history(request):
     product_query = (request.GET.get("q") or "").strip()
-    searches = SearchRun.objects.annotate(
+    searches = SearchRun.objects.filter(user=request.user).annotate(
         job_count=Count("jobs", distinct=True),
         offer_count=Count(
             "jobs",
@@ -154,8 +163,9 @@ def search_history(request):
     })
 
 
+@login_required
 def search_run_detail(request, run_id):
-    search_run = get_object_or_404(SearchRun, pk=run_id)
+    search_run = get_object_or_404(SearchRun, pk=run_id, user=request.user)
     run_state = _run_state(search_run)
     listings = run_state["listings"]
     summary = {}
@@ -176,6 +186,48 @@ def search_run_detail(request, run_id):
         "summary": summary,
         "discovery_sources": search_run.discovery_sources or [],
         "jobs": jobs,
+    })
+
+
+def signup(request):
+    if request.user.is_authenticated:
+        return redirect("scrape_view")
+    if request.method == "POST":
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, "Votre compte Bendango a été créé.")
+            return redirect("scrape_view")
+    else:
+        form = SignUpForm()
+    return render(request, "tracker/signup.html", {"form": form})
+
+
+@login_required
+def request_business_account(request):
+    existing = BusinessAccountRequest.objects.filter(user=request.user).order_by("-created_at").first()
+    if request.method == "POST":
+        form = BusinessAccountRequestForm(request.POST)
+        if form.is_valid():
+            BusinessAccountRequest.objects.create(
+                user=request.user,
+                business_name=form.cleaned_data["business_name"],
+                business_type=form.cleaned_data["business_type"],
+                website=form.cleaned_data["website"],
+                phone=form.cleaned_data["phone"],
+                description=form.cleaned_data["description"],
+            )
+            messages.success(
+                request,
+                "Votre demande de compte Pro a été envoyée. Elle sera examinée par l'équipe Bendango.",
+            )
+            return redirect("business_account_request")
+    else:
+        form = BusinessAccountRequestForm()
+    return render(request, "tracker/business_account_request.html", {
+        "form": form,
+        "existing_request": existing,
     })
 
 
@@ -217,7 +269,7 @@ def search_run_status(request, run_id):
 
 
 def scrape_view(request):
-    recent_searches = _recent_search_runs(limit=8)
+    recent_searches = _recent_search_runs(limit=8, user=request.user)
     listings = []
     discovery_sources = []
     errors = []
@@ -320,6 +372,7 @@ def scrape_view(request):
             else:
                 target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
                 search_run = SearchRun.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
                     query=query,
                     site_filter=site,
                     target_merchants=target_merchants,
