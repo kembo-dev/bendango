@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ profile.business_name }} - Bendango</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5">
+    <div class="card border-0 shadow-sm overflow-hidden mb-4">
+        {% if profile.cover_image_url %}
+        <img src="{{ profile.cover_image_url }}" alt="{{ profile.business_name }}" style="width:100%;height:220px;object-fit:cover">
+        {% endif %}
+        <div class="card-body p-4 p-md-5">
+            <div class="d-flex gap-4 align-items-start flex-wrap">
+                {% if profile.logo_url %}
+                <img src="{{ profile.logo_url }}" alt="Logo {{ profile.business_name }}" style="width:100px;height:100px;object-fit:contain;border-radius:18px;background:#fff;border:1px solid #e9ecef;padding:.5rem">
+                {% endif %}
+                <div class="flex-grow-1">
+                    <div class="d-flex gap-2 align-items-center flex-wrap mb-2">
+                        <h1 class="h2 mb-0">{{ profile.business_name }}</h1>
+                        {% if profile.verification_level == 'partner' %}
+                            <span class="badge text-bg-primary">Partenaire Bendango</span>
+                        {% elif profile.verification_level == 'business' %}
+                            <span class="badge text-bg-success">Business vérifié</span>
+                        {% elif profile.verification_level == 'identity' %}
+                            <span class="badge text-bg-info">Identité vérifiée</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">Non vérifié</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted mb-3">
+                        {% if profile.category %}{{ profile.category.name }}{% elif profile.business_type %}{{ profile.business_type }}{% endif %}
+                        {% if profile.city %} · {{ profile.city }}{% endif %}
+                        {% if profile.country %} · {{ profile.country }}{% endif %}
+                    </div>
+                    {% if profile.description %}<p class="mb-3">{{ profile.description }}</p>{% endif %}
+                    <div class="d-flex gap-2 flex-wrap">
+                        {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-success">Contacter sur WhatsApp</a>{% endif %}
+                        {% if profile.phone %}<a href="tel:{{ profile.phone }}" class="btn btn-outline-dark">Téléphoner</a>{% endif %}
+                        {% if profile.website %}<a href="{{ profile.website }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary">Site web</a>{% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if profile.address or profile.public_email or profile.facebook_url or profile.instagram_url or profile.tiktok_url %}
+            <div class="row g-3 mt-3">
+                {% if profile.address %}<div class="col-md-6"><strong>Adresse</strong><div class="text-muted">{{ profile.address }}</div></div>{% endif %}
+                {% if profile.public_email %}<div class="col-md-6"><strong>E-mail</strong><div><a href="mailto:{{ profile.public_email }}">{{ profile.public_email }}</a></div></div>{% endif %}
+                <div class="col-12 d-flex gap-2 flex-wrap">
+                    {% if profile.facebook_url %}<a href="{{ profile.facebook_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Facebook</a>{% endif %}
+                    {% if profile.instagram_url %}<a href="{{ profile.instagram_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">Instagram</a>{% endif %}
+                    {% if profile.tiktok_url %}<a href="{{ profile.tiktok_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">TikTok</a>{% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+        <div>
+            <div class="text-primary text-uppercase fw-bold small">Offres</div>
+            <h2 class="h4 mb-0">Produits et offres disponibles</h2>
+        </div>
+        <a href="{% url 'scrape_view' %}" class="btn btn-outline-primary">Comparer sur Bendango</a>
+    </div>
+
+    {% if listings %}
+    <div class="row g-3">
+        {% for listing in listings %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 border-0 shadow-sm">
+                {% if listing.product.image_url %}
+                <img src="{{ listing.product.image_url }}" alt="{{ listing.product.name }}" class="card-img-top" style="height:190px;object-fit:contain;background:#fff">
+                {% endif %}
+                <div class="card-body d-flex flex-column p-4">
+                    <h3 class="h5">{{ listing.product.name }}</h3>
+                    {% if listing.product.brand or listing.product.model %}<div class="small text-muted mb-2">{{ listing.product.brand }} {{ listing.product.model }}</div>{% endif %}
+                    <div class="fs-4 fw-bold text-primary mb-2">{{ listing.price }} {{ listing.currency }}</div>
+                    <div class="mb-3">{% if listing.in_stock %}<span class="badge text-bg-success">Disponible</span>{% else %}<span class="badge text-bg-warning">Indisponible</span>{% endif %}</div>
+                    <div class="mt-auto d-flex gap-2 flex-wrap">
+                        {% if listing.url %}<a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Voir l'offre</a>{% endif %}
+                        {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-sm">WhatsApp</a>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">Ce business n'a pas encore publié d'offre active.</div>
+    {% endif %}
+</div>
+<style>.card{border-radius:18px!important}</style>
+</body>
+</html>
