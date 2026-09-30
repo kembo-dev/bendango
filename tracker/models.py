@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 
 
 class Retailer(models.Model):
@@ -261,8 +262,37 @@ class ScrapeJob(models.Model):
 
 
 
+class BusinessCategory(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)[:140] or f"category-{self.pk or 'new'}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class BusinessProfile(models.Model):
-    """Professional business profile unlocked after an approved Pro request."""
+    """Universal Bendango business profile for stores, sellers, services, hotels and more."""
+
+    VERIFY_UNVERIFIED = 'unverified'
+    VERIFY_IDENTITY = 'identity'
+    VERIFY_BUSINESS = 'business'
+    VERIFY_PARTNER = 'partner'
+    VERIFICATION_LEVELS = [
+        (VERIFY_UNVERIFIED, 'Non vérifié'),
+        (VERIFY_IDENTITY, 'Identité vérifiée'),
+        (VERIFY_BUSINESS, 'Business vérifié'),
+        (VERIFY_PARTNER, 'Partenaire Bendango'),
+    ]
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -270,15 +300,43 @@ class BusinessProfile(models.Model):
         related_name='business_profile',
     )
     business_name = models.CharField(max_length=180)
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
     business_type = models.CharField(max_length=120, blank=True, default='')
+    category = models.ForeignKey(
+        BusinessCategory,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='businesses',
+    )
     website = models.URLField(max_length=2048, blank=True, default='')
     phone = models.CharField(max_length=40, blank=True, default='')
+    whatsapp = models.CharField(max_length=40, blank=True, default='')
+    public_email = models.EmailField(blank=True, default='')
+    facebook_url = models.URLField(max_length=2048, blank=True, default='')
+    instagram_url = models.URLField(max_length=2048, blank=True, default='')
+    tiktok_url = models.URLField(max_length=2048, blank=True, default='')
     country = models.CharField(max_length=100, blank=True, default='')
+    city = models.CharField(max_length=120, blank=True, default='')
     market_code = models.CharField(max_length=8, default='CD', db_index=True)
     address = models.CharField(max_length=255, blank=True, default='')
     logo_url = models.URLField(max_length=2048, blank=True, default='')
+    cover_image_url = models.URLField(max_length=2048, blank=True, default='')
+    opening_hours = models.JSONField(default=dict, blank=True)
     description = models.TextField(blank=True, default='')
+    verification_level = models.CharField(
+        max_length=16,
+        choices=VERIFICATION_LEVELS,
+        default=VERIFY_BUSINESS,
+        db_index=True,
+    )
+    phone_verified = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=False)
+    address_verified = models.BooleanField(default=False)
+    documents_verified = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=True, db_index=True)
+    is_public = models.BooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     approved_request = models.OneToOneField(
         'BusinessAccountRequest',
         on_delete=models.SET_NULL,
@@ -300,8 +358,21 @@ class BusinessProfile(models.Model):
         ordering = ['business_name']
         indexes = [
             models.Index(fields=['business_name'], name='tracker_biz_name_idx'),
+            models.Index(fields=['slug'], name='tracker_biz_slug_idx'),
             models.Index(fields=['is_verified'], name='tracker_biz_verified_idx'),
+            models.Index(fields=['market_code', 'city'], name='tracker_biz_market_city_idx'),
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.business_name)[:190] or 'business'
+            candidate = base
+            suffix = 2
+            while BusinessProfile.objects.exclude(pk=self.pk).filter(slug=candidate).exists():
+                candidate = f"{base[:180]}-{suffix}"
+                suffix += 1
+            self.slug = candidate
+        super().save(*args, **kwargs)
 
     def ensure_retailer(self):
         if self.retailer_id:
