@@ -563,22 +563,24 @@ Sponsored content must remain distinguishable from organic ranking.
 
 ### Phase 1 — Generalize the Business model
 
-- [ ] Add data-driven BusinessCategory
-- [ ] Add business slug
-- [ ] Add city
-- [ ] Add WhatsApp
-- [ ] Add public email
-- [ ] Add Facebook
-- [ ] Add Instagram
-- [ ] Add TikTok
-- [ ] Add opening hours
-- [ ] Add verification level
-- [ ] Add verification flags
-- [ ] Add public/active status
-- [ ] Make website optional everywhere
-- [ ] Prepare public Business page
-- [ ] Preserve compatibility with existing BusinessProfile rows
-- [ ] Add migrations and regression tests
+Implementation note: core model/public storefront work is implemented in the repository and is awaiting local migration/test validation before Phase 1 is considered operationally closed.
+
+- [x] Add data-driven BusinessCategory
+- [x] Add business slug
+- [x] Add city
+- [x] Add WhatsApp
+- [x] Add public email
+- [x] Add Facebook
+- [x] Add Instagram
+- [x] Add TikTok
+- [x] Add opening hours data field
+- [x] Add verification level
+- [x] Add verification flags
+- [x] Add public/active status
+- [x] Keep website optional for Business profiles
+- [x] Add public Business page at /business/<slug>/
+- [x] Preserve compatibility with existing BusinessProfile rows via migration/backfill
+- [x] Add migrations and regression tests
 
 ### Phase 2 — General Offer model
 
@@ -710,11 +712,32 @@ Every roadmap implementation should follow these rules:
 
 Current milestone:
 
-**Phase 1 preparation — Generalize Business model**
+**Phase 1 implementation — Generalize Business model**
 
-Current objective:
+Implemented in this milestone:
 
-> Turn Bendango from a merchant-only comparison engine into a universal business
-> and offer discovery platform while preserving the existing price-comparison core.
+- BusinessCategory with seeded extensible categories
+- Public business slug
+- City and market-aware profile
+- WhatsApp and public contact channels
+- Facebook / Instagram / TikTok links
+- Cover image and opening-hours data
+- Progressive verification levels and verification flags
+- Public/active visibility controls
+- Public storefront at `/business/<slug>/`
+- Existing BusinessProfile migration/backfill
+- Public storefront regression tests
+
+Still to validate locally before closing Phase 1:
+
+- Run Django checks
+- Apply migrations 0016 and 0017
+- Run full test suite
+- Smoke-test an approved Business public page
+
+Next architectural objective after validation:
+
+> Introduce the general Offer model while preserving the existing Product and
+> PriceListing comparison core.
 
 Last roadmap update: 2026-09-30.
