@@ -3,6 +3,7 @@ from django.urls import path
 
 from .views import (
     pro_dashboard,
+    public_business,
     pro_product_create,
     pro_product_edit,
     pro_product_toggle,
@@ -26,6 +27,7 @@ urlpatterns = [
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('account/pro-request/', request_business_account, name='business_account_request'),
     path('pro/', pro_dashboard, name='pro_dashboard'),
+    path('business/<slug:slug>/', public_business, name='public_business'),
     path('pro/products/', pro_products, name='pro_products'),
     path('pro/products/add/', pro_product_create, name='pro_product_create'),
     path('pro/products/<int:listing_id>/edit/', pro_product_edit, name='pro_product_edit'),
