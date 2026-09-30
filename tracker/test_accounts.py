@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from tracker.models import BusinessAccountRequest, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessProfile, SearchRun
 
 
 class AccountWorkflowTests(TestCase):
@@ -125,3 +125,92 @@ class AccountWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Un compte utilise déjà cette adresse e-mail.')
         self.assertFalse(User.objects.filter(username='another').exists())
+
+
+    def test_approved_request_activates_business_profile(self):
+        user = User.objects.create_user(
+            username='approvedowner',
+            password='StrongPass123!',
+        )
+        request = BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Approved Business',
+            business_type='Commerce',
+            website='https://approved.example',
+            phone='+243111111111',
+            description='Business approuvé.',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+
+        profile = BusinessProfile.objects.get(user=user)
+        self.assertEqual(profile.business_name, 'Approved Business')
+        self.assertTrue(profile.is_verified)
+        self.assertEqual(profile.approved_request, request)
+
+    def test_pro_dashboard_requires_approved_profile(self):
+        user = User.objects.create_user(
+            username='pendingowner',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Pending Business',
+            status=BusinessAccountRequest.STATUS_PENDING,
+        )
+        self.client.login(username='pendingowner', password='StrongPass123!')
+
+        response = self.client.get(reverse('pro_dashboard'))
+
+        self.assertRedirects(response, reverse('business_account_request'))
+
+    def test_approved_user_can_open_and_update_pro_dashboard(self):
+        user = User.objects.create_user(
+            username='dashboardowner',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Dashboard Business',
+            business_type='E-commerce',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        self.client.login(username='dashboardowner', password='StrongPass123!')
+
+        response = self.client.get(reverse('pro_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Dashboard Business')
+        self.assertContains(response, 'Compte Pro actif')
+
+        response = self.client.post(reverse('pro_dashboard'), {
+            'business_name': 'Dashboard Business RDC',
+            'business_type': 'Distribution',
+            'website': 'https://dashboard.example',
+            'phone': '+243222222222',
+            'country': 'RDC',
+            'address': 'Kinshasa',
+            'logo_url': 'https://dashboard.example/logo.png',
+            'description': 'Profil professionnel mis à jour.',
+        })
+
+        self.assertRedirects(response, reverse('pro_dashboard'))
+        profile = BusinessProfile.objects.get(user=user)
+        self.assertEqual(profile.business_name, 'Dashboard Business RDC')
+        self.assertEqual(profile.country, 'RDC')
+        self.assertEqual(profile.address, 'Kinshasa')
+
+    def test_homepage_shows_pro_dashboard_for_activated_business(self):
+        user = User.objects.create_user(
+            username='homepro',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Home Pro Business',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        self.client.login(username='homepro', password='StrongPass123!')
+
+        response = self.client.get(reverse('scrape_view'))
+
+        self.assertContains(response, 'Espace Pro')
+        self.assertContains(response, reverse('pro_dashboard'))
