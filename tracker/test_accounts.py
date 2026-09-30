@@ -214,3 +214,23 @@ class AccountWorkflowTests(TestCase):
 
         self.assertContains(response, 'Espace Pro')
         self.assertContains(response, reverse('pro_dashboard'))
+
+
+    def test_rejected_request_revokes_verified_profile(self):
+        user = User.objects.create_user(
+            username='revokedowner',
+            password='StrongPass123!',
+        )
+        request = BusinessAccountRequest.objects.create(
+            user=user,
+            business_name='Revoked Business',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        profile = BusinessProfile.objects.get(user=user)
+        self.assertTrue(profile.is_verified)
+
+        request.status = BusinessAccountRequest.STATUS_REJECTED
+        request.save(update_fields=['status'])
+        profile.refresh_from_db()
+
+        self.assertFalse(profile.is_verified)
