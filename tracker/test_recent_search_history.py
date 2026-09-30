@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -9,7 +10,14 @@ from tracker.models import PriceListing, Product, Retailer, ScrapeJob, SearchRun
 
 class RecentSearchHistoryTests(TestCase):
     def setUp(self):
+        self.user = User.objects.create_user(
+            username='alexandre',
+            email='alexandre@example.com',
+            password='StrongPass123!',
+        )
+        self.client.login(username='alexandre', password='StrongPass123!')
         self.run = SearchRun.objects.create(
+            user=self.user,
             query='Samsung Galaxy A56 5G 8GB 256GB',
             site_filter='all',
             target_merchants=3,
@@ -79,6 +87,7 @@ class RecentSearchHistoryTests(TestCase):
 
     def test_search_history_filters_by_product_query(self):
         other = SearchRun.objects.create(
+            user=self.user,
             query='iPhone 16 Pro 256GB',
             site_filter='all',
             target_merchants=3,
@@ -103,3 +112,22 @@ class RecentSearchHistoryTests(TestCase):
             response,
             'Aucune recherche enregistrée ne correspond à « Produit introuvable xyz ».',
         )
+
+
+    def test_user_cannot_open_another_users_search(self):
+        other_user = User.objects.create_user(
+            username='other',
+            password='OtherPass123!',
+        )
+        other_run = SearchRun.objects.create(
+            user=other_user,
+            query='Private product',
+            target_merchants=3,
+            market_code='CD',
+            status=SearchRun.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('search_run_detail', args=[other_run.pk]))
+
+        self.assertEqual(response.status_code, 404)
