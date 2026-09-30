@@ -7,6 +7,18 @@
 </head>
 <body class="bg-light page-shell">
 <div class="container py-5"><div class="row justify-content-center"><div class="col-md-10">
+    <div class="d-flex justify-content-end align-items-center gap-2 flex-wrap mb-3">
+        {% if request.user.is_authenticated %}
+            <span class="small text-muted">Bonjour {{ request.user.username }}</span>
+            <a href="{% url 'search_history' %}" class="btn btn-outline-primary btn-sm">Mes recherches</a>
+            <a href="{% url 'business_account_request' %}" class="btn btn-outline-dark btn-sm">Compte Pro</a>
+            <form method="post" action="{% url 'logout' %}" class="d-inline">{% csrf_token %}<button class="btn btn-light border btn-sm" type="submit">Déconnexion</button></form>
+        {% else %}
+            <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">Connexion</a>
+            <a href="{% url 'signup' %}" class="btn btn-primary btn-sm">Créer un compte</a>
+        {% endif %}
+    </div>
+    {% if messages %}{% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}{% endif %}
     <div class="hero-panel text-center mb-4"><div class="eyebrow">Bendango Compare</div><h1 class="mb-2">Comparez les prix intelligemment</h1><p class="mb-0">Trouvez les offres fiables, comparez les prix et découvrez aussi le produit sur d'autres plateformes.</p></div>
 
     <form method="post" class="card p-4 shadow-sm premium-form">{% csrf_token %}
