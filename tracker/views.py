@@ -245,8 +245,17 @@ def _async_job_state(query):
     return listings, active.count(), jobs.filter(status=ScrapeJob.STATUS_FAILED).count(), jobs.count()
 
 
+def _accessible_search_run(request, run_id):
+    queryset = SearchRun.objects.filter(pk=run_id)
+    if request.user.is_authenticated:
+        queryset = queryset.filter(Q(user=request.user) | Q(user__isnull=True))
+    else:
+        queryset = queryset.filter(user__isnull=True)
+    return get_object_or_404(queryset)
+
+
 def search_run_status(request, run_id):
-    search_run = get_object_or_404(SearchRun, pk=run_id)
+    search_run = _accessible_search_run(request, run_id)
     state = _run_state(search_run)
     return JsonResponse({
         "run_id": str(search_run.pk),
@@ -289,9 +298,12 @@ def scrape_view(request):
         run_id = request.GET.get("run", "").strip()
         if run_id:
             try:
-                search_run = SearchRun.objects.get(pk=run_id, query=query)
-                market_code = normalize_market_code(search_run.market_code)
-            except (SearchRun.DoesNotExist, ValidationError, ValueError):
+                search_run = _accessible_search_run(request, run_id)
+                if search_run.query != query:
+                    search_run = None
+                elif search_run is not None:
+                    market_code = normalize_market_code(search_run.market_code)
+            except (ValidationError, ValueError):
                 search_run = None
         form = SearchOrScrapeForm(initial={
             "query": query,
