@@ -70,7 +70,11 @@ class BusinessAccountRequestAdmin(admin.ModelAdmin):
 
     @admin.action(description='Refuser les demandes sélectionnées')
     def reject_requests(self, request, queryset):
-        queryset.update(status=BusinessAccountRequest.STATUS_REJECTED, reviewed_at=timezone.now())
+        reviewed_at = timezone.now()
+        for item in queryset:
+            item.status = BusinessAccountRequest.STATUS_REJECTED
+            item.reviewed_at = reviewed_at
+            item.save(update_fields=['status', 'reviewed_at'])
 
 
 @admin.register(BusinessProfile)
