@@ -308,18 +308,21 @@ class BusinessProfile(models.Model):
         base_url = (self.website or '').strip()
         if not base_url:
             base_url = f"https://bendango.local/business/{self.pk}/"
+        retailer_name = self.business_name[:100]
+        if Retailer.objects.filter(name=retailer_name).exclude(base_url=base_url).exists():
+            retailer_name = f"{self.business_name[:80]} #{self.pk}"[:100]
         retailer, _ = Retailer.objects.get_or_create(
             base_url=base_url,
             defaults={
-                'name': self.business_name[:100],
+                'name': retailer_name,
                 'trust_score': Decimal('0.85'),
                 'trust_level': 'verified',
                 'is_active': True,
             },
         )
         changed = False
-        if retailer.name != self.business_name[:100]:
-            retailer.name = self.business_name[:100]
+        if retailer.name != retailer_name:
+            retailer.name = retailer_name
             changed = True
         if retailer.trust_level != 'verified':
             retailer.trust_level = 'verified'
