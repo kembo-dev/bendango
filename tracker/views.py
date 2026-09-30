@@ -9,10 +9,10 @@ from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import BusinessAccountRequestForm, SearchOrScrapeForm, SignUpForm
+from .forms import BusinessAccountRequestForm, BusinessProfileForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import BusinessAccountRequest, ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, BusinessProfile, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save
@@ -245,6 +245,41 @@ def request_business_account(request):
     })
 
 
+@login_required
+def pro_dashboard(request):
+    profile = BusinessProfile.objects.filter(user=request.user).first()
+    if profile is None:
+        approved = BusinessAccountRequest.objects.filter(
+            user=request.user,
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        ).order_by("-reviewed_at", "-created_at").first()
+        if approved:
+            profile = approved.activate_profile()
+    if profile is None:
+        messages.info(
+            request,
+            "Votre espace Pro sera disponible après approbation de votre demande.",
+        )
+        return redirect("business_account_request")
+
+    if request.method == "POST":
+        form = BusinessProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Votre profil professionnel a été mis à jour.")
+            return redirect("pro_dashboard")
+    else:
+        form = BusinessProfileForm(instance=profile)
+
+    recent_searches = SearchRun.objects.filter(user=request.user).order_by("-created_at")[:5]
+    return render(request, "tracker/pro_dashboard.html", {
+        "profile": profile,
+        "form": form,
+        "recent_searches": recent_searches,
+        "search_count": SearchRun.objects.filter(user=request.user).count(),
+    })
+
+
 def _async_job_state(query):
     jobs = ScrapeJob.objects.filter(search_run__isnull=True, query__iexact=query)
     active = jobs.filter(status__in=[ScrapeJob.STATUS_PENDING, ScrapeJob.STATUS_RUNNING, ScrapeJob.STATUS_RETRY])
@@ -293,6 +328,11 @@ def search_run_status(request, run_id):
 
 def scrape_view(request):
     recent_searches = _recent_search_runs(limit=8, user=request.user)
+    business_profile = (
+        BusinessProfile.objects.filter(user=request.user).first()
+        if request.user.is_authenticated
+        else None
+    )
     listings = []
     discovery_sources = []
     errors = []
@@ -369,6 +409,7 @@ def scrape_view(request):
             "search_run": search_run,
             "run_state": run_state,
             "recent_searches": recent_searches,
+            "business_profile": business_profile,
         })
 
     if request.method == "POST":
@@ -428,4 +469,5 @@ def scrape_view(request):
         "search_run": search_run,
         "run_state": run_state,
         "recent_searches": recent_searches,
+        "business_profile": business_profile,
     })
