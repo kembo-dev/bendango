@@ -730,10 +730,15 @@ Implemented in this milestone:
 
 Still to validate locally before closing Phase 1:
 
-- Run Django checks
-- Apply migrations 0016 and 0017
-- Run full test suite
-- Smoke-test an approved Business public page
+- [x] Run Django checks
+- [x] Apply migration 0016
+- [ ] Apply migration 0017 after PostgreSQL slug-index fix
+- [ ] Run full test suite after migration 0017 succeeds
+- [ ] Smoke-test an approved Business public page
+
+Validation note:
+- 0017 initially failed on PostgreSQL because the temporary SlugField and the later unique SlugField alteration both scheduled the same pattern-ops index.
+- Fixed by using a temporary CharField during slug backfill, then converting it once to the final unique SlugField.
 
 Next architectural objective after validation:
 
