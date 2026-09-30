@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -182,6 +183,13 @@ class SearchRun(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='search_runs',
+    )
     query = models.CharField(max_length=255, db_index=True)
     site_filter = models.CharField(max_length=255, default='all')
     target_merchants = models.PositiveIntegerField(default=1)
@@ -250,3 +258,40 @@ class ScrapeJob(models.Model):
 
     def __str__(self):
         return f"{self.status}: {self.url}"
+
+
+
+class BusinessAccountRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'En attente'),
+        (STATUS_APPROVED, 'Approuvée'),
+        (STATUS_REJECTED, 'Refusée'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='business_account_requests',
+    )
+    business_name = models.CharField(max_length=180)
+    business_type = models.CharField(max_length=120, blank=True, default='')
+    website = models.URLField(max_length=2048, blank=True, default='')
+    phone = models.CharField(max_length=40, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    admin_note = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at'], name='tracker_biz_user_created_idx'),
+            models.Index(fields=['status', 'created_at'], name='tracker_biz_status_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.business_name} - {self.user}"
