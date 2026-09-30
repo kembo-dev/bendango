@@ -25,13 +25,33 @@
     {% if messages %}{% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}{% endif %}
     <div class="hero-panel text-center mb-4"><div class="eyebrow">Bendango Compare</div><h1 class="mb-2">Comparez les prix intelligemment</h1><p class="mb-0">Trouvez les offres fiables, comparez les prix et découvrez aussi le produit sur d'autres plateformes.</p></div>
 
+    {% if not request.user.is_authenticated %}
+    <div class="alert {% if anonymous_search_used %}alert-warning{% else %}alert-info{% endif %} d-flex justify-content-between align-items-center gap-3 flex-wrap">
+        <div>
+            {% if anonymous_search_used %}
+                <strong>Votre recherche gratuite a déjà été utilisée.</strong>
+                <div class="small mt-1">Créez un compte ou connectez-vous pour continuer vos recherches et conserver votre historique.</div>
+            {% else %}
+                <strong>1 recherche gratuite sans compte.</strong>
+                <div class="small mt-1">Créez ensuite votre compte Bendango pour continuer et retrouver vos recherches.</div>
+            {% endif %}
+        </div>
+        {% if anonymous_search_used %}
+        <div class="d-flex gap-2">
+            <a href="{% url 'signup' %}" class="btn btn-primary btn-sm">Créer un compte</a>
+            <a href="{% url 'login' %}" class="btn btn-outline-primary btn-sm">Se connecter</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <form method="post" class="card p-4 shadow-sm premium-form">{% csrf_token %}
         <div class="row g-3 align-items-end">
             <div class="col-md-3"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="toggle-site-filter"><label class="form-check-label fw-bold" for="toggle-site-filter">Limiter à un site</label></div><div id="site-field-group" class="d-none"><label class="form-label fw-bold">Site e-commerce ou URL</label>{{ form.site }}{% if form.site.help_text %}<div class="form-text">{{ form.site.help_text }}</div>{% endif %}</div></div>
             <div class="col-md-4"><label class="form-label fw-bold">Produit à rechercher</label>{{ form.query }}</div>
             <div class="col-md-3"><label class="form-label fw-bold">Marché</label>{{ form.market }}<div class="form-text">Bendango privilégie les marchands et sources de ce pays.</div></div>
             <div class="col-md-2"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
-        </div><button type="submit" class="btn btn-primary mt-4 w-100 btn-compare">Comparer les prix</button>
+        </div><button type="submit" class="btn btn-primary mt-4 w-100 btn-compare" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Comparer les prix{% endif %}</button>
     </form>
 
         {% if search_run and run_state %}<section id="search-progress" class="search-progress mt-4" data-status-url="{% url 'search_run_status' search_run.pk %}" data-running="{% if async_waiting %}1{% else %}0{% endif %}">
