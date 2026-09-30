@@ -17,7 +17,10 @@
                 {% if profile.country %} · {{ profile.country }}{% endif %}
             </div>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            {% if profile.is_public and profile.is_active %}
+            <a href="{% url 'public_business' profile.slug %}" class="btn btn-outline-success" target="_blank">Voir ma page publique</a>
+            {% endif %}
             <a href="{% url 'search_history' %}" class="btn btn-outline-primary">Mes recherches</a>
             <a href="{% url 'scrape_view' %}" class="btn btn-primary">Comparer un produit</a>
         </div>
