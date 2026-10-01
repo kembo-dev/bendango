@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, market_choices
-from .models import BusinessProfile
+from .models import BusinessProfile, Offer
 from .services import get_llm_config
 
 
@@ -229,3 +229,87 @@ class ProCatalogProductForm(forms.Form):
 
     def clean_currency(self):
         return self.cleaned_data['currency'].strip().upper()
+
+
+
+class QuickOfferForm(forms.Form):
+    offer_type = forms.ChoiceField(
+        label="Type d'offre",
+        choices=Offer.OFFER_TYPES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    title = forms.CharField(
+        label='Nom / titre',
+        max_length=255,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Samsung A56, chambre standard, coiffure femme...'}),
+    )
+    price = forms.DecimalField(
+        label='Prix',
+        required=False,
+        min_value=0.01,
+        max_digits=14,
+        decimal_places=2,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Laisser vide si sur demande'}),
+    )
+    currency = forms.CharField(
+        label='Devise',
+        max_length=10,
+        initial='USD',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'USD, CDF, EUR...'}),
+    )
+    price_unit = forms.CharField(
+        label='Unité de prix',
+        max_length=60,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: nuit, heure, unité, mois...'}),
+    )
+    primary_image_url = forms.URLField(
+        label='Photo',
+        required=False,
+        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+    )
+    availability = forms.ChoiceField(
+        label='Disponibilité',
+        choices=Offer.AVAILABILITY_CHOICES,
+        initial='available',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    whatsapp = forms.CharField(
+        label='WhatsApp',
+        max_length=40,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+243...'}),
+    )
+    external_url = forms.URLField(
+        label='Lien externe / site',
+        required=False,
+        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'Optionnel'}),
+    )
+    description = forms.CharField(
+        label='Description',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+    )
+
+    def clean_currency(self):
+        return self.cleaned_data['currency'].strip().upper()
+
+
+class OfferEditForm(QuickOfferForm):
+    category = forms.CharField(
+        label='Catégorie',
+        max_length=120,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    city = forms.CharField(
+        label='Ville',
+        max_length=120,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    contact_method = forms.ChoiceField(
+        label='Contact principal',
+        choices=Offer.CONTACT_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
