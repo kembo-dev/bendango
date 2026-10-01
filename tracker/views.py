@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
+from .offer_search import find_matching_offers
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import BusinessAccountRequest, BusinessProfile, Offer, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
@@ -716,6 +717,7 @@ def scrape_view(request):
         else None
     )
     listings = []
+    first_party_offers = []
     discovery_sources = []
     errors = []
     summary = {}
@@ -746,6 +748,11 @@ def scrape_view(request):
             "site": "" if site == "all" else site,
             "market": market_code,
         })
+        first_party_offers = find_matching_offers(
+            query,
+            market_code=market_code,
+            limit=12,
+        )
         if search_run:
             run_state = _run_state(search_run)
             listings = run_state["listings"]
@@ -783,6 +790,7 @@ def scrape_view(request):
         return render(request, "tracker/scrape.html", {
             "form": form,
             "listings": listings,
+            "first_party_offers": first_party_offers,
             "discovery_sources": discovery_sources,
             "errors": errors,
             "summary": summary,
@@ -850,6 +858,7 @@ def scrape_view(request):
     return render(request, "tracker/scrape.html", {
         "form": form,
         "listings": listings,
+        "first_party_offers": first_party_offers,
         "discovery_sources": discovery_sources,
         "errors": errors,
         "summary": summary,
