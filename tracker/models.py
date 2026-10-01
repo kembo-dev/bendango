@@ -412,6 +412,92 @@ class BusinessProfile(models.Model):
         return self.business_name
 
 
+class Offer(models.Model):
+    TYPE_PRODUCT = 'product'
+    TYPE_SERVICE = 'service'
+    TYPE_ACCOMMODATION = 'accommodation'
+    TYPE_RESTAURANT = 'restaurant'
+    TYPE_HEALTH = 'health'
+    TYPE_TRANSPORT = 'transport'
+    TYPE_REAL_ESTATE = 'real_estate'
+    TYPE_OTHER = 'other'
+    OFFER_TYPES = [
+        (TYPE_PRODUCT, 'Produit'),
+        (TYPE_SERVICE, 'Service'),
+        (TYPE_ACCOMMODATION, 'Hôtel / logement'),
+        (TYPE_RESTAURANT, 'Restaurant / menu'),
+        (TYPE_HEALTH, 'Santé / pharmacie'),
+        (TYPE_TRANSPORT, 'Transport'),
+        (TYPE_REAL_ESTATE, 'Immobilier'),
+        (TYPE_OTHER, 'Autre'),
+    ]
+    AVAILABILITY_CHOICES = [
+        ('available', 'Disponible'),
+        ('unavailable', 'Indisponible'),
+        ('on_request', 'Sur demande'),
+    ]
+    CONTACT_CHOICES = [
+        ('whatsapp', 'WhatsApp'),
+        ('phone', 'Téléphone'),
+        ('external', 'Lien externe'),
+        ('business', 'Contacter le business'),
+    ]
+
+    business = models.ForeignKey(BusinessProfile, on_delete=models.CASCADE, related_name='offers')
+    offer_type = models.CharField(max_length=24, choices=OFFER_TYPES, default=TYPE_PRODUCT, db_index=True)
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=240, unique=True, blank=True)
+    description = models.TextField(blank=True, default='')
+    category = models.CharField(max_length=120, blank=True, default='')
+    price = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
+    currency = models.CharField(max_length=10, blank=True, default='USD')
+    price_unit = models.CharField(max_length=60, blank=True, default='')
+    availability = models.CharField(max_length=16, choices=AVAILABILITY_CHOICES, default='available', db_index=True)
+    primary_image_url = models.URLField(max_length=2048, blank=True, default='')
+    external_url = models.URLField(max_length=2048, blank=True, default='')
+    whatsapp = models.CharField(max_length=40, blank=True, default='')
+    contact_method = models.CharField(max_length=16, choices=CONTACT_CHOICES, default='business')
+    market_code = models.CharField(max_length=8, default='CD', db_index=True)
+    city = models.CharField(max_length=120, blank=True, default='')
+    attributes = models.JSONField(default=dict, blank=True)
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, blank=True, null=True, related_name='business_offers')
+    price_listing = models.OneToOneField(PriceListing, on_delete=models.SET_NULL, blank=True, null=True, related_name='business_offer')
+    is_public = models.BooleanField(default=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at', '-created_at']
+        indexes = [
+            models.Index(fields=['business', 'is_active'], name='tracker_offer_biz_active_idx'),
+            models.Index(fields=['offer_type', 'market_code'], name='tracker_offer_type_market_idx'),
+            models.Index(fields=['title'], name='tracker_offer_title_idx'),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.business_id:
+            if not self.market_code:
+                self.market_code = self.business.market_code
+            if not self.city:
+                self.city = self.business.city
+            if not self.whatsapp:
+                self.whatsapp = self.business.whatsapp
+        if not self.slug:
+            base = slugify(f"{self.business.business_name}-{self.title}")[:210] or 'offer'
+            candidate = base
+            suffix = 2
+            while Offer.objects.exclude(pk=self.pk).filter(slug=candidate).exists():
+                candidate = f"{base[:200]}-{suffix}"
+                suffix += 1
+            self.slug = candidate
+        self.currency = (self.currency or '').upper()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.business.business_name}: {self.title}"
+
+
 class BusinessAccountRequest(models.Model):
     STATUS_PENDING = 'pending'
     STATUS_APPROVED = 'approved'
