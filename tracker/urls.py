@@ -3,6 +3,11 @@ from django.urls import path
 
 from .views import (
     pro_dashboard,
+    pro_offer_create,
+    pro_offer_edit,
+    pro_offer_toggle,
+    pro_offers,
+    public_offer,
     public_business,
     pro_product_create,
     pro_product_edit,
@@ -28,6 +33,11 @@ urlpatterns = [
     path('account/pro-request/', request_business_account, name='business_account_request'),
     path('pro/', pro_dashboard, name='pro_dashboard'),
     path('business/<slug:slug>/', public_business, name='public_business'),
+    path('offer/<slug:slug>/', public_offer, name='public_offer'),
+    path('pro/offers/', pro_offers, name='pro_offers'),
+    path('pro/offers/add/', pro_offer_create, name='pro_offer_create'),
+    path('pro/offers/<int:offer_id>/edit/', pro_offer_edit, name='pro_offer_edit'),
+    path('pro/offers/<int:offer_id>/toggle/', pro_offer_toggle, name='pro_offer_toggle'),
     path('pro/products/', pro_products, name='pro_products'),
     path('pro/products/add/', pro_product_create, name='pro_product_create'),
     path('pro/products/<int:listing_id>/edit/', pro_product_edit, name='pro_product_edit'),
