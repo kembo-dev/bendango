@@ -10,10 +10,10 @@ from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import BusinessAccountRequestForm, BusinessProfileForm, ProCatalogProductForm, SearchOrScrapeForm, SignUpForm
+from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import BusinessAccountRequest, BusinessProfile, PriceListing, Product, ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, BusinessProfile, Offer, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save
@@ -462,6 +462,189 @@ def pro_product_toggle(request, listing_id):
             "Produit activé." if listing.is_active else "Produit désactivé.",
         )
     return redirect("pro_products")
+
+
+def _sync_offer_product_bridge(offer):
+    if offer.offer_type != Offer.TYPE_PRODUCT:
+        return offer
+    if offer.product_id:
+        product = offer.product
+        product.name = offer.title
+        product.category = offer.category
+        product.image_url = offer.primary_image_url
+        product.save(update_fields=['name', 'category', 'image_url', 'updated_at'])
+    else:
+        product = Product.objects.create(
+            name=offer.title,
+            category=offer.category,
+            image_url=offer.primary_image_url,
+        )
+        offer.product = product
+        offer.save(update_fields=['product'])
+
+    if offer.external_url and offer.price is not None:
+        retailer = offer.business.ensure_retailer()
+        if offer.price_listing_id:
+            listing = offer.price_listing
+            listing.product = product
+            listing.retailer = retailer
+            listing.url = offer.external_url
+            listing.price = offer.price
+            listing.currency = offer.currency
+            listing.in_stock = offer.availability == 'available'
+            listing.is_active = offer.is_active and offer.is_public
+            listing.confidence_score = 1
+            listing.match_score = 1
+            listing.save()
+        else:
+            listing = PriceListing.objects.create(
+                product=product,
+                retailer=retailer,
+                url=offer.external_url,
+                price=offer.price,
+                currency=offer.currency,
+                confidence_score=1,
+                match_score=1,
+                extraction_source='unknown',
+                in_stock=offer.availability == 'available',
+                is_active=offer.is_active and offer.is_public,
+            )
+            offer.price_listing = listing
+            offer.save(update_fields=['price_listing'])
+    elif offer.price_listing_id:
+        PriceListing.objects.filter(pk=offer.price_listing_id).update(is_active=False)
+    return offer
+
+
+def public_offer(request, slug):
+    offer = get_object_or_404(
+        Offer.objects.select_related('business', 'business__category', 'product'),
+        slug=slug,
+        is_public=True,
+        is_active=True,
+        business__is_public=True,
+        business__is_active=True,
+    )
+    whatsapp_digits = re.sub(r"\D+", "", offer.whatsapp or offer.business.whatsapp or offer.business.phone or "")
+    return render(request, 'tracker/public_offer.html', {
+        'offer': offer,
+        'whatsapp_url': f"https://wa.me/{whatsapp_digits}" if whatsapp_digits else '',
+    })
+
+
+@login_required
+def pro_offers(request):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    offers = profile.offers.select_related('product', 'price_listing').order_by('-updated_at')
+    return render(request, 'tracker/pro_offers.html', {
+        'profile': profile,
+        'offers': offers,
+    })
+
+
+@login_required
+def pro_offer_create(request):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    if request.method == 'POST':
+        form = QuickOfferForm(request.POST)
+        if form.is_valid():
+            offer = Offer.objects.create(
+                business=profile,
+                offer_type=form.cleaned_data['offer_type'],
+                title=form.cleaned_data['title'],
+                description=form.cleaned_data['description'],
+                price=form.cleaned_data['price'],
+                currency=form.cleaned_data['currency'],
+                price_unit=form.cleaned_data['price_unit'],
+                availability=form.cleaned_data['availability'],
+                primary_image_url=form.cleaned_data['primary_image_url'],
+                external_url=form.cleaned_data['external_url'],
+                whatsapp=form.cleaned_data['whatsapp'] or profile.whatsapp,
+                contact_method='whatsapp' if (form.cleaned_data['whatsapp'] or profile.whatsapp) else ('external' if form.cleaned_data['external_url'] else 'business'),
+                market_code=profile.market_code,
+                city=profile.city,
+            )
+            _sync_offer_product_bridge(offer)
+            messages.success(request, "Votre offre a été publiée.")
+            return redirect('pro_offers')
+    else:
+        form = QuickOfferForm(initial={
+            'currency': get_market(profile.market_code).currency or 'USD',
+            'whatsapp': profile.whatsapp,
+        })
+    return render(request, 'tracker/pro_offer_form.html', {
+        'profile': profile,
+        'form': form,
+        'page_title': 'Publication rapide',
+        'submit_label': 'Publier maintenant',
+        'quick_mode': True,
+    })
+
+
+@login_required
+def pro_offer_edit(request, offer_id):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    offer = get_object_or_404(Offer, pk=offer_id, business=profile)
+    initial = {
+        'offer_type': offer.offer_type,
+        'title': offer.title,
+        'price': offer.price,
+        'currency': offer.currency,
+        'price_unit': offer.price_unit,
+        'primary_image_url': offer.primary_image_url,
+        'availability': offer.availability,
+        'whatsapp': offer.whatsapp,
+        'external_url': offer.external_url,
+        'description': offer.description,
+        'category': offer.category,
+        'city': offer.city,
+        'contact_method': offer.contact_method,
+    }
+    if request.method == 'POST':
+        form = OfferEditForm(request.POST)
+        if form.is_valid():
+            for field in (
+                'offer_type', 'title', 'price', 'currency', 'price_unit',
+                'primary_image_url', 'availability', 'whatsapp', 'external_url',
+                'description', 'category', 'city', 'contact_method',
+            ):
+                setattr(offer, field, form.cleaned_data[field])
+            offer.save()
+            _sync_offer_product_bridge(offer)
+            messages.success(request, "Votre offre a été mise à jour.")
+            return redirect('pro_offers')
+    else:
+        form = OfferEditForm(initial=initial)
+    return render(request, 'tracker/pro_offer_form.html', {
+        'profile': profile,
+        'offer': offer,
+        'form': form,
+        'page_title': "Modifier l'offre",
+        'submit_label': 'Enregistrer',
+        'quick_mode': False,
+    })
+
+
+@login_required
+def pro_offer_toggle(request, offer_id):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    offer = get_object_or_404(Offer, pk=offer_id, business=profile)
+    if request.method == 'POST':
+        offer.is_active = not offer.is_active
+        offer.save(update_fields=['is_active', 'updated_at'])
+        if offer.price_listing_id:
+            PriceListing.objects.filter(pk=offer.price_listing_id).update(
+                is_active=offer.is_active and offer.is_public
+            )
+    return redirect('pro_offers')
 
 
 def _async_job_state(query):
