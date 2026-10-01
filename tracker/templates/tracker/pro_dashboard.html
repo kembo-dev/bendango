@@ -33,7 +33,7 @@
     <div class="row g-3 mb-4">
         <div class="col-md-4"><div class="metric"><small>Statut</small><strong>{% if profile.is_verified %}Pro vérifié{% else %}Pro{% endif %}</strong></div></div>
         <div class="col-md-4"><div class="metric"><small>Recherches du compte</small><strong>{{ search_count }}</strong></div></div>
-        <div class="col-md-4"><div class="metric"><small>Produits du catalogue</small><strong>{{ product_count }}</strong></div></div>
+        <div class="col-md-4"><div class="metric"><small>Offres publiées</small><strong>{{ offer_count }}</strong></div></div>
     </div>
 
     <div class="row g-4">
@@ -80,10 +80,14 @@
 
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-4">
-                    <div class="text-primary text-uppercase fw-bold small mb-2">Catalogue professionnel</div>
-                    <h2 class="h5">Mes produits</h2>
-                    <p class="text-muted">Ajoutez vos produits, prix, stock, images et liens de vente directement dans Bendango.</p>
-                    <a href="{% url 'pro_products' %}" class="btn btn-primary">Gérer mon catalogue</a>
+                    <div class="text-primary text-uppercase fw-bold small mb-2">Publication</div>
+                    <h2 class="h5">Mes offres</h2>
+                    <p class="text-muted">Publiez un produit, un service, une chambre, une offre pharmacie, restaurant, transport ou autre.</p>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <a href="{% url 'pro_offer_create' %}" class="btn btn-primary">Publication rapide</a>
+                        <a href="{% url 'pro_offers' %}" class="btn btn-outline-primary">Gérer mes offres</a>
+                        <a href="{% url 'pro_products' %}" class="btn btn-outline-secondary">Ancien catalogue produits</a>
+                    </div>
                 </div>
             </div>
         </div>
