@@ -268,6 +268,14 @@ def public_business(request, slug):
         is_public=True,
         is_active=True,
     )
+    offers = list(
+        profile.offers.filter(is_public=True, is_active=True)
+        .select_related('product', 'price_listing')
+        .order_by('-updated_at')
+    )
+    bridged_listing_ids = {
+        offer.price_listing_id for offer in offers if offer.price_listing_id
+    }
     listings = []
     if profile.retailer_id:
         listings = list(
@@ -275,12 +283,14 @@ def public_business(request, slug):
                 retailer=profile.retailer,
                 is_active=True,
             )
+            .exclude(pk__in=bridged_listing_ids)
             .select_related("product")
             .order_by("-scraped_at")
         )
     whatsapp_digits = re.sub(r"\D+", "", profile.whatsapp or profile.phone or "")
     return render(request, "tracker/public_business.html", {
         "profile": profile,
+        "offers": offers,
         "listings": listings,
         "whatsapp_url": f"https://wa.me/{whatsapp_digits}" if whatsapp_digits else "",
     })
@@ -316,6 +326,7 @@ def pro_dashboard(request):
             if profile.retailer_id
             else 0
         ),
+        "offer_count": profile.offers.count(),
     })
 
 
