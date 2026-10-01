@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ offer.title }} - {{ offer.business.business_name }} - Bendango</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5" style="max-width:980px">
+  <div class="card border-0 shadow-sm overflow-hidden">
+    {% if offer.primary_image_url %}
+    <img src="{{ offer.primary_image_url }}" alt="{{ offer.title }}" style="width:100%;max-height:420px;object-fit:contain;background:#fff">
+    {% endif %}
+    <div class="card-body p-4 p-md-5">
+      <div class="d-flex justify-content-between gap-3 flex-wrap align-items-start mb-3">
+        <div>
+          <span class="badge text-bg-light border mb-2">{{ offer.get_offer_type_display }}</span>
+          <h1 class="h2 mb-2">{{ offer.title }}</h1>
+          <a href="{% url 'public_business' offer.business.slug %}" class="text-decoration-none fw-semibold">{{ offer.business.business_name }}</a>
+          <div class="text-muted small mt-1">{% if offer.city %}{{ offer.city }}{% endif %}{% if offer.business.country %} · {{ offer.business.country }}{% endif %}</div>
+        </div>
+        <div class="text-end">
+          {% if offer.price %}
+          <div class="fs-3 fw-bold text-primary">{{ offer.price }} {{ offer.currency }}</div>
+          {% if offer.price_unit %}<div class="text-muted">par {{ offer.price_unit }}</div>{% endif %}
+          {% else %}
+          <div class="fw-semibold">Prix sur demande</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        {% if offer.availability == 'available' %}<span class="badge text-bg-success">Disponible</span>
+        {% elif offer.availability == 'on_request' %}<span class="badge text-bg-info">Sur demande</span>
+        {% else %}<span class="badge text-bg-secondary">Indisponible</span>{% endif %}
+      </div>
+
+      {% if offer.description %}<p class="mb-4">{{ offer.description }}</p>{% endif %}
+
+      <div class="d-flex gap-2 flex-wrap">
+        {% if whatsapp_url %}<a href="{{ whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-success">Contacter sur WhatsApp</a>{% endif %}
+        {% if offer.business.phone %}<a href="tel:{{ offer.business.phone }}" class="btn btn-outline-dark">Téléphoner</a>{% endif %}
+        {% if offer.external_url %}<a href="{{ offer.external_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary">Voir le lien externe</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<style>.card{border-radius:18px!important}</style>
+</body>
+</html>
