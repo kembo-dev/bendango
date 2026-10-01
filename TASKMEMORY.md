@@ -747,32 +747,33 @@ Current architectural objective:
 > Introduce the general Offer model while preserving the existing Product and
 > PriceListing comparison core.
 
-Phase 2 implementation completed in code and awaiting local validation:
+Phase 2 core implementation validated locally:
 
-- Universal Offer model with product/service/accommodation/restaurant/health/transport/real-estate/other types
-- Unique public Offer slugs
-- Optional price and external URL
-- Price units, market/city, availability and contact method
-- WhatsApp-first contact
-- Attributes JSON
-- Optional Product and PriceListing bridges
-- Migration 0018 backfills existing Pro catalog listings into Offer rows
-- Quick-publish and advanced edit flows
-- Public Offer pages
-- Offer ownership isolation
-- First-party Bendango Offer search runs before external Web presentation
-- Market-aware first-party Offer matching
+- [x] Universal Offer model with product/service/accommodation/restaurant/health/transport/real-estate/other types
+- [x] Unique public Offer slugs
+- [x] Optional price and external URL
+- [x] Price units, market/city, availability and contact method
+- [x] WhatsApp-first contact
+- [x] Attributes JSON
+- [x] Optional Product and PriceListing bridges
+- [x] Migration 0018 backfills existing Pro catalog listings into Offer rows
+- [x] Quick-publish and advanced edit flows
+- [x] Public Offer pages
+- [x] Offer ownership isolation
+- [x] First-party Bendango Offer search runs before external Web presentation
+- [x] Market-aware first-party Offer matching
+- [x] Migration 0018 applied successfully
+- [x] Full suite passes: 220 tests, 1 skipped
 
 Still pending in this phase:
 
 - [ ] Dedicated multi-image/media model
-- [ ] Validate migration 0018 locally
-- [ ] Run the full test suite after 0018
+- [ ] Direct image upload from phone/computer
 - [ ] Smoke-test quick publish, public Offer page and Bendango-first search in browser
 
-Next objective after validation:
+Next objective:
 
-> Complete media handling, then continue unified internal + external result merging and
-> richer non-product ranking without weakening the existing Product/PriceListing engine.
+> Add first-class media upload for businesses and offers, replacing URL-only image entry,
+> then continue unified internal + external result merging and richer non-product ranking.
 
 Last roadmap update: 2026-10-01.
