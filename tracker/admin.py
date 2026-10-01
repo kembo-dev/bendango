@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Offer, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
 
 
 @admin.register(Product)
@@ -85,6 +85,14 @@ class BusinessCategoryAdmin(admin.ModelAdmin):
     list_filter = ('is_active',)
     search_fields = ('name', 'slug')
     ordering = ('sort_order', 'name')
+
+@admin.register(Offer)
+class OfferAdmin(admin.ModelAdmin):
+    list_display = ('title', 'business', 'offer_type', 'price', 'currency', 'availability', 'market_code', 'is_public', 'is_active', 'updated_at')
+    list_filter = ('offer_type', 'availability', 'market_code', 'is_public', 'is_active')
+    search_fields = ('title', 'business__business_name', 'category', 'description')
+    readonly_fields = ('slug', 'product', 'price_listing', 'created_at', 'updated_at')
+
 
 @admin.register(BusinessProfile)
 class BusinessProfileAdmin(admin.ModelAdmin):
