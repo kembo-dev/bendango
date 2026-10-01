@@ -584,50 +584,50 @@ Implementation note: core model/public storefront work is implemented in the rep
 
 ### Phase 2 — General Offer model
 
-- [ ] Introduce Offer
-- [ ] Add offer types
-- [ ] Add offer slug
-- [ ] Make external sale URL optional
-- [ ] Add WhatsApp/contact CTA
-- [ ] Add attributes JSON
-- [ ] Add price unit
-- [ ] Add location/market fields
-- [ ] Add active/public state
+- [x] Introduce Offer
+- [x] Add offer types
+- [x] Add offer slug
+- [x] Make external sale URL optional
+- [x] Add WhatsApp/contact CTA
+- [x] Add attributes JSON
+- [x] Add price unit
+- [x] Add location/market fields
+- [x] Add active/public state
 - [ ] Add primary image/media model
-- [ ] Link product offers to canonical Product when appropriate
-- [ ] Keep PriceListing bridge for price-comparable goods
-- [ ] Migrate existing Pro catalog safely
-- [ ] Add isolation/security tests
+- [x] Link product offers to canonical Product when appropriate
+- [x] Keep PriceListing bridge for price-comparable goods
+- [x] Migrate existing Pro catalog safely via 0018 backfill
+- [x] Add isolation/security tests
 
 ### Phase 3 — Quick publishing
 
-- [ ] Quick publish UI
-- [ ] Photo
-- [ ] Title
-- [ ] Price
-- [ ] Currency
-- [ ] WhatsApp/contact
-- [ ] Availability
-- [ ] Publish in under one minute
+- [x] Quick publish UI
+- [x] Photo URL
+- [x] Title
+- [x] Price
+- [x] Currency
+- [x] WhatsApp/contact
+- [x] Availability
+- [x] Minimal quick-publish flow designed for under one minute
 - [ ] Advanced publish option
 
 ### Phase 4 — Public storefronts
 
 - [ ] Public Business route
 - [ ] Public Business page
-- [ ] Public Offer route
-- [ ] Public Offer page
+- [x] Public Offer route
+- [x] Public Offer page
 - [ ] Shareable metadata
-- [ ] WhatsApp CTA
-- [ ] Phone CTA
-- [ ] External-site CTA
+- [x] WhatsApp CTA
+- [x] Phone CTA
+- [x] External-site CTA
 - [ ] Business search/filter
 - [ ] Related offers
 
 ### Phase 5 — Bendango-first search
 
-- [ ] Search local Bendango offers before external web
-- [ ] Market-aware first-party matching
+- [x] Search local Bendango offers before external web
+- [x] Market-aware first-party matching
 - [ ] Merge internal + external + social results
 - [ ] Deduplicate comparable offers
 - [ ] Preserve trusted source labels
@@ -747,13 +747,32 @@ Current architectural objective:
 > Introduce the general Offer model while preserving the existing Product and
 > PriceListing comparison core.
 
-Immediate Phase 2 sequence:
+Phase 2 implementation completed in code and awaiting local validation:
 
-1. Add Offer model and offer-type taxonomy.
-2. Add optional Product/PriceListing bridges for comparable goods.
-3. Backfill existing Pro catalog listings into Offer rows.
-4. Add quick-publish flow where website/sale URL is optional.
-5. Add public Offer pages and WhatsApp-first CTA.
-6. Search Bendango Offers before external web sources.
+- Universal Offer model with product/service/accommodation/restaurant/health/transport/real-estate/other types
+- Unique public Offer slugs
+- Optional price and external URL
+- Price units, market/city, availability and contact method
+- WhatsApp-first contact
+- Attributes JSON
+- Optional Product and PriceListing bridges
+- Migration 0018 backfills existing Pro catalog listings into Offer rows
+- Quick-publish and advanced edit flows
+- Public Offer pages
+- Offer ownership isolation
+- First-party Bendango Offer search runs before external Web presentation
+- Market-aware first-party Offer matching
 
-Last roadmap update: 2026-09-30.
+Still pending in this phase:
+
+- [ ] Dedicated multi-image/media model
+- [ ] Validate migration 0018 locally
+- [ ] Run the full test suite after 0018
+- [ ] Smoke-test quick publish, public Offer page and Bendango-first search in browser
+
+Next objective after validation:
+
+> Complete media handling, then continue unified internal + external result merging and
+> richer non-product ranking without weakening the existing Product/PriceListing engine.
+
+Last roadmap update: 2026-10-01.
