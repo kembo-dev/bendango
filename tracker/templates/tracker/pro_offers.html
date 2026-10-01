@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mes offres - Bendango Pro</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+      <div class="text-primary text-uppercase fw-bold small mb-2">Bendango Pro</div>
+      <h1 class="h2 mb-1">Mes offres</h1>
+      <p class="text-muted mb-0">Publiez produits, services, hôtels, pharmacie, restauration, transport et autres offres.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'pro_dashboard' %}" class="btn btn-outline-secondary">Espace Pro</a>
+      <a href="{% url 'pro_offer_create' %}" class="btn btn-primary">Publication rapide</a>
+    </div>
+  </div>
+
+  {% if messages %}{% for message in messages %}<div class="alert alert-success">{{ message }}</div>{% endfor %}{% endif %}
+
+  {% if offers %}
+  <div class="row g-3">
+    {% for offer in offers %}
+    <div class="col-lg-6">
+      <div class="card h-100 border-0 shadow-sm">
+        <div class="card-body p-4">
+          <div class="d-flex gap-3 align-items-start">
+            {% if offer.primary_image_url %}
+            <img src="{{ offer.primary_image_url }}" alt="{{ offer.title }}" style="width:95px;height:95px;object-fit:contain;border-radius:12px;background:#fff">
+            {% endif %}
+            <div class="flex-grow-1">
+              <div class="d-flex justify-content-between gap-2 flex-wrap mb-2">
+                <div>
+                  <span class="badge text-bg-light border mb-2">{{ offer.get_offer_type_display }}</span>
+                  <h2 class="h5 mb-1">{{ offer.title }}</h2>
+                </div>
+                {% if offer.is_active and offer.is_public %}
+                <span class="badge text-bg-success">Publiée</span>
+                {% else %}
+                <span class="badge text-bg-secondary">Masquée</span>
+                {% endif %}
+              </div>
+              <div class="mb-2">
+                {% if offer.price %}
+                <span class="fs-4 fw-bold text-primary">{{ offer.price }} {{ offer.currency }}</span>
+                {% if offer.price_unit %}<span class="text-muted">/ {{ offer.price_unit }}</span>{% endif %}
+                {% else %}
+                <span class="fw-semibold text-muted">Prix sur demande</span>
+                {% endif %}
+              </div>
+              <div class="small text-muted mb-3">{{ offer.get_availability_display }}{% if offer.city %} · {{ offer.city }}{% endif %}</div>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'public_offer' offer.slug %}" class="btn btn-outline-success btn-sm" target="_blank">Voir public</a>
+                <a href="{% url 'pro_offer_edit' offer.pk %}" class="btn btn-outline-primary btn-sm">Modifier</a>
+                <form method="post" action="{% url 'pro_offer_toggle' offer.pk %}">{% csrf_token %}
+                  <button type="submit" class="btn btn-outline-secondary btn-sm">{% if offer.is_active %}Désactiver{% else %}Activer{% endif %}</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-5 text-center">
+      <h2 class="h4">Aucune offre publiée</h2>
+      <p class="text-muted">Publiez votre première offre en moins d'une minute.</p>
+      <a href="{% url 'pro_offer_create' %}" class="btn btn-primary">Publier une offre</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+<style>.card{border-radius:18px!important}</style>
+</body>
+</html>
