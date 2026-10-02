@@ -45,11 +45,11 @@
                 {% endif %}
                 <div class="d-flex gap-1 flex-wrap mt-2">
                   {% if item.is_primary %}<span class="badge text-bg-success">Principale</span>{% else %}
-                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'primary' %}">{% csrf_token %}<button class="btn btn-outline-success btn-sm" type="submit">Principale</button></form>
+                  <button class="btn btn-outline-success btn-sm" type="submit" formaction="{% url 'pro_offer_media_action' offer.pk item.pk 'primary' %}" formmethod="post">Principale</button>
                   {% endif %}
-                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'up' %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">↑</button></form>
-                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'down' %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">↓</button></form>
-                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'delete' %}">{% csrf_token %}<button class="btn btn-outline-danger btn-sm" type="submit">Supprimer</button></form>
+                  <button class="btn btn-outline-secondary btn-sm" type="submit" formaction="{% url 'pro_offer_media_action' offer.pk item.pk 'up' %}" formmethod="post">↑</button>
+                  <button class="btn btn-outline-secondary btn-sm" type="submit" formaction="{% url 'pro_offer_media_action' offer.pk item.pk 'down' %}" formmethod="post">↓</button>
+                  <button class="btn btn-outline-danger btn-sm" type="submit" formaction="{% url 'pro_offer_media_action' offer.pk item.pk 'delete' %}" formmethod="post">Supprimer</button>
                 </div>
               </div>
             </div>
