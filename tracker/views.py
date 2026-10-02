@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .offer_search import find_matching_offers
+from .unified_search import build_unified_results
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
@@ -780,6 +781,7 @@ def scrape_view(request):
     )
     listings = []
     first_party_offers = []
+    unified_results = []
     discovery_sources = []
     errors = []
     summary = {}
@@ -848,11 +850,18 @@ def scrape_view(request):
                 errors = ["Aucune recherche en cours pour ce produit."]
         if listings:
             listings, summary = _decorate_results(listings, query, site)
+        unified_results = build_unified_results(
+            first_party_offers,
+            listings,
+            discovery_sources,
+            limit=40,
+        )
 
         return render(request, "tracker/scrape.html", {
             "form": form,
             "listings": listings,
             "first_party_offers": first_party_offers,
+            "unified_results": unified_results,
             "discovery_sources": discovery_sources,
             "errors": errors,
             "summary": summary,
@@ -921,6 +930,7 @@ def scrape_view(request):
         "form": form,
         "listings": listings,
         "first_party_offers": first_party_offers,
+        "unified_results": unified_results,
         "discovery_sources": discovery_sources,
         "errors": errors,
         "summary": summary,
