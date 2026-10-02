@@ -53,9 +53,10 @@
             <div class="col-md-2"><label class="form-label fw-bold">Ville</label>{{ form.city }}</div>
         </div>
         <div class="row g-3 align-items-end mt-1">
-            <div class="col-md-4"><label class="form-label fw-bold">Type d'offre</label>{{ form.offer_type }}</div>
-            <div class="col-md-4"><label class="form-label fw-bold">Source</label>{{ form.source }}</div>
-            <div class="col-md-4"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
+            <div class="col-md-3"><label class="form-label fw-bold">Type d'offre</label>{{ form.offer_type }}</div>
+            <div class="col-md-3"><label class="form-label fw-bold">Type de business</label>{{ form.business_category }}</div>
+            <div class="col-md-3"><label class="form-label fw-bold">Source</label>{{ form.source }}</div>
+            <div class="col-md-3"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
         </div>
         <div class="form-text mt-3">La ville privilégie les offres Bendango locales. Les filtres Type et Source affinent les résultats unifiés sans mélanger une source sociale avec une offre marchande vérifiée.</div>
         <button type="submit" class="btn btn-primary mt-4 w-100 btn-compare" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Rechercher sur Bendango{% endif %}</button>
@@ -78,6 +79,7 @@
                     {% if active_city %}<span class="badge text-bg-light border">Ville : {{ active_city }}</span>{% endif %}
                     {% if active_offer_type %}<span class="badge text-bg-light border">Type : {{ active_offer_type }}</span>{% endif %}
                     {% if active_source %}<span class="badge text-bg-light border">Source : {{ active_source }}</span>{% endif %}
+                    {% if active_business_category %}<span class="badge text-bg-light border">Business : {{ active_business_category }}</span>{% endif %}
                 </div>
                 {% endif %}
                 <p class="text-muted mb-0">Les offres publiées sur Bendango, les marchands Web et les sources sociales sont regroupés dans une seule liste, tout en gardant leur origine visible.</p>
