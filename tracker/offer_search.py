@@ -16,7 +16,14 @@ def _token_score(query: str, candidate: str) -> float:
     return max(len(overlap) / len(q), len(overlap) / len(c))
 
 
-def find_matching_offers(query: str, *, market_code: str = GLOBAL_MARKET_CODE, limit: int = 12):
+def find_matching_offers(
+    query: str,
+    *,
+    market_code: str = GLOBAL_MARKET_CODE,
+    city: str = "",
+    offer_type: str = "",
+    limit: int = 12,
+):
     query = (query or '').strip()
     if not query:
         return []
@@ -31,7 +38,10 @@ def find_matching_offers(query: str, *, market_code: str = GLOBAL_MARKET_CODE, l
 
     if market_code != GLOBAL_MARKET_CODE:
         qs = qs.filter(market_code=market_code)
+    if offer_type:
+        qs = qs.filter(offer_type=offer_type)
 
+    normalized_city = normalize_product_name(city)
     matched = []
     for offer in qs.order_by('-updated_at')[:250]:
         candidate = ' '.join(
@@ -59,10 +69,20 @@ def find_matching_offers(query: str, *, market_code: str = GLOBAL_MARKET_CODE, l
         if not is_match:
             continue
         offer.search_score = score
+        offer.locality_score = 0.0
+        if normalized_city:
+            offer_city = normalize_product_name(offer.city or offer.business.city or "")
+            if offer_city == normalized_city:
+                offer.locality_score = 1.0
+            elif normalized_city and normalized_city in offer_city:
+                offer.locality_score = 0.8
+            elif offer_city and offer_city in normalized_city:
+                offer.locality_score = 0.6
         matched.append(offer)
 
     matched.sort(
         key=lambda offer: (
+            -float(getattr(offer, 'locality_score', 0)),
             -float(getattr(offer, 'search_score', 0)),
             0 if offer.availability == 'available' else 1,
             float(offer.price) if offer.price is not None else float('inf'),
