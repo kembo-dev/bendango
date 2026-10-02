@@ -518,7 +518,7 @@ class OfferMedia(models.Model):
         ordering = ['position', 'created_at', 'pk']
         indexes = [
             models.Index(fields=['offer', 'position'], name='tracker_media_offer_pos_idx'),
-            models.Index(fields=['offer', 'is_primary'], name='tracker_media_offer_primary_idx'),
+            models.Index(fields=['offer', 'is_primary'], name='trk_media_offer_primary'),
         ]
 
     @property
