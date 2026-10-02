@@ -766,7 +766,13 @@ Phase 2 core implementation validated locally:
 - [x] Migration 0018 applied successfully
 - [x] Full suite passes: 220 tests, 1 skipped
 
-Media implementation completed in code and awaiting local validation:
+Media implementation completed in code and awaiting local validation.
+
+Validation incident:
+- Django system check E034 detected an index name longer than 30 characters: `tracker_media_offer_primary_idx`.
+- Fixed by shortening it to `trk_media_offer_primary` in both the model and migration 0019.
+
+Media implementation:
 
 - [x] Dedicated OfferMedia model
 - [x] Migration 0019 with backfill from legacy primary_image_url
@@ -784,7 +790,7 @@ Media implementation completed in code and awaiting local validation:
 
 Still pending in this phase:
 
-- [ ] Validate migration 0019 locally
+- [ ] Validate migration 0019 locally after index-name fix
 - [ ] Run full test suite after 0019
 - [ ] Smoke-test upload from browser/phone
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
