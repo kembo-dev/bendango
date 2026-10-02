@@ -788,6 +788,9 @@ def scrape_view(request):
     query = ""
     site = "all"
     market_code = DEFAULT_MARKET_CODE
+    city = ""
+    offer_type = ""
+    source_filter = ""
     async_waiting = False
     async_active_jobs = 0
     search_run = None
@@ -797,6 +800,9 @@ def scrape_view(request):
         query = request.GET.get("q", "").strip()
         site = request.GET.get("site", "all").strip() or "all"
         market_code = normalize_market_code(request.GET.get("market", DEFAULT_MARKET_CODE))
+        city = request.GET.get("city", "").strip()
+        offer_type = request.GET.get("offer_type", "").strip()
+        source_filter = request.GET.get("source", "").strip()
         run_id = request.GET.get("run", "").strip()
         if run_id:
             try:
@@ -811,10 +817,15 @@ def scrape_view(request):
             "query": query,
             "site": "" if site == "all" else site,
             "market": market_code,
+            "city": city,
+            "offer_type": offer_type,
+            "source": source_filter,
         })
         first_party_offers = find_matching_offers(
             query,
             market_code=market_code,
+            city=city,
+            offer_type=offer_type,
             limit=12,
         )
         if search_run:
@@ -854,6 +865,9 @@ def scrape_view(request):
             first_party_offers,
             listings,
             discovery_sources,
+            source_filter=source_filter,
+            offer_type=offer_type,
+            city=city,
             limit=40,
         )
 
@@ -872,6 +886,9 @@ def scrape_view(request):
             "recent_searches": recent_searches,
             "business_profile": business_profile,
             "anonymous_search_used": anonymous_search_used,
+            "active_city": city,
+            "active_offer_type": offer_type,
+            "active_source": source_filter,
         })
 
     if request.method == "POST":
@@ -882,6 +899,9 @@ def scrape_view(request):
             site = form.cleaned_data["site"]
             query = form.cleaned_data["query"].strip()
             market_code = normalize_market_code(form.cleaned_data["market"])
+            city = form.cleaned_data.get("city", "").strip()
+            offer_type = form.cleaned_data.get("offer_type", "").strip()
+            source_filter = form.cleaned_data.get("source", "").strip()
             market = get_market(market_code)
             model_name = form.cleaned_data["model_name"]
             if site is not None:
@@ -919,6 +939,12 @@ def scrape_view(request):
                 params = {"q": query, "run": str(search_run.pk), "market": market.code}
                 if site != "all":
                     params["site"] = site
+                if city:
+                    params["city"] = city
+                if offer_type:
+                    params["offer_type"] = offer_type
+                if source_filter:
+                    params["source"] = source_filter
                 return redirect(f"/?{urlencode(params)}")
 
         if listings:
@@ -941,4 +967,7 @@ def scrape_view(request):
         "recent_searches": recent_searches,
         "business_profile": business_profile,
         "anonymous_search_used": anonymous_search_used,
+        "active_city": city,
+        "active_offer_type": offer_type,
+        "active_source": source_filter,
     })
