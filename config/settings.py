@@ -84,6 +84,8 @@ ADAPTIVE_BATCH_WAIT_SECONDS = float(os.environ.get('ADAPTIVE_BATCH_WAIT_SECONDS'
 
 AUTH_PASSWORD_VALIDATORS=[{'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},{'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator'},{'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},{'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'}]
 LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True; STATIC_URL='static/'
+MEDIA_URL='/media/'
+MEDIA_ROOT=BASE_DIR/'media'
 DEFAULT_SEARCH_COUNTRY=os.environ.get('DEFAULT_SEARCH_COUNTRY','RDC')
 LOCAL_SEARCH_DOMAINS=_split_csv(os.environ.get('LOCAL_SEARCH_DOMAINS')) or ['drcmart.com','mobile-rdc.com']
 MAILERS={'default':{'BACKEND':'django.core.mail.backends.console.EmailBackend'}}
