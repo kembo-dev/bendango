@@ -593,7 +593,7 @@ Implementation note: core model/public storefront work is implemented in the rep
 - [x] Add price unit
 - [x] Add location/market fields
 - [x] Add active/public state
-- [ ] Add primary image/media model
+- [x] Add OfferMedia gallery model
 - [x] Link product offers to canonical Product when appropriate
 - [x] Keep PriceListing bridge for price-comparable goods
 - [x] Migrate existing Pro catalog safely via 0018 backfill
@@ -602,7 +602,8 @@ Implementation note: core model/public storefront work is implemented in the rep
 ### Phase 3 — Quick publishing
 
 - [x] Quick publish UI
-- [x] Photo URL
+- [x] Photo URL compatibility
+- [x] Direct multi-image upload from phone/computer
 - [x] Title
 - [x] Price
 - [x] Currency
@@ -765,15 +766,33 @@ Phase 2 core implementation validated locally:
 - [x] Migration 0018 applied successfully
 - [x] Full suite passes: 220 tests, 1 skipped
 
+Media implementation completed in code and awaiting local validation:
+
+- [x] Dedicated OfferMedia model
+- [x] Migration 0019 with backfill from legacy primary_image_url
+- [x] Direct multi-image upload from phone/computer
+- [x] Maximum 8 images per upload
+- [x] Maximum 8 MB per image
+- [x] Primary image selection
+- [x] Gallery ordering controls
+- [x] Media deletion
+- [x] Public Offer gallery
+- [x] Uploaded images used across Offer cards, Business storefront and Bendango-first search
+- [x] Local MEDIA_ROOT / MEDIA_URL configuration
+- [x] Ownership isolation for media actions
+- [x] Regression tests for upload, gallery management, validation and isolation
+
 Still pending in this phase:
 
-- [ ] Dedicated multi-image/media model
-- [ ] Direct image upload from phone/computer
-- [ ] Smoke-test quick publish, public Offer page and Bendango-first search in browser
+- [ ] Validate migration 0019 locally
+- [ ] Run full test suite after 0019
+- [ ] Smoke-test upload from browser/phone
+- [ ] Confirm production media serving strategy (reverse proxy or object storage)
+- [ ] Smoke-test public Offer gallery
 
-Next objective:
+Next objective after validation:
 
-> Add first-class media upload for businesses and offers, replacing URL-only image entry,
-> then continue unified internal + external result merging and richer non-product ranking.
+> Continue unified internal + external result merging and richer non-product ranking,
+> while planning production-grade media storage.
 
-Last roadmap update: 2026-10-01.
+Last roadmap update: 2026-10-02.
