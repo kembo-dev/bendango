@@ -89,6 +89,7 @@
                                     <div>
                                         {% if item.kind == 'offer' %}
                                         <span class="badge text-bg-success">{{ item.badge }}</span>
+                                        {% if item.promoted %}<span class="badge text-bg-warning">Sponsorisé</span>{% endif %}
                                         {% else %}
                                         <span class="badge text-bg-primary">{{ item.badge }}</span>
                                         {% endif %}
@@ -210,6 +211,7 @@
                                             {% endif %}
                                             {% if item.verified %}<span class="badge merchant-verified">✓ Vérifié</span>{% endif %}
                                             {% if item.badge %}<span class="badge text-bg-light border text-dark">{{ item.badge }}</span>{% endif %}
+                                            {% if item.promoted %}<span class="badge text-bg-warning">Sponsorisé</span>{% endif %}
                                             {% if item.item_type == 'product' and item.group_size > 1 %}<span class="badge text-bg-warning">Même produit · {{ item.group_size }} offres</span>{% endif %}
                                             {% if item.item_type != 'product' and item.source_kind == 'bendango' %}<span class="badge text-bg-info">{{ item.item_type|capfirst }}</span>{% endif %}
                                         </div>
