@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from tracker.models import BusinessAccountRequest, BusinessProfile, Offer, PriceListing
+from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Offer, PriceListing
 from tracker.offer_search import find_matching_offers
 
 
@@ -210,3 +210,48 @@ class OfferPlatformTests(TestCase):
 
         self.assertTrue(results)
         self.assertTrue(all(item.offer_type == 'service' for item in results))
+
+
+    def test_first_party_search_filters_business_category(self):
+        pharmacy = BusinessCategory.objects.get(slug='pharmacie')
+        services = BusinessCategory.objects.get(slug='services')
+
+        self.profile.category = services
+        self.profile.save(update_fields=['category'])
+        Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Livraison express',
+            price='10000.00',
+            currency='CDF',
+        )
+
+        other_user = User.objects.create_user(
+            username='pharmacyowner',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=other_user,
+            business_name='Pharmacie Recherche',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        pharmacy_profile = BusinessProfile.objects.get(user=other_user)
+        pharmacy_profile.category = pharmacy
+        pharmacy_profile.market_code = 'CD'
+        pharmacy_profile.save(update_fields=['category', 'market_code'])
+        Offer.objects.create(
+            business=pharmacy_profile,
+            offer_type='health',
+            title='Livraison médicament',
+            price='5000.00',
+            currency='CDF',
+        )
+
+        results = find_matching_offers(
+            'livraison',
+            market_code='CD',
+            business_category='pharmacie',
+        )
+
+        self.assertTrue(results)
+        self.assertTrue(all(item.business.category.slug == 'pharmacie' for item in results))
