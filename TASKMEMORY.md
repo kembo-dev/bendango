@@ -833,12 +833,16 @@ Canonical grouping and multisector ranking implemented in code, awaiting local v
 - [x] Add ranking score for services, accommodation, restaurant, health, transport, real estate and other non-product offers
 - [x] Ranking considers relevance, verification, availability, price presence, media/contact quality and category-specific signals
 - [x] Add regression tests for canonical grouping, variant separation and multisector ordering
-- [ ] Run full local test suite after grouping/ranking changes
+- [x] Run full local test suite after grouping/ranking changes: 232 tests, 1 skipped
 
 Next objective:
 
 > Validate canonical grouping and multisector ranking locally, then improve the presentation
 > of grouped products and continue toward richer business/location-aware search.
+
+Canonical grouping validation note:
+- Local validation completed successfully with 232 tests passing and 1 skipped.
+- Equivalent product-title grouping now passes while conflicting RAM/storage variants remain separated.
 
 Unified-search validation note:
 - Local validation completed successfully with 229 tests passing and 1 skipped.
