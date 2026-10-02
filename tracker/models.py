@@ -498,6 +498,40 @@ class Offer(models.Model):
         return f"{self.business.business_name}: {self.title}"
 
 
+class OfferMedia(models.Model):
+    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='media')
+    file = models.FileField(upload_to='offers/%Y/%m/', blank=True)
+    external_url = models.URLField(max_length=2048, blank=True, default='')
+    alt_text = models.CharField(max_length=255, blank=True, default='')
+    position = models.PositiveIntegerField(default=0)
+    is_primary = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['position', 'created_at', 'pk']
+        indexes = [
+            models.Index(fields=['offer', 'position'], name='tracker_media_offer_pos_idx'),
+            models.Index(fields=['offer', 'is_primary'], name='tracker_media_offer_primary_idx'),
+        ]
+
+    @property
+    def url(self):
+        if self.file:
+            try:
+                return self.file.url
+            except ValueError:
+                pass
+        return self.external_url
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.is_primary:
+            OfferMedia.objects.filter(offer=self.offer).exclude(pk=self.pk).update(is_primary=False)
+
+    def __str__(self):
+        return f"{self.offer.title} media #{self.pk}"
+
+
 class BusinessAccountRequest(models.Model):
     STATUS_PENDING = 'pending'
     STATUS_APPROVED = 'approved'
