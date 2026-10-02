@@ -83,7 +83,9 @@ ADAPTIVE_EXPANSION_SCRAPE_JOBS = int(os.environ.get('ADAPTIVE_EXPANSION_SCRAPE_J
 ADAPTIVE_BATCH_WAIT_SECONDS = float(os.environ.get('ADAPTIVE_BATCH_WAIT_SECONDS', '5'))
 
 AUTH_PASSWORD_VALIDATORS=[{'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},{'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator'},{'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},{'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'}]
-LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True; STATIC_URL='static/'
+LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True
+STATIC_URL='/static/'
+STATIC_ROOT=BASE_DIR/'staticfiles'
 MEDIA_URL='/media/'
 MEDIA_ROOT=BASE_DIR/'media'
 DEFAULT_SEARCH_COUNTRY=os.environ.get('DEFAULT_SEARCH_COUNTRY','RDC')
