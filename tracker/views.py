@@ -906,6 +906,7 @@ def scrape_view(request):
     async_active_jobs = 0
     search_run = None
     run_state = None
+    discovery_page = None
 
     if request.method == "GET" and request.GET.get("q"):
         query = request.GET.get("q", "").strip()
@@ -1070,6 +1071,8 @@ def scrape_view(request):
             listings, summary = _decorate_results(listings, query, site)
     else:
         form = SearchOrScrapeForm()
+        if request.method == "GET":
+            discovery_page = _public_discovery_feed(request, per_page=12)
 
     return render(request, "tracker/scrape.html", {
         "form": form,
@@ -1090,4 +1093,5 @@ def scrape_view(request):
         "active_offer_type": offer_type,
         "active_source": source_filter,
         "active_business_category": business_category,
+        "discovery_page": discovery_page,
     })
