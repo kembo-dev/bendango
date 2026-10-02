@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -125,6 +126,115 @@ def _run_state(search_run):
         "status": status,
         "progress": progress,
     }
+
+
+def _public_discovery_feed(request, *, per_page=12):
+    offers = list(
+        Offer.objects.filter(
+            is_public=True,
+            is_active=True,
+            business__is_public=True,
+            business__is_active=True,
+        )
+        .select_related("business")
+        .prefetch_related("media")
+        .order_by("-updated_at")[:120]
+    )
+
+    recent_runs = list(
+        SearchRun.objects.filter(query__gt="")
+        .annotate(
+            offer_count=Count(
+                "jobs",
+                filter=Q(
+                    jobs__status=ScrapeJob.STATUS_SUCCESS,
+                    jobs__listing__isnull=False,
+                ),
+                distinct=True,
+            )
+        )
+        .order_by("-created_at")[:180]
+    )
+
+    # Public discovery shows search topics, never another user's identity or run UUID.
+    deduped_runs = []
+    seen_queries = set()
+    for run in recent_runs:
+        key = (run.query.strip().lower(), run.market_code)
+        if not run.query.strip() or key in seen_queries:
+            continue
+        seen_queries.add(key)
+        deduped_runs.append(run)
+        if len(deduped_runs) >= 120:
+            break
+
+    listing_by_run = {}
+    run_ids = [run.pk for run in deduped_runs]
+    if run_ids:
+        jobs = (
+            ScrapeJob.objects.filter(
+                search_run_id__in=run_ids,
+                status=ScrapeJob.STATUS_SUCCESS,
+                listing__isnull=False,
+            )
+            .select_related("listing__product", "listing__retailer")
+            .order_by("-finished_at", "-pk")
+        )
+        for job in jobs:
+            listing_by_run.setdefault(job.search_run_id, job.listing)
+
+    offer_items = []
+    for offer in offers:
+        offer_items.append({
+            "kind": "offer",
+            "title": offer.title,
+            "image_url": offer.display_image_url or "",
+            "price": offer.price,
+            "currency": offer.currency,
+            "price_unit": offer.price_unit,
+            "provider": offer.business.business_name,
+            "city": offer.city or offer.business.city or "",
+            "market_code": offer.market_code,
+            "badge": "Publié sur Bendango",
+            "url": f"/offer/{offer.slug}/",
+            "created_at": offer.updated_at,
+        })
+
+    search_items = []
+    for run in deduped_runs:
+        listing = listing_by_run.get(run.pk)
+        params = {"q": run.query, "market": run.market_code}
+        search_items.append({
+            "kind": "search",
+            "title": run.query,
+            "image_url": (
+                listing.product.image_url
+                if listing and listing.product and listing.product.image_url
+                else ""
+            ),
+            "price": listing.price if listing else None,
+            "currency": listing.currency if listing else run.market_currency,
+            "price_unit": "",
+            "provider": "Recherche Bendango",
+            "city": "",
+            "market_code": run.market_code,
+            "badge": "Recherché récemment",
+            "offer_count": run.offer_count,
+            "url": f"/?{urlencode(params)}",
+            "created_at": run.created_at,
+        })
+
+    # Interleave first-party offers and community searches so both are visible.
+    feed = []
+    max_len = max(len(offer_items), len(search_items))
+    for index in range(max_len):
+        if index < len(offer_items):
+            feed.append(offer_items[index])
+        if index < len(search_items):
+            feed.append(search_items[index])
+
+    paginator = Paginator(feed, per_page)
+    return paginator.get_page(request.GET.get("page") or 1)
 
 
 def _recent_search_runs(limit=8, user=None):
