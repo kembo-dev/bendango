@@ -28,8 +28,8 @@
       <div class="card h-100 border-0 shadow-sm">
         <div class="card-body p-4">
           <div class="d-flex gap-3 align-items-start">
-            {% if offer.primary_image_url %}
-            <img src="{{ offer.primary_image_url }}" alt="{{ offer.title }}" style="width:95px;height:95px;object-fit:contain;border-radius:12px;background:#fff">
+            {% if offer.display_image_url %}
+            <img src="{{ offer.display_image_url }}" alt="{{ offer.title }}" style="width:95px;height:95px;object-fit:contain;border-radius:12px;background:#fff">
             {% endif %}
             <div class="flex-grow-1">
               <div class="d-flex justify-content-between gap-2 flex-wrap mb-2">
