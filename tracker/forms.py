@@ -7,6 +7,32 @@ from .models import BusinessProfile, Offer
 from .services import get_llm_config
 
 
+
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class MultipleImageFileField(forms.FileField):
+    widget = MultipleFileInput
+
+    def clean(self, data, initial=None):
+        if not data:
+            return []
+        files = data if isinstance(data, (list, tuple)) else [data]
+        if len(files) > 8:
+            raise forms.ValidationError("Vous pouvez ajouter au maximum 8 images par envoi.")
+        cleaned = []
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+        for uploaded in files:
+            if uploaded.size > 8 * 1024 * 1024:
+                raise forms.ValidationError("Chaque image doit faire au maximum 8 Mo.")
+            content_type = (getattr(uploaded, 'content_type', '') or '').lower()
+            name = (uploaded.name or '').lower()
+            if not content_type.startswith('image/') and not any(name.endswith(ext) for ext in allowed_extensions):
+                raise forms.ValidationError("Seuls les fichiers image sont acceptés.")
+            cleaned.append(uploaded)
+        return cleaned
+
 class SearchOrScrapeForm(forms.Form):
     site = forms.CharField(
         label="Site e-commerce ou URL",
@@ -263,10 +289,20 @@ class QuickOfferForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: nuit, heure, unité, mois...'}),
     )
-    primary_image_url = forms.URLField(
-        label='Photo',
+    photos = MultipleImageFileField(
+        label='Photos depuis téléphone ou ordinateur',
         required=False,
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        widget=MultipleFileInput(attrs={
+            'class': 'form-control',
+            'accept': 'image/*',
+        }),
+        help_text='Jusqu’à 8 images par envoi, 8 Mo maximum par image.',
+    )
+    primary_image_url = forms.URLField(
+        label='URL image existante',
+        required=False,
+        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://... (optionnel)'}),
+        help_text="Facultatif : utile si l'image est déjà hébergée en ligne.",
     )
     availability = forms.ChoiceField(
         label='Disponibilité',
