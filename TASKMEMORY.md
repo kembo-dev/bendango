@@ -788,17 +788,18 @@ Media implementation:
 - [x] Ownership isolation for media actions
 - [x] Regression tests for upload, gallery management, validation and isolation
 
-Still pending in this phase:
+Media validation completed locally:
 
-- [ ] Validate migration 0019 locally after index-name fix
-- [ ] Run full test suite after 0019
+- [x] Migration 0019 applied successfully
+- [x] Django system checks pass
+- [x] Full suite passes: 225 tests, 1 skipped
 - [ ] Smoke-test upload from browser/phone
-- [ ] Confirm production media serving strategy (reverse proxy or object storage)
 - [ ] Smoke-test public Offer gallery
+- [ ] Confirm production media serving strategy (reverse proxy or object storage)
 
-Next objective after validation:
+Next objective:
 
-> Continue unified internal + external result merging and richer non-product ranking,
-> while planning production-grade media storage.
+> Smoke-test real media upload in the browser, then continue unified internal + external
+> result merging and richer non-product ranking while planning production-grade media storage.
 
 Last roadmap update: 2026-10-02.
