@@ -62,6 +62,33 @@ class SearchOrScrapeForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Choisissez le pays où Bendango doit privilégier les marchands et les offres.",
     )
+    city = forms.CharField(
+        label="Ville",
+        required=False,
+        max_length=120,
+        widget=forms.TextInput(attrs={
+            "class": "form-control",
+            "placeholder": "Ex: Kinshasa",
+        }),
+        help_text="Optionnel : privilégie les offres locales de cette ville.",
+    )
+    offer_type = forms.ChoiceField(
+        label="Type d'offre",
+        required=False,
+        choices=[("", "Tous les types")] + list(Offer.OFFER_TYPES),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    source = forms.ChoiceField(
+        label="Source",
+        required=False,
+        choices=[
+            ("", "Toutes les sources"),
+            ("bendango", "Bendango"),
+            ("web", "Web marchand"),
+            ("social", "Réseaux sociaux"),
+        ],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     model_name = forms.CharField(
         label="Modèle LLM",
         widget=forms.TextInput(attrs={"class": "form-control"}),
