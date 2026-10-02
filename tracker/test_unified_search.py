@@ -139,3 +139,118 @@ class UnifiedSearchTests(TestCase):
 
         self.assertEqual(len(results), 2)
         self.assertEqual({item.provider for item in results}, {'Shop 1', 'Shop 2'})
+
+
+    def test_groups_differently_named_same_product_canonically(self):
+        offer = Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Samsung Galaxy A56 5G 8GB 256GB',
+            price=Decimal('325.00'),
+            currency='USD',
+        )
+        offer.search_score = 0.95
+
+        retailer = Retailer.objects.create(
+            name='Alt Shop',
+            base_url='https://alt.example',
+            trust_score=Decimal('0.85'),
+            trust_level='trusted',
+            is_active=True,
+        )
+        product = Product.objects.create(name='Galaxy A56 256GB 8GB RAM')
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url='https://alt.example/a56',
+            price=Decimal('329.00'),
+            currency='USD',
+            confidence_score=Decimal('0.95'),
+            match_score=Decimal('0.95'),
+            in_stock=True,
+            is_active=True,
+        )
+        listing.offer_quality_score = 0.90
+
+        results = build_unified_results([offer], [listing], [])
+
+        product_results = [item for item in results if item.item_type == 'product']
+        self.assertEqual(len(product_results), 2)
+        self.assertEqual(product_results[0].canonical_group, product_results[1].canonical_group)
+        self.assertEqual(product_results[0].group_size, 2)
+        self.assertEqual(product_results[1].group_size, 2)
+
+    def test_does_not_group_conflicting_product_variant(self):
+        offer = Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Samsung Galaxy A56 5G 8GB 256GB',
+            price=Decimal('325.00'),
+            currency='USD',
+        )
+        retailer = Retailer.objects.create(
+            name='Variant Shop',
+            base_url='https://variant.example',
+            trust_score=Decimal('0.85'),
+            trust_level='trusted',
+            is_active=True,
+        )
+        product = Product.objects.create(name='Samsung Galaxy A56 5G 12GB 256GB')
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url='https://variant.example/a56-12',
+            price=Decimal('349.00'),
+            currency='USD',
+            confidence_score=Decimal('0.95'),
+            match_score=Decimal('0.95'),
+            in_stock=True,
+            is_active=True,
+        )
+        listing.offer_quality_score = 0.90
+
+        results = build_unified_results([offer], [listing], [])
+
+        product_results = [item for item in results if item.item_type == 'product']
+        self.assertEqual(len(product_results), 2)
+        self.assertNotEqual(product_results[0].canonical_group, product_results[1].canonical_group)
+
+    def test_non_product_ranking_rewards_verified_available_local_offer(self):
+        best = Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Coiffure femme premium',
+            price=Decimal('25000.00'),
+            currency='CDF',
+            availability='available',
+            city='Kinshasa',
+            whatsapp='+243999000000',
+            contact_method='whatsapp',
+        )
+        best.search_score = 0.70
+
+        other_user = User.objects.create_user(username='unverifiedsvc', password='StrongPass123!')
+        BusinessAccountRequest.objects.create(
+            user=other_user,
+            business_name='Unverified Services',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        other_profile = BusinessProfile.objects.get(user=other_user)
+        other_profile.is_verified = False
+        other_profile.save(update_fields=['is_verified'])
+        weaker = Offer.objects.create(
+            business=other_profile,
+            offer_type='service',
+            title='Coiffure femme premium à domicile',
+            price=Decimal('24000.00'),
+            currency='CDF',
+            availability='on_request',
+            city='',
+        )
+        weaker.search_score = 0.70
+
+        results = build_unified_results([weaker, best], [], [])
+
+        bendango = [item for item in results if item.source_kind == 'bendango']
+        self.assertEqual(bendango[0].title, 'Coiffure femme premium')
+        self.assertGreater(bendango[0].ranking_score, bendango[1].ranking_score)
