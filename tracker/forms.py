@@ -3,7 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, market_choices
-from .models import BusinessCategory, BusinessProfile, Offer
+from .models import BusinessCategory, BusinessProfile, Offer, OfferBoostRequest
 
 
 
@@ -363,6 +363,24 @@ class QuickOfferForm(forms.Form):
 
     def clean_currency(self):
         return self.cleaned_data['currency'].strip().upper()
+
+
+class OfferBoostRequestForm(forms.Form):
+    duration_days = forms.ChoiceField(
+        label='Durée souhaitée',
+        choices=OfferBoostRequest.DURATION_CHOICES,
+        initial=7,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    note = forms.CharField(
+        label='Message pour l’administrateur',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 4,
+            'placeholder': 'Pourquoi souhaitez-vous mettre ce produit en avant ?',
+        }),
+    )
 
 
 class OfferEditForm(QuickOfferForm):
