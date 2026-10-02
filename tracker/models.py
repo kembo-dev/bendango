@@ -494,6 +494,13 @@ class Offer(models.Model):
         self.currency = (self.currency or '').upper()
         super().save(*args, **kwargs)
 
+    @property
+    def display_image_url(self):
+        primary = self.media.filter(is_primary=True).first() or self.media.first()
+        if primary and primary.url:
+            return primary.url
+        return self.primary_image_url
+
     def __str__(self):
         return f"{self.business.business_name}: {self.title}"
 
