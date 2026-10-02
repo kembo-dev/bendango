@@ -4,7 +4,6 @@ from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, market_choices
 from .models import BusinessCategory, BusinessProfile, Offer
-from .services import get_llm_config
 
 
 
@@ -96,16 +95,8 @@ class SearchOrScrapeForm(forms.Form):
         widget=forms.Select(attrs={"class": "form-select"}),
         help_text="Filtre les offres publiées par les business Bendango.",
     )
-    model_name = forms.CharField(
-        label="Modèle LLM",
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        default_model = get_llm_config()["default_model"]
-        self.fields["model_name"].initial = default_model
-        self.fields["model_name"].help_text = f"Modèle actif : {default_model}"
         try:
             categories = BusinessCategory.objects.filter(is_active=True).order_by("sort_order", "name")
             self.fields["business_category"].choices = [
