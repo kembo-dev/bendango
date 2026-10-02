@@ -272,6 +272,7 @@ def public_business(request, slug):
     offers = list(
         profile.offers.filter(is_public=True, is_active=True)
         .select_related('product', 'price_listing')
+        .prefetch_related('media')
         .order_by('-updated_at')
     )
     bridged_listing_ids = {
@@ -569,7 +570,7 @@ def pro_offers(request):
     profile = _verified_business_profile(request)
     if profile is None:
         return redirect('business_account_request')
-    offers = profile.offers.select_related('product', 'price_listing').order_by('-updated_at')
+    offers = profile.offers.select_related('product', 'price_listing').prefetch_related('media').order_by('-updated_at')
     return render(request, 'tracker/pro_offers.html', {
         'profile': profile,
         'offers': offers,
