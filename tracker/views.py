@@ -872,6 +872,7 @@ def scrape_view(request):
             source_filter=source_filter,
             offer_type=offer_type,
             city=city,
+            business_category=business_category,
             limit=40,
         )
 
