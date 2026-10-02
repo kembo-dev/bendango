@@ -667,7 +667,7 @@ Implementation note: core model/public storefront work is implemented in the rep
 ### Phase 9 — Monetization
 
 - [ ] Premium business plans
-- [ ] Sponsored offers
+- [x] Sponsored/boosted product offers via business request + admin approval (billing not implemented)
 - [ ] Featured businesses
 - [ ] Advanced analytics
 - [ ] Promotional tools
@@ -844,6 +844,23 @@ Search history pagination implemented:
 - [x] Product-history filter `q` is preserved across pages
 - [x] Regression test covers pagination and filter persistence
 
+Admin-approved product boost workflow implemented in code and awaiting local validation:
+
+- [x] Business can request a boost from its own product offer
+- [x] Boost request duration options: 7 / 14 / 30 days
+- [x] Optional message to administrators
+- [x] Duplicate pending/active boost requests are blocked
+- [x] Boost is limited to product offers
+- [x] Admin changelist/actions can approve or reject boost requests
+- [x] Approval records reviewer, review time, start time and end time
+- [x] Approved active boosts are prioritized in Bendango first-party search
+- [x] Approved active boosts are prioritized in homepage discovery
+- [x] Unified results receive a controlled boost signal
+- [x] Sponsored products are explicitly labeled "Sponsorisé" in search, discovery and public offer pages
+- [x] Pro dashboard shows pending/active boost status
+- [x] Regression tests cover ownership, duplicate prevention, approval window, sponsored labeling and ranking
+- [ ] Apply migration 0020 and run full local test suite
+
 Homepage discovery feed implemented in code and awaiting local validation:
 
 - [x] Show public active Bendango Offers as soon as a visitor opens the homepage
@@ -870,8 +887,8 @@ Location/business search implementation completed in code and awaiting local val
 
 Next objective:
 
-> Validate the new location/business filters and homepage discovery feed locally, then improve
-> grouped-product presentation and add richer public business search/discovery.
+> Validate migration 0020, the product boost workflow, location/business filters and homepage
+> discovery locally; then improve grouped-product presentation and richer public business discovery.
 
 Canonical grouping validation note:
 - Local validation completed successfully with 232 tests passing and 1 skipped.
