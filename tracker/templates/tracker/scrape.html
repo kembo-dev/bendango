@@ -99,6 +99,8 @@
                                             {% endif %}
                                             {% if item.verified %}<span class="badge merchant-verified">✓ Vérifié</span>{% endif %}
                                             {% if item.badge %}<span class="badge text-bg-light border text-dark">{{ item.badge }}</span>{% endif %}
+                                            {% if item.item_type == 'product' and item.group_size > 1 %}<span class="badge text-bg-warning">Même produit · {{ item.group_size }} offres</span>{% endif %}
+                                            {% if item.item_type != 'product' and item.source_kind == 'bendango' %}<span class="badge text-bg-info">{{ item.item_type|capfirst }}</span>{% endif %}
                                         </div>
                                         <h3 class="h5 mb-1">{{ item.title }}</h3>
                                         <div class="small text-muted">{{ item.provider }}{% if item.subtitle %} · {{ item.subtitle|truncatechars:120 }}{% endif %}</div>
@@ -116,6 +118,7 @@
                                     <div class="small text-muted">
                                         {% if item.availability_label %}{{ item.availability_label }}{% endif %}
                                         {% if item.score %}{% if item.availability_label %} · {% endif %}Pertinence {{ item.score|floatformat:2 }}{% endif %}
+                                        {% if item.item_type != 'product' and item.source_kind == 'bendango' %} · Classement multisecteur {{ item.ranking_score|floatformat:2 }}{% endif %}
                                     </div>
                                     <a href="{{ item.url }}" {% if item.source_kind != 'bendango' %}target="_blank" rel="noopener noreferrer nofollow"{% endif %} class="btn {% if item.source_kind == 'bendango' %}btn-success{% elif item.source_kind == 'web' %}btn-primary{% else %}btn-outline-dark{% endif %} btn-sm">
                                         {% if item.source_kind == 'bendango' %}Voir l'offre Bendango{% elif item.source_kind == 'web' %}Voir l'offre{% else %}Voir la source{% endif %}
