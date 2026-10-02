@@ -78,7 +78,11 @@ def _assign_canonical_product_groups(results: list[UnifiedSearchResult]) -> None
             continue
         matched_group = None
         for group in groups:
-            match = match_product(group["title"], item.title, threshold=0.72)
+            # Canonical grouping can tolerate harmless title differences such as
+            # omitted brand/network labels or an added "RAM" token. The product
+            # matcher still rejects real capacity/model/variant conflicts before
+            # applying this lower grouping threshold.
+            match = match_product(group["title"], item.title, threshold=0.60)
             if match.is_match:
                 matched_group = group
                 break
