@@ -23,3 +23,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('tracker.urls')),
 ]
+
+if settings.SERVE_MEDIA_LOCALLY:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
