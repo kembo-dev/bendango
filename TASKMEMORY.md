@@ -810,18 +810,22 @@ Unified search implementation completed in code and awaiting local validation:
 - [x] Render one unified result list instead of three disconnected result blocks
 - [x] Added regression tests for merge, deduplication, source trust and multi-merchant preservation
 
-Still pending:
+Unified search validation:
 
-- [ ] Run full local test suite after unified-search changes
+- [x] Django system checks pass
+- [x] Full suite passes: 229 tests, 1 skipped
 - [ ] Smoke-test unified results in browser
 - [ ] Improve canonical product grouping across differently named merchant listings
 - [ ] Add richer ranking for non-product offers
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
 
-Next objective after validation:
+Next objective:
 
 > Improve canonical product grouping and build category-aware ranking for services, hotels,
 > restaurants and other non-product offers without weakening product price comparison.
+
+Unified-search validation note:
+- Local validation completed successfully with 229 tests passing and 1 skipped.
 
 Media serving incident:
 - Uploaded Offer images were stored correctly but not reachable through Gunicorn because WhiteNoise serves static files only, not user media.
