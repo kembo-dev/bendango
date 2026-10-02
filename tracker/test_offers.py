@@ -137,3 +137,76 @@ class OfferPlatformTests(TestCase):
         self.assertContains(response, 'Samsung Galaxy A56 5G 8GB 256GB')
         self.assertContains(response, 'Publié sur Bendango')
         self.assertContains(response, 'Résultats unifiés')
+
+
+    def test_first_party_search_prioritizes_requested_city(self):
+        local = Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Coiffure femme premium',
+            price='25000.00',
+            currency='CDF',
+            city='Kinshasa',
+            availability='available',
+        )
+        local.search_score = 0.8
+
+        other_user = User.objects.create_user(
+            username='lubumbashioffer',
+            password='StrongPass123!',
+        )
+        BusinessAccountRequest.objects.create(
+            user=other_user,
+            business_name='Lubumbashi Services',
+            status=BusinessAccountRequest.STATUS_APPROVED,
+        )
+        other_profile = BusinessProfile.objects.get(user=other_user)
+        other_profile.market_code = 'CD'
+        other_profile.city = 'Lubumbashi'
+        other_profile.save(update_fields=['market_code', 'city'])
+        Offer.objects.create(
+            business=other_profile,
+            offer_type='service',
+            title='Coiffure femme premium',
+            price='24000.00',
+            currency='CDF',
+            city='Lubumbashi',
+            availability='available',
+        )
+
+        results = find_matching_offers(
+            'Coiffure femme premium',
+            market_code='CD',
+            city='Kinshasa',
+            offer_type='service',
+        )
+
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0].city, 'Kinshasa')
+        self.assertEqual(results[0].locality_score, 1.0)
+        self.assertEqual(results[1].city, 'Lubumbashi')
+
+    def test_first_party_search_filters_offer_type(self):
+        Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Massage détente',
+            price='30000.00',
+            currency='CDF',
+        )
+        Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Huile massage détente',
+            price='10.00',
+            currency='USD',
+        )
+
+        results = find_matching_offers(
+            'massage détente',
+            market_code='CD',
+            offer_type='service',
+        )
+
+        self.assertTrue(results)
+        self.assertTrue(all(item.offer_type == 'service' for item in results))
