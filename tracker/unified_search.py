@@ -111,6 +111,7 @@ def build_unified_results(
     source_filter: str = "",
     offer_type: str = "",
     city: str = "",
+    business_category: str = "",
     limit: int = 40,
 ):
     results: list[UnifiedSearchResult] = []
@@ -163,6 +164,8 @@ def build_unified_results(
         ))
 
     for listing in listings or []:
+        if business_category:
+            continue
         if source_filter and source_filter != "web":
             continue
         if offer_type and offer_type != "product":
@@ -194,6 +197,8 @@ def build_unified_results(
         ))
 
     for source in discovery_sources or []:
+        if business_category:
+            continue
         if source_filter and source_filter != "social":
             continue
         if isinstance(source, dict):
