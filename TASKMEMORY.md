@@ -704,6 +704,7 @@ Every roadmap implementation should follow these rules:
 - Keep first-party Bendango offers distinguishable from externally scraped offers.
 - Keep social/discovery results distinguishable from verified offers.
 - Keep market/currency normalization behavior.
+- Keep internal LLM selection server-side; do not expose model selection in the end-user search interface.
 - Keep anonymous one-search trial behavior unless product direction changes.
 - Update this TASKMEMORY.md after each meaningful milestone.
 
