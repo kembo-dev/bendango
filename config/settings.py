@@ -92,6 +92,7 @@ STORAGES={
 }
 MEDIA_URL='/media/'
 MEDIA_ROOT=BASE_DIR/'media'
+SERVE_MEDIA_LOCALLY=get_env_bool('DJANGO_SERVE_MEDIA_LOCALLY', default=DEBUG)
 DEFAULT_SEARCH_COUNTRY=os.environ.get('DEFAULT_SEARCH_COUNTRY','RDC')
 LOCAL_SEARCH_DOMAINS=_split_csv(os.environ.get('LOCAL_SEARCH_DOMAINS')) or ['drcmart.com','mobile-rdc.com']
 MAILERS={'default':{'BACKEND':'django.core.mail.backends.console.EmailBackend'}}
