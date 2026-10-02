@@ -791,6 +791,7 @@ def scrape_view(request):
     city = ""
     offer_type = ""
     source_filter = ""
+    business_category = ""
     async_waiting = False
     async_active_jobs = 0
     search_run = None
@@ -803,6 +804,7 @@ def scrape_view(request):
         city = request.GET.get("city", "").strip()
         offer_type = request.GET.get("offer_type", "").strip()
         source_filter = request.GET.get("source", "").strip()
+        business_category = request.GET.get("business_category", "").strip()
         run_id = request.GET.get("run", "").strip()
         if run_id:
             try:
@@ -820,12 +822,14 @@ def scrape_view(request):
             "city": city,
             "offer_type": offer_type,
             "source": source_filter,
+            "business_category": business_category,
         })
         first_party_offers = find_matching_offers(
             query,
             market_code=market_code,
             city=city,
             offer_type=offer_type,
+            business_category=business_category,
             limit=12,
         )
         if search_run:
@@ -889,6 +893,7 @@ def scrape_view(request):
             "active_city": city,
             "active_offer_type": offer_type,
             "active_source": source_filter,
+            "active_business_category": business_category,
         })
 
     if request.method == "POST":
@@ -902,6 +907,7 @@ def scrape_view(request):
             city = form.cleaned_data.get("city", "").strip()
             offer_type = form.cleaned_data.get("offer_type", "").strip()
             source_filter = form.cleaned_data.get("source", "").strip()
+            business_category = form.cleaned_data.get("business_category", "").strip()
             market = get_market(market_code)
             model_name = form.cleaned_data["model_name"]
             if site is not None:
@@ -945,6 +951,8 @@ def scrape_view(request):
                     params["offer_type"] = offer_type
                 if source_filter:
                     params["source"] = source_filter
+                if business_category:
+                    params["business_category"] = business_category
                 return redirect(f"/?{urlencode(params)}")
 
         if listings:
@@ -970,4 +978,5 @@ def scrape_view(request):
         "active_city": city,
         "active_offer_type": offer_type,
         "active_source": source_filter,
+        "active_business_category": business_category,
     })
