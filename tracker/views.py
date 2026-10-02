@@ -138,8 +138,15 @@ def _public_discovery_feed(request, *, per_page=12):
             business__is_active=True,
         )
         .select_related("business")
-        .prefetch_related("media")
+        .prefetch_related("media", "boost_requests")
         .order_by("-updated_at")[:120]
+    )
+
+    offers.sort(
+        key=lambda offer: (
+            0 if offer.is_boosted else 1,
+            -offer.updated_at.timestamp(),
+        )
     )
 
     recent_runs = list(
@@ -197,6 +204,7 @@ def _public_discovery_feed(request, *, per_page=12):
             "city": offer.city or offer.business.city or "",
             "market_code": offer.market_code,
             "badge": "Publié sur Bendango",
+            "promoted": bool(offer.offer_type == Offer.TYPE_PRODUCT and offer.is_boosted),
             "url": f"/offer/{offer.slug}/",
             "created_at": offer.updated_at,
         })
@@ -661,7 +669,7 @@ def _attach_offer_media(offer, uploaded_files):
 
 def public_offer(request, slug):
     offer = get_object_or_404(
-        Offer.objects.select_related('business', 'business__category', 'product'),
+        Offer.objects.select_related('business', 'business__category', 'product').prefetch_related('boost_requests'),
         slug=slug,
         is_public=True,
         is_active=True,
