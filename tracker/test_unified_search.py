@@ -254,3 +254,102 @@ class UnifiedSearchTests(TestCase):
         bendango = [item for item in results if item.source_kind == 'bendango']
         self.assertEqual(bendango[0].title, 'Coiffure femme premium')
         self.assertGreater(bendango[0].ranking_score, bendango[1].ranking_score)
+
+
+    def test_source_filter_keeps_only_requested_source(self):
+        offer = Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Coiffure premium',
+            price=Decimal('20000.00'),
+            currency='CDF',
+        )
+        offer.search_score = 0.9
+
+        retailer = Retailer.objects.create(
+            name='Web Shop',
+            base_url='https://web.example',
+            trust_score=Decimal('0.80'),
+            trust_level='trusted',
+            is_active=True,
+        )
+        product = Product.objects.create(name='Coiffure kit')
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url='https://web.example/kit',
+            price=Decimal('20.00'),
+            currency='USD',
+            confidence_score=Decimal('0.90'),
+            match_score=Decimal('0.90'),
+            in_stock=True,
+            is_active=True,
+        )
+        listing.offer_quality_score = 0.8
+
+        social = [{
+            'url': 'https://facebook.com/example/post',
+            'platform': 'Facebook',
+            'title': 'Coiffure premium Kinshasa',
+            'snippet': 'Contact WhatsApp',
+            'relevance_score': 0.8,
+            'source_type': 'Réseau social',
+        }]
+
+        results = build_unified_results([offer], [listing], social, source_filter='bendango')
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source_kind, 'bendango')
+
+        results = build_unified_results([offer], [listing], social, source_filter='social')
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source_kind, 'social')
+
+    def test_offer_type_filter_excludes_other_offer_types_and_web_for_non_product(self):
+        service = Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Coiffure femme',
+            price=Decimal('20000.00'),
+            currency='CDF',
+        )
+        service.search_score = 0.9
+        product_offer = Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Shampooing professionnel',
+            price=Decimal('10.00'),
+            currency='USD',
+        )
+        product_offer.search_score = 0.8
+
+        retailer = Retailer.objects.create(
+            name='Web Product Shop',
+            base_url='https://products.example',
+            trust_score=Decimal('0.80'),
+            trust_level='trusted',
+            is_active=True,
+        )
+        product = Product.objects.create(name='Shampooing professionnel')
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url='https://products.example/shampoo',
+            price=Decimal('10.00'),
+            currency='USD',
+            confidence_score=Decimal('0.90'),
+            match_score=Decimal('0.90'),
+            in_stock=True,
+            is_active=True,
+        )
+        listing.offer_quality_score = 0.8
+
+        results = build_unified_results(
+            [service, product_offer],
+            [listing],
+            [],
+            offer_type='service',
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].item_type, 'service')
+        self.assertEqual(results[0].title, 'Coiffure femme')
