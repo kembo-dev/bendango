@@ -844,7 +844,13 @@ Search history pagination implemented:
 - [x] Product-history filter `q` is preserved across pages
 - [x] Regression test covers pagination and filter persistence
 
-Admin-approved product boost workflow implemented in code and awaiting local validation:
+Admin-approved product boost workflow validated locally:
+
+- [x] Migration 0020 applied successfully
+- [x] Django system checks pass
+- [x] Full suite passes: 252 tests, 1 skipped
+
+Admin-approved product boost workflow implemented:
 
 - [x] Business can request a boost from its own product offer
 - [x] Boost request duration options: 7 / 14 / 30 days
@@ -859,7 +865,7 @@ Admin-approved product boost workflow implemented in code and awaiting local val
 - [x] Sponsored products are explicitly labeled "Sponsorisé" in search, discovery and public offer pages
 - [x] Pro dashboard shows pending/active boost status
 - [x] Regression tests cover ownership, duplicate prevention, approval window, sponsored labeling and ranking
-- [ ] Apply migration 0020 and run full local test suite
+- [x] Apply migration 0020 and run full local test suite: 252 tests, 1 skipped
 
 Homepage discovery feed implemented in code and awaiting local validation:
 
