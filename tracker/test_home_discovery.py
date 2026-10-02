@@ -2,7 +2,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from tracker.models import BusinessAccountRequest, BusinessProfile, Offer, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessProfile, Offer, OfferBoostRequest, SearchRun
 
 
 class HomepageDiscoveryFeedTests(TestCase):
@@ -132,3 +132,37 @@ class HomepageDiscoveryFeedTests(TestCase):
 
         self.assertContains(response, public_offer.title)
         self.assertNotContains(response, hidden_offer.title)
+
+
+    def test_boosted_product_is_prioritized_and_labeled_in_home_discovery(self):
+        normal = Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Produit normal',
+            price='10.00',
+            currency='USD',
+            market_code='CD',
+        )
+        boosted = Offer.objects.create(
+            business=self.profile,
+            offer_type='product',
+            title='Produit boosté',
+            price='20.00',
+            currency='USD',
+            market_code='CD',
+        )
+        boost = OfferBoostRequest.objects.create(
+            offer=boosted,
+            requested_by=self.profile.user,
+            duration_days=7,
+        )
+        boost.approve()
+
+        response = self.client.get(reverse('scrape_view'))
+        items = list(response.context['discovery_page'].paginator.object_list)
+
+        offer_items = [item for item in items if item['kind'] == 'offer']
+        self.assertEqual(offer_items[0]['title'], boosted.title)
+        self.assertTrue(offer_items[0]['promoted'])
+        self.assertContains(response, 'Sponsorisé')
+        self.assertIn(normal.title, [item['title'] for item in offer_items])
