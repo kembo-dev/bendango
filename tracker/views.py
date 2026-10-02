@@ -269,7 +269,9 @@ def search_history(request):
     )
     if product_query:
         searches = searches.filter(query__icontains=product_query)
-    searches = searches.order_by("-created_at")[:50]
+    searches = searches.order_by("-created_at")
+    paginator = Paginator(searches, 12)
+    searches = paginator.get_page(request.GET.get("page") or 1)
     return render(request, "tracker/search_history.html", {
         "searches": searches,
         "product_query": product_query,
