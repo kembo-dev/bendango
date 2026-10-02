@@ -836,6 +836,18 @@ Canonical grouping and multisector ranking implemented in code, awaiting local v
 - [x] Add regression tests for canonical grouping, variant separation and multisector ordering
 - [x] Run full local test suite after grouping/ranking changes: 232 tests, 1 skipped
 
+Homepage discovery feed implemented in code and awaiting local validation:
+
+- [x] Show public active Bendango Offers as soon as a visitor opens the homepage
+- [x] Show recent product/search topics from the Bendango community
+- [x] Never expose the searching user's identity or SearchRun UUID in the public feed
+- [x] Deduplicate repeated community search topics per market
+- [x] Interleave Bendango Offers and community searches so both stay visible
+- [x] Reuse representative product image/price when a past search has a successful listing
+- [x] Add server-side pagination with 12 discovery cards per page
+- [x] Keep private/inactive Offers out of public discovery
+- [x] Add regression tests for mixed feed, privacy, deduplication and pagination
+
 Location/business search implementation completed in code and awaiting local validation:
 
 - [x] Add city search filter
@@ -850,8 +862,8 @@ Location/business search implementation completed in code and awaiting local val
 
 Next objective:
 
-> Validate the new location/business filters locally, then improve grouped-product presentation
-> and add richer public business search/discovery.
+> Validate the new location/business filters and homepage discovery feed locally, then improve
+> grouped-product presentation and add richer public business search/discovery.
 
 Canonical grouping validation note:
 - Local validation completed successfully with 232 tests passing and 1 skipped.
