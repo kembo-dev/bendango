@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from tracker.product_matching import normalize_product_name
+from tracker.product_matching import match_product, normalize_product_name
 
 
 @dataclass
@@ -23,6 +23,10 @@ class UnifiedSearchResult:
     verified: bool = False
     subtitle: str = ""
     badge: str = ""
+    item_type: str = ""
+    canonical_group: str = ""
+    group_size: int = 1
+    ranking_score: float = 0.0
 
 
 def _result_key(source_kind: str, provider: str, title: str, url: str = "") -> str:
@@ -33,6 +37,66 @@ def _result_key(source_kind: str, provider: str, title: str, url: str = "") -> s
         normalize_product_name(provider or ""),
         normalize_product_name(title or ""),
     ])
+
+
+def _non_product_ranking_score(offer) -> float:
+    score = float(getattr(offer, "search_score", 0.0) or 0.0)
+    score *= 0.72
+    if getattr(offer.business, "is_verified", False):
+        score += 0.10
+    if getattr(offer, "availability", "") == "available":
+        score += 0.08
+    elif getattr(offer, "availability", "") == "on_request":
+        score += 0.03
+    if getattr(offer, "price", None) is not None:
+        score += 0.03
+    if getattr(offer, "display_image_url", ""):
+        score += 0.02
+    if getattr(offer, "whatsapp", "") or getattr(offer.business, "whatsapp", ""):
+        score += 0.02
+    if getattr(offer, "city", ""):
+        score += 0.01
+
+    offer_type = getattr(offer, "offer_type", "")
+    price_unit = (getattr(offer, "price_unit", "") or "").lower()
+    if offer_type == "accommodation" and price_unit in {"nuit", "night", "jour", "day"}:
+        score += 0.02
+    elif offer_type == "service" and getattr(offer, "contact_method", "") in {"whatsapp", "phone"}:
+        score += 0.02
+    elif offer_type in {"restaurant", "health"} and getattr(offer, "availability", "") == "available":
+        score += 0.02
+    elif offer_type in {"transport", "real_estate"} and getattr(offer, "city", ""):
+        score += 0.02
+
+    return round(min(score, 1.0), 4)
+
+
+def _assign_canonical_product_groups(results: list[UnifiedSearchResult]) -> None:
+    groups: list[dict] = []
+    for item in results:
+        if item.item_type != "product" or item.source_kind not in {"bendango", "web"}:
+            continue
+        matched_group = None
+        for group in groups:
+            match = match_product(group["title"], item.title, threshold=0.72)
+            if match.is_match:
+                matched_group = group
+                break
+        if matched_group is None:
+            normalized = normalize_product_name(item.title)
+            matched_group = {
+                "id": f"product-{len(groups) + 1}-{normalized[:48].replace(' ', '-')}",
+                "title": item.title,
+                "items": [],
+            }
+            groups.append(matched_group)
+        matched_group["items"].append(item)
+
+    for group in groups:
+        size = len(group["items"])
+        for item in group["items"]:
+            item.canonical_group = group["id"]
+            item.group_size = size
 
 
 def build_unified_results(first_party_offers, listings, discovery_sources, *, limit: int = 40):
@@ -65,6 +129,12 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
             verified=bool(offer.business.is_verified),
             subtitle=offer.city or offer.business.country or "",
             badge="Publié sur Bendango",
+            item_type=offer.offer_type,
+            ranking_score=(
+                float(getattr(offer, "search_score", 0.0) or 0.0)
+                if offer.offer_type == "product"
+                else _non_product_ranking_score(offer)
+            ),
         ))
 
     for listing in listings or []:
@@ -90,6 +160,8 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
             verified=trust_level == "verified",
             subtitle=getattr(listing, "get_extraction_source_display", lambda: "")(),
             badge="Marchand vérifié" if trust_level == "verified" else "Offre Web",
+            item_type="product",
+            ranking_score=float(getattr(listing, "offer_quality_score", 0.0) or 0.0),
         ))
 
     for source in discovery_sources or []:
@@ -118,12 +190,16 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
             verified=False,
             subtitle=str(getter("snippet", "") or ""),
             badge=source_type,
+            item_type="discovery",
+            ranking_score=float(getter("relevance_score", 0.0) or 0.0),
         ))
+
+    _assign_canonical_product_groups(results)
 
     source_priority = {"bendango": 0, "web": 1, "social": 2}
     results.sort(key=lambda item: (
         source_priority.get(item.source_kind, 9),
-        -float(item.score or 0.0),
+        -float(item.ranking_score or item.score or 0.0),
         item.provider.lower(),
         item.title.lower(),
     ))
