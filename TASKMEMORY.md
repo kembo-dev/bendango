@@ -629,10 +629,10 @@ Implementation note: core model/public storefront work is implemented in the rep
 
 - [x] Search local Bendango offers before external web
 - [x] Market-aware first-party matching
-- [ ] Merge internal + external + social results
-- [ ] Deduplicate comparable offers
-- [ ] Preserve trusted source labels
-- [ ] Avoid treating social discovery as verified merchant pricing
+- [x] Merge internal + external + social results into a unified presentation
+- [x] Deduplicate bridged Bendango/Web duplicates while preserving multi-merchant comparison
+- [x] Preserve trusted source labels
+- [x] Avoid treating social discovery as verified merchant pricing
 - [ ] Product comparison uses canonical Product matching
 - [ ] Non-product offers use appropriate ranking
 
@@ -798,10 +798,30 @@ Media validation completed locally:
 - [x] Add explicit local media serving switch for Gunicorn (`DJANGO_SERVE_MEDIA_LOCALLY`)
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
 
-Next objective:
+Unified search implementation completed in code and awaiting local validation:
 
-> Smoke-test real media upload in the browser, then continue unified internal + external
-> result merging and richer non-product ranking while planning production-grade media storage.
+- [x] Added `UnifiedSearchResult` adapter
+- [x] Merge Bendango first-party offers, verified Web merchant listings and social/discovery sources
+- [x] Keep source origin explicit on every result
+- [x] Keep social/discovery sources non-verified
+- [x] Remove duplicate Web listing when it is already bridged to the same Bendango Offer
+- [x] Preserve multiple Web merchants for real price comparison
+- [x] Preserve Web price summary (average and cheapest offer)
+- [x] Render one unified result list instead of three disconnected result blocks
+- [x] Added regression tests for merge, deduplication, source trust and multi-merchant preservation
+
+Still pending:
+
+- [ ] Run full local test suite after unified-search changes
+- [ ] Smoke-test unified results in browser
+- [ ] Improve canonical product grouping across differently named merchant listings
+- [ ] Add richer ranking for non-product offers
+- [ ] Confirm production media serving strategy (reverse proxy or object storage)
+
+Next objective after validation:
+
+> Improve canonical product grouping and build category-aware ranking for services, hotels,
+> restaurants and other non-product offers without weakening product price comparison.
 
 Media serving incident:
 - Uploaded Offer images were stored correctly but not reachable through Gunicorn because WhiteNoise serves static files only, not user media.
