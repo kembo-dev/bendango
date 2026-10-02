@@ -61,6 +61,102 @@
         <button type="submit" class="btn btn-primary mt-4 w-100 btn-compare" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Rechercher sur Bendango{% endif %}</button>
     </form>
 
+    {% if discovery_page %}
+    <section class="mt-4 discovery-home-panel">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div>
+                <div class="eyebrow mb-2">Découvrir Bendango</div>
+                <h2 class="h4 mb-1">Produits publiés et recherches de la communauté</h2>
+                <p class="text-muted mb-0">Découvrez les offres publiées directement par les business Bendango et les produits récemment recherchés par d'autres utilisateurs.</p>
+            </div>
+            <span class="badge text-bg-light border">{{ discovery_page.paginator.count }} élément{{ discovery_page.paginator.count|pluralize }}</span>
+        </div>
+
+        {% if discovery_page.object_list %}
+        <div class="row g-3">
+            {% for item in discovery_page %}
+            <div class="col-md-6">
+                <div class="card h-100 border-0 shadow-sm discovery-feed-card">
+                    <div class="card-body p-4">
+                        <div class="d-flex gap-3 align-items-start">
+                            {% if item.image_url %}
+                            <img src="{{ item.image_url }}" alt="{{ item.title }}" class="discovery-feed-image">
+                            {% else %}
+                            <div class="discovery-feed-placeholder">B</div>
+                            {% endif %}
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex justify-content-between gap-2 flex-wrap mb-2">
+                                    <div>
+                                        {% if item.kind == 'offer' %}
+                                        <span class="badge text-bg-success">{{ item.badge }}</span>
+                                        {% else %}
+                                        <span class="badge text-bg-primary">{{ item.badge }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="badge text-bg-light border">Marché {{ item.market_code }}</span>
+                                </div>
+                                <h3 class="h5 mb-1">{{ item.title }}</h3>
+                                <div class="small text-muted mb-2">
+                                    {{ item.provider }}
+                                    {% if item.city %} · {{ item.city }}{% endif %}
+                                </div>
+
+                                {% if item.price %}
+                                <div class="fw-bold text-primary mb-2">
+                                    {{ item.price }} {{ item.currency }}
+                                    {% if item.price_unit %}<span class="fw-normal text-muted">/ {{ item.price_unit }}</span>{% endif %}
+                                </div>
+                                {% endif %}
+
+                                {% if item.kind == 'search' %}
+                                <div class="small text-muted mb-3">
+                                    {{ item.offer_count }} offre{{ item.offer_count|pluralize }} trouvée{{ item.offer_count|pluralize }}
+                                </div>
+                                {% endif %}
+
+                                <a href="{{ item.url }}" class="btn {% if item.kind == 'offer' %}btn-success{% else %}btn-outline-primary{% endif %} btn-sm">
+                                    {% if item.kind == 'offer' %}Voir l'offre{% else %}Voir cette recherche{% endif %}
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if discovery_page.paginator.num_pages > 1 %}
+        <nav class="mt-4" aria-label="Pagination découverte Bendango">
+            <ul class="pagination justify-content-center flex-wrap">
+                {% if discovery_page.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ discovery_page.previous_page_number }}">Précédent</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Précédent</span></li>
+                {% endif %}
+
+                {% for page_number in discovery_page.paginator.page_range %}
+                    {% if page_number == discovery_page.number %}
+                    <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
+                    {% elif page_number >= discovery_page.number|add:'-2' and page_number <= discovery_page.number|add:'2' %}
+                    <li class="page-item"><a class="page-link" href="?page={{ page_number }}">{{ page_number }}</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if discovery_page.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ discovery_page.next_page_number }}">Suivant</a></li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Suivant</span></li>
+                {% endif %}
+            </ul>
+            <div class="text-center small text-muted">Page {{ discovery_page.number }} sur {{ discovery_page.paginator.num_pages }}</div>
+        </nav>
+        {% endif %}
+        {% else %}
+        <div class="alert alert-light border mb-0">Les premières offres et recherches apparaîtront ici dès qu'elles seront publiées.</div>
+        {% endif %}
+    </section>
+    {% endif %}
+
         {% if search_run and run_state %}<section id="search-progress" class="search-progress mt-4" data-status-url="{% url 'search_run_status' search_run.pk %}" data-running="{% if async_waiting %}1{% else %}0{% endif %}">
         <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3"><div><div class="eyebrow mb-2">Recherche en temps réel</div><h2 class="h5 mb-1" id="progress-title">{% if async_waiting %}Analyse des marchands en cours…{% else %}Recherche terminée{% endif %}</h2><div class="small text-muted">Run {{ search_run.pk|stringformat:"s"|slice:":8" }} · {{ search_run.query }} · Marché {{ search_run.market_code }}</div></div><span id="progress-status" class="badge {% if async_waiting %}text-bg-primary{% else %}text-bg-success{% endif %}">{% if async_waiting %}En cours{% else %}Terminée{% endif %}</span></div>
         <div class="progress mb-3" style="height:9px"><div id="progress-bar" class="progress-bar progress-bar-striped {% if async_waiting %}progress-bar-animated{% endif %}" role="progressbar" style="width:{{ run_state.progress }}%" aria-valuenow="{{ run_state.progress }}" aria-valuemin="0" aria-valuemax="100"></div></div>
@@ -247,7 +343,7 @@
 
 </div></div></div>
 <style>
-.page-shell{background:linear-gradient(180deg,#f6f9ff 0%,#eef3fb 100%);min-height:100vh}.hero-panel{padding:2rem 1.5rem 1.25rem;border-radius:24px;background:linear-gradient(135deg,rgba(13,110,253,.08),rgba(25,135,84,.08));border:1px solid rgba(13,110,253,.08)}.eyebrow{display:inline-block;background:rgba(13,110,253,.08);color:#0d6efd;border-radius:999px;padding:.35rem .8rem;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:.75rem}.hero-panel h1{font-size:clamp(2rem,3vw,3rem);font-weight:800;color:#122033}.hero-panel p{color:#4d5d73}.premium-form{border:1px solid rgba(13,110,253,.1);border-radius:22px;background:rgba(255,255,255,.92)}.btn-compare{border-radius:12px;font-weight:700;padding:.9rem 1rem}.search-progress{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.18);background:rgba(255,255,255,.88);box-shadow:0 .5rem 1.5rem rgba(18,32,51,.06)}.recommendation-panel{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1.25rem 1.4rem;border-radius:18px;border:1px solid rgba(25,135,84,.28);background:linear-gradient(100deg,rgba(25,135,84,.14),rgba(255,255,255,.9))}.result-card{border:1px solid rgba(13,110,253,.1)!important;border-radius:18px}.result-card-best{border-color:rgba(25,135,84,.55)!important;box-shadow:0 .5rem 1.5rem rgba(25,135,84,.12)!important}.merchant-verified{background:#e8f7ef;color:#146c43;border:1px solid #b9e5cd}.summary-pill{background:white;border:1px solid rgba(0,0,0,.08);border-radius:999px;padding:.3rem .8rem;font-size:.82rem}.quality-bar{padding:.8rem 1rem;background:#f8fafc;border-radius:12px;border:1px solid #e9ecef}.quality-bar .progress{height:7px}.metric{height:100%;background:#f8f9fa;border:1px solid #e9ecef;border-radius:12px;padding:.7rem .85rem;display:flex;flex-direction:column;gap:.15rem}.metric small{color:#6c757d}.metric strong{color:#24364b}.unified-results-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.16);background:rgba(255,255,255,.82)}.unified-result-card{border:1px solid rgba(13,110,253,.09)!important;border-radius:16px}.unified-result-card:hover{box-shadow:0 .6rem 1.5rem rgba(18,32,51,.09)!important}.first-party-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(25,135,84,.2);background:rgba(255,255,255,.82)}.recent-searches-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.72)}.recent-search-card{border:1px solid rgba(13,110,253,.1);border-radius:15px;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}.recent-search-card:hover{transform:translateY(-2px);border-color:rgba(13,110,253,.35);box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08)}.discovery-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.7)}.discovery-card{border:1px solid rgba(0,0,0,.08);border-radius:15px;transition:transform .15s ease,box-shadow .15s ease}.discovery-card:hover{transform:translateY(-2px);box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08)}.discovery-type{font-weight:600;border:1px solid transparent}.discovery-social{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}.discovery-comparison{background:#ecfdf5;color:#047857;border-color:#a7f3d0}.discovery-info{background:#fff7ed;color:#c2410c;border-color:#fed7aa}.discovery-other{background:#f8fafc;color:#475569;border-color:#e2e8f0}
+.page-shell{background:linear-gradient(180deg,#f6f9ff 0%,#eef3fb 100%);min-height:100vh}.hero-panel{padding:2rem 1.5rem 1.25rem;border-radius:24px;background:linear-gradient(135deg,rgba(13,110,253,.08),rgba(25,135,84,.08));border:1px solid rgba(13,110,253,.08)}.eyebrow{display:inline-block;background:rgba(13,110,253,.08);color:#0d6efd;border-radius:999px;padding:.35rem .8rem;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-bottom:.75rem}.hero-panel h1{font-size:clamp(2rem,3vw,3rem);font-weight:800;color:#122033}.hero-panel p{color:#4d5d73}.premium-form{border:1px solid rgba(13,110,253,.1);border-radius:22px;background:rgba(255,255,255,.92)}.btn-compare{border-radius:12px;font-weight:700;padding:.9rem 1rem}.search-progress{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.18);background:rgba(255,255,255,.88);box-shadow:0 .5rem 1.5rem rgba(18,32,51,.06)}.recommendation-panel{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1.25rem 1.4rem;border-radius:18px;border:1px solid rgba(25,135,84,.28);background:linear-gradient(100deg,rgba(25,135,84,.14),rgba(255,255,255,.9))}.result-card{border:1px solid rgba(13,110,253,.1)!important;border-radius:18px}.result-card-best{border-color:rgba(25,135,84,.55)!important;box-shadow:0 .5rem 1.5rem rgba(25,135,84,.12)!important}.merchant-verified{background:#e8f7ef;color:#146c43;border:1px solid #b9e5cd}.summary-pill{background:white;border:1px solid rgba(0,0,0,.08);border-radius:999px;padding:.3rem .8rem;font-size:.82rem}.quality-bar{padding:.8rem 1rem;background:#f8fafc;border-radius:12px;border:1px solid #e9ecef}.quality-bar .progress{height:7px}.metric{height:100%;background:#f8f9fa;border:1px solid #e9ecef;border-radius:12px;padding:.7rem .85rem;display:flex;flex-direction:column;gap:.15rem}.metric small{color:#6c757d}.metric strong{color:#24364b}.unified-results-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.16);background:rgba(255,255,255,.82)}.unified-result-card{border:1px solid rgba(13,110,253,.09)!important;border-radius:16px}.unified-result-card:hover{box-shadow:0 .6rem 1.5rem rgba(18,32,51,.09)!important}.first-party-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(25,135,84,.2);background:rgba(255,255,255,.82)}.recent-searches-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.72)}.recent-search-card{border:1px solid rgba(13,110,253,.1);border-radius:15px;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}.recent-search-card:hover{transform:translateY(-2px);border-color:rgba(13,110,253,.35);box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08)}.discovery-home-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.78)}.discovery-feed-card{border:1px solid rgba(13,110,253,.09)!important;border-radius:17px;transition:transform .15s ease,box-shadow .15s ease}.discovery-feed-card:hover{transform:translateY(-2px);box-shadow:0 .6rem 1.5rem rgba(18,32,51,.09)!important}.discovery-feed-image{width:96px;height:96px;object-fit:contain;border-radius:14px;background:#fff;border:1px solid #eef1f5}.discovery-feed-placeholder{width:96px;height:96px;border-radius:14px;background:linear-gradient(135deg,#eaf2ff,#edf9f2);display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#0d6efd;flex:0 0 auto}.discovery-panel{padding:1.25rem;border-radius:20px;border:1px solid rgba(13,110,253,.12);background:rgba(255,255,255,.7)}.discovery-card{border:1px solid rgba(0,0,0,.08);border-radius:15px;transition:transform .15s ease,box-shadow .15s ease}.discovery-card:hover{transform:translateY(-2px);box-shadow:0 .5rem 1.25rem rgba(18,32,51,.08)}.discovery-type{font-weight:600;border:1px solid transparent}.discovery-social{background:#eef2ff;color:#4338ca;border-color:#c7d2fe}.discovery-comparison{background:#ecfdf5;color:#047857;border-color:#a7f3d0}.discovery-info{background:#fff7ed;color:#c2410c;border-color:#fed7aa}.discovery-other{background:#f8fafc;color:#475569;border-color:#e2e8f0}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
