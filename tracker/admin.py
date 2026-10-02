@@ -118,6 +118,7 @@ class OfferBoostRequestAdmin(admin.ModelAdmin):
         'requested_by',
         'duration_days',
         'note',
+        'status',
         'starts_at',
         'ends_at',
         'reviewed_by',
