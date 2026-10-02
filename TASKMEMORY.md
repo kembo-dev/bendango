@@ -836,6 +836,14 @@ Canonical grouping and multisector ranking implemented in code, awaiting local v
 - [x] Add regression tests for canonical grouping, variant separation and multisector ordering
 - [x] Run full local test suite after grouping/ranking changes: 232 tests, 1 skipped
 
+Search history pagination implemented:
+
+- [x] Personal history uses server-side pagination
+- [x] 12 searches per page
+- [x] Previous/next and nearby page links
+- [x] Product-history filter `q` is preserved across pages
+- [x] Regression test covers pagination and filter persistence
+
 Homepage discovery feed implemented in code and awaiting local validation:
 
 - [x] Show public active Bendango Offers as soon as a visitor opens the homepage
