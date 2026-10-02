@@ -70,8 +70,8 @@
         {% for offer in offers %}
         <div class="col-md-6 col-lg-4">
             <div class="card h-100 border-0 shadow-sm">
-                {% if offer.primary_image_url %}
-                <img src="{{ offer.primary_image_url }}" alt="{{ offer.title }}" class="card-img-top" style="height:190px;object-fit:contain;background:#fff">
+                {% if offer.display_image_url %}
+                <img src="{{ offer.display_image_url }}" alt="{{ offer.title }}" class="card-img-top" style="height:190px;object-fit:contain;background:#fff">
                 {% endif %}
                 <div class="card-body d-flex flex-column p-4">
                     <div class="mb-2"><span class="badge text-bg-light border">{{ offer.get_offer_type_display }}</span></div>
