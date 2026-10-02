@@ -22,7 +22,7 @@
 
   <div class="card border-0 shadow-sm">
     <div class="card-body p-4 p-md-5">
-      <form method="post">{% csrf_token %}
+      <form method="post" enctype="multipart/form-data">{% csrf_token %}
         <div class="row g-3">
           {% for field in form %}
           <div class="{% if field.name == 'title' or field.name == 'description' or field.name == 'primary_image_url' or field.name == 'external_url' %}col-12{% else %}col-md-6{% endif %}">
@@ -33,6 +33,31 @@
           </div>
           {% endfor %}
         </div>
+        {% if media %}
+        <div class="mt-4">
+          <h2 class="h5 mb-3">Galerie actuelle</h2>
+          <div class="row g-3">
+            {% for item in media %}
+            <div class="col-6 col-md-4">
+              <div class="border rounded p-2 h-100 bg-white">
+                {% if item.url %}
+                <img src="{{ item.url }}" alt="{{ item.alt_text|default:offer.title }}" style="width:100%;height:150px;object-fit:cover;border-radius:10px">
+                {% endif %}
+                <div class="d-flex gap-1 flex-wrap mt-2">
+                  {% if item.is_primary %}<span class="badge text-bg-success">Principale</span>{% else %}
+                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'primary' %}">{% csrf_token %}<button class="btn btn-outline-success btn-sm" type="submit">Principale</button></form>
+                  {% endif %}
+                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'up' %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">↑</button></form>
+                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'down' %}">{% csrf_token %}<button class="btn btn-outline-secondary btn-sm" type="submit">↓</button></form>
+                  <form method="post" action="{% url 'pro_offer_media_action' offer.pk item.pk 'delete' %}">{% csrf_token %}<button class="btn btn-outline-danger btn-sm" type="submit">Supprimer</button></form>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
         <button class="btn btn-primary mt-4" type="submit">{{ submit_label }}</button>
       </form>
     </div>
