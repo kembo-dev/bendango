@@ -633,8 +633,8 @@ Implementation note: core model/public storefront work is implemented in the rep
 - [x] Deduplicate bridged Bendango/Web duplicates while preserving multi-merchant comparison
 - [x] Preserve trusted source labels
 - [x] Avoid treating social discovery as verified merchant pricing
-- [ ] Product comparison uses canonical Product matching
-- [ ] Non-product offers use appropriate ranking
+- [x] Product comparison uses canonical product grouping across differently named Bendango/Web offers
+- [x] Non-product offers use category-aware multisector ranking
 
 ### Phase 6 — Analytics
 
@@ -815,14 +815,25 @@ Unified search validation:
 - [x] Django system checks pass
 - [x] Full suite passes: 229 tests, 1 skipped
 - [ ] Smoke-test unified results in browser
-- [ ] Improve canonical product grouping across differently named merchant listings
-- [ ] Add richer ranking for non-product offers
+- [x] Improve canonical product grouping across differently named merchant listings
+- [x] Add richer ranking for non-product offers
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
+
+Canonical grouping and multisector ranking implemented in code, awaiting local validation:
+
+- [x] Group matching product titles across Bendango and Web using conservative product matching
+- [x] Keep conflicting RAM/storage/variant configurations in separate canonical groups
+- [x] Preserve multiple merchants inside the same product group
+- [x] Add visible "same product" group badge in unified results
+- [x] Add ranking score for services, accommodation, restaurant, health, transport, real estate and other non-product offers
+- [x] Ranking considers relevance, verification, availability, price presence, media/contact quality and category-specific signals
+- [x] Add regression tests for canonical grouping, variant separation and multisector ordering
+- [ ] Run full local test suite after grouping/ranking changes
 
 Next objective:
 
-> Improve canonical product grouping and build category-aware ranking for services, hotels,
-> restaurants and other non-product offers without weakening product price comparison.
+> Validate canonical grouping and multisector ranking locally, then improve the presentation
+> of grouped products and continue toward richer business/location-aware search.
 
 Unified-search validation note:
 - Local validation completed successfully with 229 tests passing and 1 skipped.
