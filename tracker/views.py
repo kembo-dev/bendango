@@ -11,12 +11,12 @@ from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
+from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferBoostRequestForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .offer_search import find_matching_offers
 from .unified_search import build_unified_results
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferBoostRequest, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import get_llm_config, process_url_and_save
@@ -683,10 +683,71 @@ def pro_offers(request):
     profile = _verified_business_profile(request)
     if profile is None:
         return redirect('business_account_request')
-    offers = profile.offers.select_related('product', 'price_listing').prefetch_related('media').order_by('-updated_at')
+    offers = list(
+        profile.offers
+        .select_related('product', 'price_listing')
+        .prefetch_related('media', 'boost_requests')
+        .order_by('-updated_at')
+    )
+    for offer in offers:
+        requests = list(offer.boost_requests.all())
+        offer.latest_boost_request = requests[0] if requests else None
+        offer.active_boost = next((item for item in requests if item.is_active), None)
     return render(request, 'tracker/pro_offers.html', {
         'profile': profile,
         'offers': offers,
+    })
+
+
+@login_required
+def pro_offer_boost_request(request, offer_id):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    offer = get_object_or_404(Offer, pk=offer_id, business=profile)
+    if offer.offer_type != Offer.TYPE_PRODUCT:
+        messages.error(request, "Le boost est disponible uniquement pour les produits.")
+        return redirect('pro_offers')
+
+    now = timezone.now()
+    existing = OfferBoostRequest.objects.filter(
+        offer=offer,
+    ).filter(
+        Q(status=OfferBoostRequest.STATUS_PENDING)
+        | Q(
+            status=OfferBoostRequest.STATUS_APPROVED,
+            starts_at__lte=now,
+            ends_at__gt=now,
+        )
+    ).order_by('-created_at').first()
+    if existing:
+        if existing.status == OfferBoostRequest.STATUS_PENDING:
+            messages.info(request, "Une demande de boost est déjà en attente pour ce produit.")
+        else:
+            messages.info(request, "Ce produit est déjà boosté.")
+        return redirect('pro_offers')
+
+    if request.method == 'POST':
+        form = OfferBoostRequestForm(request.POST)
+        if form.is_valid():
+            OfferBoostRequest.objects.create(
+                offer=offer,
+                requested_by=request.user,
+                duration_days=int(form.cleaned_data['duration_days']),
+                note=form.cleaned_data['note'],
+            )
+            messages.success(
+                request,
+                "Votre demande de boost a été envoyée aux administrateurs.",
+            )
+            return redirect('pro_offers')
+    else:
+        form = OfferBoostRequestForm()
+
+    return render(request, 'tracker/pro_offer_boost_request.html', {
+        'profile': profile,
+        'offer': offer,
+        'form': form,
     })
 
 
