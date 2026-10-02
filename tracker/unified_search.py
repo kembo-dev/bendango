@@ -103,7 +103,16 @@ def _assign_canonical_product_groups(results: list[UnifiedSearchResult]) -> None
             item.group_size = size
 
 
-def build_unified_results(first_party_offers, listings, discovery_sources, *, limit: int = 40):
+def build_unified_results(
+    first_party_offers,
+    listings,
+    discovery_sources,
+    *,
+    source_filter: str = "",
+    offer_type: str = "",
+    city: str = "",
+    limit: int = 40,
+):
     results: list[UnifiedSearchResult] = []
     seen_keys: set[str] = set()
     bridged_listing_ids = {
@@ -112,7 +121,12 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
         if getattr(offer, "price_listing_id", None)
     }
 
+    normalized_city = normalize_product_name(city)
     for offer in first_party_offers or []:
+        if source_filter and source_filter != "bendango":
+            continue
+        if offer_type and offer.offer_type != offer_type:
+            continue
         key = _result_key("bendango", offer.business.business_name, offer.title)
         if key in seen_keys:
             continue
@@ -135,13 +149,24 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
             badge="Publié sur Bendango",
             item_type=offer.offer_type,
             ranking_score=(
-                float(getattr(offer, "search_score", 0.0) or 0.0)
+                (
+                    float(getattr(offer, "search_score", 0.0) or 0.0)
+                    + (0.08 * float(getattr(offer, "locality_score", 0.0) or 0.0))
+                )
                 if offer.offer_type == "product"
-                else _non_product_ranking_score(offer)
+                else min(
+                    1.0,
+                    _non_product_ranking_score(offer)
+                    + (0.10 * float(getattr(offer, "locality_score", 0.0) or 0.0))
+                )
             ),
         ))
 
     for listing in listings or []:
+        if source_filter and source_filter != "web":
+            continue
+        if offer_type and offer_type != "product":
+            continue
         if listing.pk in bridged_listing_ids:
             continue
         key = _result_key("web", listing.retailer.name, listing.product.name, listing.url)
@@ -169,6 +194,8 @@ def build_unified_results(first_party_offers, listings, discovery_sources, *, li
         ))
 
     for source in discovery_sources or []:
+        if source_filter and source_filter != "social":
+            continue
         if isinstance(source, dict):
             getter = source.get
         else:
