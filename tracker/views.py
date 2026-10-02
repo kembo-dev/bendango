@@ -14,7 +14,7 @@ from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferEditFor
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .offer_search import find_matching_offers
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
-from .models import BusinessAccountRequest, BusinessProfile, Offer, PriceListing, Product, ScrapeJob, SearchRun
+from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import process_url_and_save
@@ -528,6 +528,22 @@ def _sync_offer_product_bridge(offer):
     return offer
 
 
+def _attach_offer_media(offer, uploaded_files):
+    uploaded_files = list(uploaded_files or [])
+    if not uploaded_files:
+        return
+    start_position = offer.media.count()
+    has_primary = offer.media.filter(is_primary=True).exists()
+    for index, uploaded in enumerate(uploaded_files):
+        OfferMedia.objects.create(
+            offer=offer,
+            file=uploaded,
+            alt_text=offer.title,
+            position=start_position + index,
+            is_primary=not has_primary and index == 0,
+        )
+
+
 def public_offer(request, slug):
     offer = get_object_or_404(
         Offer.objects.select_related('business', 'business__category', 'product'),
@@ -537,9 +553,13 @@ def public_offer(request, slug):
         business__is_public=True,
         business__is_active=True,
     )
+    media = list(offer.media.all())
+    primary_media = next((item for item in media if item.is_primary), media[0] if media else None)
     whatsapp_digits = re.sub(r"\D+", "", offer.whatsapp or offer.business.whatsapp or offer.business.phone or "")
     return render(request, 'tracker/public_offer.html', {
         'offer': offer,
+        'media': media,
+        'primary_media': primary_media,
         'whatsapp_url': f"https://wa.me/{whatsapp_digits}" if whatsapp_digits else '',
     })
 
@@ -562,7 +582,7 @@ def pro_offer_create(request):
     if profile is None:
         return redirect('business_account_request')
     if request.method == 'POST':
-        form = QuickOfferForm(request.POST)
+        form = QuickOfferForm(request.POST, request.FILES)
         if form.is_valid():
             offer = Offer.objects.create(
                 business=profile,
@@ -580,6 +600,7 @@ def pro_offer_create(request):
                 market_code=profile.market_code,
                 city=profile.city,
             )
+            _attach_offer_media(offer, form.cleaned_data.get('photos'))
             _sync_offer_product_bridge(offer)
             messages.success(request, "Votre offre a été publiée.")
             return redirect('pro_offers')
@@ -619,7 +640,7 @@ def pro_offer_edit(request, offer_id):
         'contact_method': offer.contact_method,
     }
     if request.method == 'POST':
-        form = OfferEditForm(request.POST)
+        form = OfferEditForm(request.POST, request.FILES)
         if form.is_valid():
             for field in (
                 'offer_type', 'title', 'price', 'currency', 'price_unit',
@@ -628,6 +649,7 @@ def pro_offer_edit(request, offer_id):
             ):
                 setattr(offer, field, form.cleaned_data[field])
             offer.save()
+            _attach_offer_media(offer, form.cleaned_data.get('photos'))
             _sync_offer_product_bridge(offer)
             messages.success(request, "Votre offre a été mise à jour.")
             return redirect('pro_offers')
@@ -640,7 +662,46 @@ def pro_offer_edit(request, offer_id):
         'page_title': "Modifier l'offre",
         'submit_label': 'Enregistrer',
         'quick_mode': False,
+        'media': list(offer.media.all()),
     })
+
+
+@login_required
+def pro_offer_media_action(request, offer_id, media_id, action):
+    profile = _verified_business_profile(request)
+    if profile is None:
+        return redirect('business_account_request')
+    offer = get_object_or_404(Offer, pk=offer_id, business=profile)
+    media = get_object_or_404(OfferMedia, pk=media_id, offer=offer)
+    if request.method != 'POST':
+        return redirect('pro_offer_edit', offer_id=offer.pk)
+
+    if action == 'primary':
+        media.is_primary = True
+        media.save(update_fields=['is_primary'])
+    elif action == 'delete':
+        was_primary = media.is_primary
+        if media.file:
+            media.file.delete(save=False)
+        media.delete()
+        if was_primary:
+            replacement = offer.media.order_by('position', 'created_at', 'pk').first()
+            if replacement:
+                replacement.is_primary = True
+                replacement.save(update_fields=['is_primary'])
+    elif action in {'up', 'down'}:
+        ordered = list(offer.media.order_by('position', 'created_at', 'pk'))
+        try:
+            current_index = next(i for i, item in enumerate(ordered) if item.pk == media.pk)
+        except StopIteration:
+            return redirect('pro_offer_edit', offer_id=offer.pk)
+        target_index = current_index - 1 if action == 'up' else current_index + 1
+        if 0 <= target_index < len(ordered):
+            ordered[current_index], ordered[target_index] = ordered[target_index], ordered[current_index]
+            for index, item in enumerate(ordered):
+                if item.position != index:
+                    OfferMedia.objects.filter(pk=item.pk).update(position=index)
+    return redirect('pro_offer_edit', offer_id=offer.pk)
 
 
 @login_required
