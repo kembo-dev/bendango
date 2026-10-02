@@ -622,7 +622,7 @@ Implementation note: core model/public storefront work is implemented in the rep
 - [x] WhatsApp CTA
 - [x] Phone CTA
 - [x] External-site CTA
-- [ ] Business search/filter
+- [x] Business search/filter by city and business category
 - [ ] Related offers
 
 ### Phase 5 — Bendango-first search
@@ -835,10 +835,22 @@ Canonical grouping and multisector ranking implemented in code, awaiting local v
 - [x] Add regression tests for canonical grouping, variant separation and multisector ordering
 - [x] Run full local test suite after grouping/ranking changes: 232 tests, 1 skipped
 
+Location/business search implementation completed in code and awaiting local validation:
+
+- [x] Add city search filter
+- [x] Prioritize exact-city Bendango offers before same-market offers
+- [x] Add offer-type filter
+- [x] Add source filter: Bendango / Web / Social
+- [x] Add business-category filter using extensible BusinessCategory data
+- [x] Keep business-category filtering first-party only when external source metadata cannot prove category
+- [x] Preserve filters across asynchronous SearchRun redirects
+- [x] Display active search filters in unified results
+- [x] Add regression tests for city priority, offer type, source and business category filtering
+
 Next objective:
 
-> Validate canonical grouping and multisector ranking locally, then improve the presentation
-> of grouped products and continue toward richer business/location-aware search.
+> Validate the new location/business filters locally, then improve grouped-product presentation
+> and add richer public business search/discovery.
 
 Canonical grouping validation note:
 - Local validation completed successfully with 232 tests passing and 1 skipped.
