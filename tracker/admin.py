@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Offer, OfferMedia, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Offer, OfferBoostRequest, OfferMedia, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
 
 
 @admin.register(Product)
@@ -91,6 +91,63 @@ class OfferMediaAdmin(admin.ModelAdmin):
     list_display = ('offer', 'position', 'is_primary', 'created_at')
     list_filter = ('is_primary', 'created_at')
     search_fields = ('offer__title', 'offer__business__business_name', 'alt_text')
+
+
+@admin.register(OfferBoostRequest)
+class OfferBoostRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'offer',
+        'business_name',
+        'requested_by',
+        'duration_days',
+        'status',
+        'starts_at',
+        'ends_at',
+        'created_at',
+    )
+    list_filter = ('status', 'duration_days', 'created_at')
+    search_fields = (
+        'offer__title',
+        'offer__business__business_name',
+        'requested_by__username',
+        'requested_by__email',
+        'note',
+    )
+    readonly_fields = (
+        'offer',
+        'requested_by',
+        'duration_days',
+        'note',
+        'starts_at',
+        'ends_at',
+        'reviewed_by',
+        'reviewed_at',
+        'created_at',
+        'updated_at',
+    )
+    actions = ('approve_boosts', 'reject_boosts')
+
+    @admin.display(description='Business')
+    def business_name(self, obj):
+        return obj.offer.business.business_name
+
+    @admin.action(description='Approuver les boosts sélectionnés')
+    def approve_boosts(self, request, queryset):
+        approved = 0
+        for item in queryset.select_related('offer'):
+            if item.status == OfferBoostRequest.STATUS_APPROVED and item.is_active:
+                continue
+            item.approve(reviewer=request.user)
+            approved += 1
+        self.message_user(request, f'{approved} boost(s) approuvé(s).')
+
+    @admin.action(description='Refuser les boosts sélectionnés')
+    def reject_boosts(self, request, queryset):
+        rejected = 0
+        for item in queryset:
+            item.reject(reviewer=request.user)
+            rejected += 1
+        self.message_user(request, f'{rejected} demande(s) refusée(s).')
 
 
 @admin.register(Offer)
