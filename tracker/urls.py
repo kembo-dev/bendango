@@ -3,6 +3,7 @@ from django.urls import path
 
 from .views import (
     pro_dashboard,
+    pro_offer_boost_request,
     pro_offer_create,
     pro_offer_edit,
     pro_offer_media_action,
@@ -38,6 +39,7 @@ urlpatterns = [
     path('pro/offers/', pro_offers, name='pro_offers'),
     path('pro/offers/add/', pro_offer_create, name='pro_offer_create'),
     path('pro/offers/<int:offer_id>/edit/', pro_offer_edit, name='pro_offer_edit'),
+    path('pro/offers/<int:offer_id>/boost/', pro_offer_boost_request, name='pro_offer_boost_request'),
     path('pro/offers/<int:offer_id>/media/<int:media_id>/<str:action>/', pro_offer_media_action, name='pro_offer_media_action'),
     path('pro/offers/<int:offer_id>/toggle/', pro_offer_toggle, name='pro_offer_toggle'),
     path('pro/products/', pro_products, name='pro_products'),
