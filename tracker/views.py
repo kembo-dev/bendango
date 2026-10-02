@@ -18,7 +18,7 @@ from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
-from .services import process_url_and_save
+from .services import get_llm_config, process_url_and_save
 
 
 def _comparison_price(listing):
@@ -910,7 +910,7 @@ def scrape_view(request):
             source_filter = form.cleaned_data.get("source", "").strip()
             business_category = form.cleaned_data.get("business_category", "").strip()
             market = get_market(market_code)
-            model_name = form.cleaned_data["model_name"]
+            model_name = get_llm_config()["default_model"]
             if site is not None:
                 site = site.strip()
             if not site:
