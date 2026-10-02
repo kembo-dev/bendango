@@ -819,6 +819,11 @@ Unified search validation:
 - [x] Add richer ranking for non-product offers
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
 
+Canonical grouping validation incident:
+- The first full test run exposed a false negative for equivalent titles: `Samsung Galaxy A56 5G 8GB 256GB` vs `Galaxy A56 256GB 8GB RAM`.
+- Root cause: the generic product similarity threshold (0.72) was too strict for canonical grouping when harmless brand/network/RAM-label tokens differ.
+- Canonical grouping now uses threshold 0.60 while retaining the existing hard conflict checks for RAM/storage/model/variant mismatches.
+
 Canonical grouping and multisector ranking implemented in code, awaiting local validation:
 
 - [x] Group matching product titles across Bendango and Web using conservative product matching
