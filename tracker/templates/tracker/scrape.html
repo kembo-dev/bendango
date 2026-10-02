@@ -75,8 +75,8 @@
             <div class="col-md-6">
                 <div class="card h-100 result-card">
                     <div class="card-body p-4 d-flex gap-3">
-                        {% if offer.primary_image_url %}
-                        <img src="{{ offer.primary_image_url }}" alt="{{ offer.title }}" style="width:92px;height:92px;object-fit:contain;border-radius:12px;background:#fff">
+                        {% if offer.display_image_url %}
+                        <img src="{{ offer.display_image_url }}" alt="{{ offer.title }}" style="width:92px;height:92px;object-fit:contain;border-radius:12px;background:#fff">
                         {% endif %}
                         <div class="flex-grow-1">
                             <div class="d-flex justify-content-between gap-2 flex-wrap">
