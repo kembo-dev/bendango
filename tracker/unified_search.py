@@ -27,6 +27,7 @@ class UnifiedSearchResult:
     canonical_group: str = ""
     group_size: int = 1
     ranking_score: float = 0.0
+    promoted: bool = False
 
 
 def _result_key(source_kind: str, provider: str, title: str, url: str = "") -> str:
@@ -150,9 +151,11 @@ def build_unified_results(
             badge="Publié sur Bendango",
             item_type=offer.offer_type,
             ranking_score=(
-                (
+                min(
+                    1.0,
                     float(getattr(offer, "search_score", 0.0) or 0.0)
                     + (0.08 * float(getattr(offer, "locality_score", 0.0) or 0.0))
+                    + (0.15 if offer.is_boosted else 0.0)
                 )
                 if offer.offer_type == "product"
                 else min(
@@ -161,6 +164,7 @@ def build_unified_results(
                     + (0.10 * float(getattr(offer, "locality_score", 0.0) or 0.0))
                 )
             ),
+            promoted=bool(offer.offer_type == "product" and offer.is_boosted),
         ))
 
     for listing in listings or []:
@@ -235,6 +239,7 @@ def build_unified_results(
     source_priority = {"bendango": 0, "web": 1, "social": 2}
     results.sort(key=lambda item: (
         source_priority.get(item.source_kind, 9),
+        0 if item.promoted else 1,
         -float(item.ranking_score or item.score or 0.0),
         item.provider.lower(),
         item.title.lower(),
