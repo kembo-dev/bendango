@@ -133,6 +133,7 @@ class OfferPlatformTests(TestCase):
         })
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Offres publiées directement sur Bendango')
+        self.assertContains(response, 'Bendango + Web + réseaux sociaux')
         self.assertContains(response, 'Samsung Galaxy A56 5G 8GB 256GB')
         self.assertContains(response, 'Publié sur Bendango')
+        self.assertContains(response, 'Résultats unifiés')
