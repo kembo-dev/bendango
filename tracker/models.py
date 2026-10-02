@@ -501,8 +501,98 @@ class Offer(models.Model):
             return primary.url
         return self.primary_image_url
 
+    @property
+    def active_boost_request(self):
+        cached = getattr(self, '_prefetched_objects_cache', {}).get('boost_requests')
+        requests = list(cached) if cached is not None else list(self.boost_requests.all())
+        for item in requests:
+            if item.is_active:
+                return item
+        return None
+
+    @property
+    def is_boosted(self):
+        return self.active_boost_request is not None
+
     def __str__(self):
         return f"{self.business.business_name}: {self.title}"
+
+
+class OfferBoostRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'En attente'),
+        (STATUS_APPROVED, 'Approuvée'),
+        (STATUS_REJECTED, 'Refusée'),
+    ]
+    DURATION_CHOICES = [
+        (7, '7 jours'),
+        (14, '14 jours'),
+        (30, '30 jours'),
+    ]
+
+    offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='boost_requests')
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='offer_boost_requests',
+    )
+    duration_days = models.PositiveSmallIntegerField(choices=DURATION_CHOICES, default=7)
+    note = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    starts_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    ends_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='reviewed_offer_boost_requests',
+    )
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at'], name='trk_boost_status_created'),
+            models.Index(fields=['offer', 'status'], name='trk_boost_offer_status'),
+            models.Index(fields=['starts_at', 'ends_at'], name='trk_boost_window'),
+        ]
+
+    @property
+    def is_active(self):
+        if self.status != self.STATUS_APPROVED or not self.starts_at or not self.ends_at:
+            return False
+        now = timezone.now()
+        return self.starts_at <= now < self.ends_at
+
+    def approve(self, reviewer=None):
+        now = timezone.now()
+        self.status = self.STATUS_APPROVED
+        self.starts_at = now
+        self.ends_at = now + timezone.timedelta(days=self.duration_days)
+        self.reviewed_by = reviewer
+        self.reviewed_at = now
+        self.save(update_fields=[
+            'status', 'starts_at', 'ends_at', 'reviewed_by', 'reviewed_at', 'updated_at',
+        ])
+
+    def reject(self, reviewer=None):
+        self.status = self.STATUS_REJECTED
+        self.starts_at = None
+        self.ends_at = None
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.save(update_fields=[
+            'status', 'starts_at', 'ends_at', 'reviewed_by', 'reviewed_at', 'updated_at',
+        ])
+
+    def __str__(self):
+        return f"{self.offer.title} - {self.get_status_display()}"
 
 
 class OfferMedia(models.Model):
