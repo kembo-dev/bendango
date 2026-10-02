@@ -353,3 +353,51 @@ class UnifiedSearchTests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].item_type, 'service')
         self.assertEqual(results[0].title, 'Coiffure femme')
+
+
+    def test_business_category_filter_hides_sources_without_business_category_metadata(self):
+        offer = Offer.objects.create(
+            business=self.profile,
+            offer_type='service',
+            title='Service local',
+            price=Decimal('10000.00'),
+            currency='CDF',
+        )
+        offer.search_score = 0.9
+
+        retailer = Retailer.objects.create(
+            name='External Shop Categoryless',
+            base_url='https://external-categoryless.example',
+            trust_score=Decimal('0.80'),
+            trust_level='trusted',
+            is_active=True,
+        )
+        product = Product.objects.create(name='Service local kit')
+        listing = PriceListing.objects.create(
+            product=product,
+            retailer=retailer,
+            url='https://external-categoryless.example/item',
+            price=Decimal('10.00'),
+            currency='USD',
+            confidence_score=Decimal('0.90'),
+            match_score=Decimal('0.90'),
+            in_stock=True,
+            is_active=True,
+        )
+        listing.offer_quality_score = 0.8
+
+        results = build_unified_results(
+            [offer],
+            [listing],
+            [{
+                'url': 'https://facebook.com/categoryless/post',
+                'platform': 'Facebook',
+                'title': 'Service local',
+                'relevance_score': 0.8,
+                'source_type': 'Réseau social',
+            }],
+            business_category='services',
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].source_kind, 'bendango')
