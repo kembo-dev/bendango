@@ -795,11 +795,16 @@ Media validation completed locally:
 - [x] Full suite passes: 225 tests, 1 skipped
 - [ ] Smoke-test upload from browser/phone
 - [ ] Smoke-test public Offer gallery
+- [x] Add explicit local media serving switch for Gunicorn (`DJANGO_SERVE_MEDIA_LOCALLY`)
 - [ ] Confirm production media serving strategy (reverse proxy or object storage)
 
 Next objective:
 
 > Smoke-test real media upload in the browser, then continue unified internal + external
 > result merging and richer non-product ranking while planning production-grade media storage.
+
+Media serving incident:
+- Uploaded Offer images were stored correctly but not reachable through Gunicorn because WhiteNoise serves static files only, not user media.
+- Added `SERVE_MEDIA_LOCALLY` and `/media/` URL serving for local/dev deployments. Production should still use a reverse proxy or object storage.
 
 Last roadmap update: 2026-10-02.
