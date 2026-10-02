@@ -35,7 +35,7 @@ def find_matching_offers(
         is_active=True,
         business__is_public=True,
         business__is_active=True,
-    ).select_related('business', 'business__category', 'product').prefetch_related('media')
+    ).select_related('business', 'business__category', 'product').prefetch_related('media', 'boost_requests')
 
     if market_code != GLOBAL_MARKET_CODE:
         qs = qs.filter(market_code=market_code)
@@ -85,6 +85,7 @@ def find_matching_offers(
 
     matched.sort(
         key=lambda offer: (
+            0 if offer.is_boosted else 1,
             -float(getattr(offer, 'locality_score', 0)),
             -float(getattr(offer, 'search_score', 0)),
             0 if offer.availability == 'available' else 1,
