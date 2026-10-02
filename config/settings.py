@@ -55,7 +55,7 @@ if TESTING and not RUN_BEDROCK_INTEGRATION_TESTS:
     os.environ.pop('AWS_ACCESS_KEY_ID', None); os.environ.pop('AWS_SECRET_ACCESS_KEY', None); os.environ.pop('AWS_SESSION_TOKEN', None); os.environ.pop('AWS_BEARER_TOKEN_BEDROCK', None)
 
 INSTALLED_APPS = ['django.contrib.admin','django.contrib.auth','django.contrib.contenttypes','django.contrib.sessions','django.contrib.messages','django.contrib.staticfiles','tracker']
-MIDDLEWARE = ['django.middleware.security.SecurityMiddleware','django.contrib.sessions.middleware.SessionMiddleware','django.middleware.common.CommonMiddleware','django.middleware.csrf.CsrfViewMiddleware','django.contrib.auth.middleware.AuthenticationMiddleware','django.contrib.messages.middleware.MessageMiddleware','django.middleware.clickjacking.XFrameOptionsMiddleware']
+MIDDLEWARE = ['django.middleware.security.SecurityMiddleware','whitenoise.middleware.WhiteNoiseMiddleware','django.contrib.sessions.middleware.SessionMiddleware','django.middleware.common.CommonMiddleware','django.middleware.csrf.CsrfViewMiddleware','django.contrib.auth.middleware.AuthenticationMiddleware','django.contrib.messages.middleware.MessageMiddleware','django.middleware.clickjacking.XFrameOptionsMiddleware']
 ROOT_URLCONF = 'config.urls'
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/'
@@ -86,6 +86,10 @@ AUTH_PASSWORD_VALIDATORS=[{'NAME':'django.contrib.auth.password_validation.UserA
 LANGUAGE_CODE='en-us'; TIME_ZONE='UTC'; USE_I18N=True; USE_TZ=True
 STATIC_URL='/static/'
 STATIC_ROOT=BASE_DIR/'staticfiles'
+STORAGES={
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+}
 MEDIA_URL='/media/'
 MEDIA_ROOT=BASE_DIR/'media'
 DEFAULT_SEARCH_COUNTRY=os.environ.get('DEFAULT_SEARCH_COUNTRY','RDC')
