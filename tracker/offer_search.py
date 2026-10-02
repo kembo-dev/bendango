@@ -27,7 +27,7 @@ def find_matching_offers(query: str, *, market_code: str = GLOBAL_MARKET_CODE, l
         is_active=True,
         business__is_public=True,
         business__is_active=True,
-    ).select_related('business', 'business__category', 'product')
+    ).select_related('business', 'business__category', 'product').prefetch_related('media')
 
     if market_code != GLOBAL_MARKET_CODE:
         qs = qs.filter(market_code=market_code)
