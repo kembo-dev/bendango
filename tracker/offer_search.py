@@ -22,6 +22,7 @@ def find_matching_offers(
     market_code: str = GLOBAL_MARKET_CODE,
     city: str = "",
     offer_type: str = "",
+    business_category: str = "",
     limit: int = 12,
 ):
     query = (query or '').strip()
@@ -40,6 +41,8 @@ def find_matching_offers(
         qs = qs.filter(market_code=market_code)
     if offer_type:
         qs = qs.filter(offer_type=offer_type)
+    if business_category:
+        qs = qs.filter(business__category__slug=business_category)
 
     normalized_city = normalize_product_name(city)
     matched = []
