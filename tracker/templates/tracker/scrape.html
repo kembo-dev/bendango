@@ -70,6 +70,13 @@
             </div>
             <span class="badge text-bg-light border">{{ unified_results|length }} résultat{{ unified_results|length|pluralize }}</span>
         </div>
+        {% if listings and summary %}
+        <div class="alert alert-light border mb-3 d-flex justify-content-between gap-2 flex-wrap">
+            <span class="summary-pill">{{ summary.offer_count }} offre{{ summary.offer_count|pluralize }} Web vérifiée{{ summary.offer_count|pluralize }}</span>
+            <span class="summary-pill">Prix moyen : {{ summary.average_price|floatformat:2 }} {{ summary.currency }}</span>
+            <span class="summary-pill">Prix le plus bas : {{ summary.cheapest_listing.price }} {{ summary.cheapest_listing.currency }} chez {{ summary.cheapest_listing.retailer.name }}</span>
+        </div>
+        {% endif %}
         <div class="row g-3">
             {% for item in unified_results %}
             <div class="col-12">
