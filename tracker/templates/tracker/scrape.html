@@ -48,10 +48,17 @@
     <form method="post" class="card p-4 shadow-sm premium-form">{% csrf_token %}
         <div class="row g-3 align-items-end">
             <div class="col-md-3"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="toggle-site-filter"><label class="form-check-label fw-bold" for="toggle-site-filter">Limiter à un site</label></div><div id="site-field-group" class="d-none"><label class="form-label fw-bold">Site e-commerce ou URL</label>{{ form.site }}{% if form.site.help_text %}<div class="form-text">{{ form.site.help_text }}</div>{% endif %}</div></div>
-            <div class="col-md-4"><label class="form-label fw-bold">Produit à rechercher</label>{{ form.query }}</div>
-            <div class="col-md-3"><label class="form-label fw-bold">Marché</label>{{ form.market }}<div class="form-text">Bendango privilégie les marchands et sources de ce pays.</div></div>
-            <div class="col-md-2"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
-        </div><button type="submit" class="btn btn-primary mt-4 w-100 btn-compare" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Comparer les prix{% endif %}</button>
+            <div class="col-md-5"><label class="form-label fw-bold">Produit, service ou offre</label>{{ form.query }}</div>
+            <div class="col-md-2"><label class="form-label fw-bold">Marché</label>{{ form.market }}</div>
+            <div class="col-md-2"><label class="form-label fw-bold">Ville</label>{{ form.city }}</div>
+        </div>
+        <div class="row g-3 align-items-end mt-1">
+            <div class="col-md-4"><label class="form-label fw-bold">Type d'offre</label>{{ form.offer_type }}</div>
+            <div class="col-md-4"><label class="form-label fw-bold">Source</label>{{ form.source }}</div>
+            <div class="col-md-4"><label class="form-label fw-bold">Modèle IA</label>{{ form.model_name }}</div>
+        </div>
+        <div class="form-text mt-3">La ville privilégie les offres Bendango locales. Les filtres Type et Source affinent les résultats unifiés sans mélanger une source sociale avec une offre marchande vérifiée.</div>
+        <button type="submit" class="btn btn-primary mt-4 w-100 btn-compare" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Rechercher sur Bendango{% endif %}</button>
     </form>
 
         {% if search_run and run_state %}<section id="search-progress" class="search-progress mt-4" data-status-url="{% url 'search_run_status' search_run.pk %}" data-running="{% if async_waiting %}1{% else %}0{% endif %}">
@@ -66,6 +73,13 @@
             <div>
                 <div class="eyebrow mb-2">Résultats unifiés</div>
                 <h2 class="h4 mb-1">Bendango + Web + réseaux sociaux</h2>
+                {% if active_city or active_offer_type or active_source %}
+                <div class="d-flex gap-2 flex-wrap mt-2">
+                    {% if active_city %}<span class="badge text-bg-light border">Ville : {{ active_city }}</span>{% endif %}
+                    {% if active_offer_type %}<span class="badge text-bg-light border">Type : {{ active_offer_type }}</span>{% endif %}
+                    {% if active_source %}<span class="badge text-bg-light border">Source : {{ active_source }}</span>{% endif %}
+                </div>
+                {% endif %}
                 <p class="text-muted mb-0">Les offres publiées sur Bendango, les marchands Web et les sources sociales sont regroupés dans une seule liste, tout en gardant leur origine visible.</p>
             </div>
             <span class="badge text-bg-light border">{{ unified_results|length }} résultat{{ unified_results|length|pluralize }}</span>
