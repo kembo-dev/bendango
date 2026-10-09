@@ -333,3 +333,17 @@ Les champs texte de devise sur Offer/PriceListing restent inchangés pour
 préserver l’historique et les imports. Marchés géographiques et conversions
 restent respectivement dans markets.py et currency.py ; activer un code dans
 le catalogue n’ajoute pas un taux de conversion.
+
+## Zoom de galerie
+
+`offer-gallery-zoom.js` ajoute une vue native `<dialog>` aux galeries, même avec
+une photo unique. Les URLs des images affichées sont réutilisées sans téléchargement
+serveur ni nouvelle rendition. La photo est adaptée au cadre sans agrandissement
+automatique ; le zoom volontaire varie ensuite de 100 à 400 %. Le canvas défilant
+permet le déplacement par Pointer Events et le pincement à deux contacts.
+
+Les événements locaux `gallery:zoom-open` et `gallery:select` arrêtent le
+diaporama et synchronisent la photo avec le carrousel. La modale isole le focus
+et rend la page sous-jacente inerte ; fermeture native par Échap, focus rendu
+à l’ouvreur et défilement du body restauré. Sans support du dialog/JavaScript,
+les liens des photos ouvrent directement leur fichier. Aucun schéma ne change.

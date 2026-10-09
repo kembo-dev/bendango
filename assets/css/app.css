@@ -145,6 +145,17 @@
   .offer-gallery-track::-webkit-scrollbar { display: none; }
   .offer-gallery-slide { @apply m-0 flex aspect-square w-full shrink-0 items-center justify-center; scroll-snap-align: start; }
   .offer-gallery-slide img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+  .offer-gallery-photo { @apply flex size-full items-center justify-center; cursor: zoom-in; }
+  .offer-zoom { @apply fixed m-auto overflow-hidden border-0 bg-white text-slate-900 shadow-2xl dark:bg-slate-950 dark:text-slate-100; width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; padding: 0; }
+  .offer-zoom[open] { display: flex; flex-direction: column; }
+  .offer-zoom::backdrop { background: rgb(2 6 23 / 90%); }
+  .offer-zoom-header { @apply flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-800; padding-top: max(0.75rem, env(safe-area-inset-top)); }
+  .offer-zoom-stage { @apply min-h-0 flex-1 overflow-auto bg-slate-100 dark:bg-slate-900; touch-action: none; overscroll-behavior: contain; }
+  .offer-zoom-stage[data-magnified="true"] { cursor: grab; }
+  .offer-zoom-stage[data-dragging="true"] { cursor: grabbing; }
+  .offer-zoom-canvas { display: flex; align-items: center; justify-content: center; min-width: 100%; min-height: 100%; }
+  .offer-zoom-canvas img { display: block; max-width: none; flex-shrink: 0; user-select: none; }
+  .offer-zoom-footer { @apply shrink-0 border-t border-slate-200 px-4 py-3 dark:border-slate-800; padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
   .offer-gallery-arrow { @apply absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-3xl text-slate-900 shadow-md hover:bg-white dark:bg-slate-800/90 dark:text-white dark:hover:bg-slate-700; }
   .offer-gallery-thumbnails { @apply flex gap-3 overflow-x-auto px-4 py-4; }
   .offer-gallery-thumbnails a { @apply block size-16 shrink-0 overflow-hidden rounded-lg border-2 border-transparent opacity-60 transition-opacity hover:opacity-100 sm:size-20; }

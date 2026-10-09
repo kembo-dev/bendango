@@ -214,3 +214,19 @@ et sont empilés sur petit écran. L’aperçu utilise toujours le code sélecti
 La liste suit l’activation et l’ordre de l’administration sans redémarrage.
 Une devise historique indisponible est signalée comme conservée en édition.
 Sans devise active, le formulaire annonce l’indisponibilité de publication.
+
+## Zoom des photos (2026-10-09)
+
+Cliquer une photo ou « Agrandir » ouvre une vue occupant l’écran, disponible
+aussi pour une photo unique. Barre supérieure photo/compteur/Fermer ; commandes
+inférieures +, − et remise à 100 %, puis précédent/suivant si plusieurs photos.
+Zoom de 100 à 400 %, molette et pincement prévus ; déplacer par glisser quand
+l’image déborde. Les zones de commande sont d’au moins 44 px, avec safe-area.
+Les proportions sont conservées, la qualité reste limitée par la source.
+
+Le diaporama s’arrête à l’ouverture. Changer de photo réinitialise le zoom et
+synchronise la galerie. Échap ferme ; flèches changent de photo, +/− ajustent
+le zoom, 0 le réinitialise. La modale conserve le focus et le rend à l’ouvreur.
+En absence de JavaScript, les liens ouvrent le fichier image. Contrôles desktop
+réalisés sur la moto et une galerie de deux photos ; pincement matériel et
+rendu sur téléphone réel restent à vérifier.

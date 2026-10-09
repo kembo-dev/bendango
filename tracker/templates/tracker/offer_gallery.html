@@ -4,10 +4,11 @@
     <div class="offer-gallery-track" data-gallery-track tabindex="0" aria-label="Photos de l’annonce : flèches gauche et droite pour naviguer">
       {% for image in gallery_images %}
       <figure class="offer-gallery-slide" id="offer-photo-{{ forloop.counter }}" role="group" aria-label="Photo {{ forloop.counter }} sur {{ gallery_images|length }}">
-        <img src="{{ image.url }}" alt="{{ image.alt }}" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async" draggable="false">
+        <a href="{{ image.url }}" data-gallery-open-photo aria-label="Agrandir la photo {{ forloop.counter }}" class="offer-gallery-photo"><img src="{{ image.url }}" alt="{{ image.alt }}" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async" draggable="false"></a>
       </figure>
       {% endfor %}
     </div>
+    <button type="button" data-gallery-zoom-open hidden class="absolute left-3 top-3 button button-light min-h-11 shadow-sm" aria-label="Agrandir la photo affichée">⤢ Agrandir</button>
     {% if gallery_images|length > 1 %}
     <div data-gallery-controls hidden>
       <button type="button" data-gallery-prev class="offer-gallery-arrow left-3" aria-label="Photo précédente">‹</button>
@@ -23,5 +24,25 @@
   </nav>
   <p class="sr-only" data-gallery-status aria-live="polite" aria-atomic="true"></p>
   {% endif %}
+  <dialog data-gallery-zoom class="offer-zoom" aria-label="Photo agrandie" aria-describedby="offer-zoom-help">
+    <div class="offer-zoom-header">
+      <p class="font-semibold" data-zoom-counter aria-live="polite"></p>
+      <button type="button" data-zoom-close class="button button-outline-secondary min-h-11" autofocus aria-label="Fermer la photo agrandie">✕ Fermer</button>
+    </div>
+    <div data-zoom-stage class="offer-zoom-stage" tabindex="0" aria-label="Photo : déplacer avec le doigt ou la souris une fois agrandie">
+      <div data-zoom-canvas class="offer-zoom-canvas"><img data-zoom-image alt="" draggable="false"></div>
+    </div>
+    <div class="offer-zoom-footer">
+      <div class="flex flex-wrap items-center justify-center gap-2">
+        {% if gallery_images|length > 1 %}<button type="button" data-zoom-prev class="button button-outline-secondary min-h-11" aria-label="Photo précédente en vue agrandie">‹</button>{% endif %}
+        <button type="button" data-zoom-out class="button button-outline-secondary min-h-11" aria-label="Réduire le zoom">−</button>
+        <button type="button" data-zoom-reset class="button button-outline-secondary min-h-11" aria-label="Réinitialiser le zoom">100 %</button>
+        <button type="button" data-zoom-in class="button button-outline-secondary min-h-11" aria-label="Augmenter le zoom">+</button>
+        {% if gallery_images|length > 1 %}<button type="button" data-zoom-next class="button button-outline-secondary min-h-11" aria-label="Photo suivante en vue agrandie">›</button>{% endif %}
+      </div>
+      <p id="offer-zoom-help" class="text-center text-xs text-slate-500 dark:text-slate-400 mt-2">Zoom +/− ou pincement · Déplacez l’image agrandie · Échap pour fermer</p>
+      <p data-zoom-error role="alert" class="text-center text-sm text-red-600 dark:text-red-400" hidden>Cette photo n’a pas pu être chargée.</p>
+    </div>
+  </dialog>
 </section>
 {% endif %}

@@ -192,6 +192,8 @@ class OfferMediaTests(TestCase):
         self.assertEqual([image['url'] for image in response.context['gallery_images']], [cover.url, first.url, last.url])
         self.assertContains(response, 'aria-label="Photo suivante"')
         self.assertContains(response, 'data-gallery-play')
+        self.assertContains(response, 'data-gallery-zoom')
+        self.assertContains(response, 'data-zoom-next')
 
     def test_gallery_uses_external_fallback_without_navigation_for_one_image(self):
         offer = Offer.objects.create(business=self.profile, title='Photo unique', primary_image_url='https://example.com/solo.jpg')
@@ -199,6 +201,9 @@ class OfferMediaTests(TestCase):
         self.assertEqual(response.context['gallery_images'], [{'url': offer.primary_image_url, 'alt': offer.title}])
         self.assertNotContains(response, 'data-gallery-next')
         self.assertNotContains(response, 'data-gallery-play')
+        self.assertContains(response, 'aria-label="Agrandir la photo affichée"')
+        self.assertContains(response, 'data-zoom-in')
+        self.assertNotContains(response, 'data-zoom-next')
 
     def test_gallery_without_images_does_not_render_empty_controls(self):
         offer = Offer.objects.create(business=self.profile, title='Sans photo')
@@ -206,3 +211,4 @@ class OfferMediaTests(TestCase):
         response = self.client.get(reverse('public_offer', args=[offer.slug]))
         self.assertEqual(response.context['gallery_images'], [])
         self.assertNotContains(response, 'data-offer-gallery')
+        self.assertNotContains(response, 'data-gallery-zoom')

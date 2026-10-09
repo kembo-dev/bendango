@@ -161,7 +161,9 @@ Les tests réussis ne prouvent pas la qualité des résultats sur le Web réel.
 ## Dimensions des photos
 
 - Préserver les proportions, orientation et transparence ; ne pas agrandir les
-  petites images. Recadrer seulement la miniature, jamais la photo entière.
+  petites images automatiquement. Un zoom explicitement demandé par le visiteur
+  peut agrandir l’affichage ; il n’ajoute pas de détails au fichier. Recadrer
+  seulement la miniature, jamais la photo entière.
 - Passer par image_processing.prepare_photo : 1600 px, WebP 85, miniature 320 px ;
   ne pas réencoder une deuxième fois une photo déjà préparée dans le formulaire.
 - Optimiser les anciennes images via la commande dédiée, sans écraser leurs

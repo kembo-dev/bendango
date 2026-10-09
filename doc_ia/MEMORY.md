@@ -359,3 +359,28 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
   dépôt : devises-publication.png. Pas de test matériel sur téléphone dans ce lot.
 - Les six documents doc_ia ont été consultés et réconciliés dans ce lot. Livraison
   Git selon la consigne permanente ; résultat vérifiable dans l’historique.
+
+## 2026-10-09 — Zoom des galeries
+
+- Demande : pouvoir zoomer dans la galerie de l’offre moto Esika. Vue agrandie
+  facultative ajoutée à toutes les galeries, même avec une seule photo ; lien
+  direct vers le fichier en absence de JavaScript/support dialog.
+- Nouveau offer-gallery-zoom.js : modale native, 100–400 %, +/−/reset, molette,
+  déplacement Pointer Events et pincement à deux contacts. Navigation entre
+  photos synchronisée par événements avec le slider ; diaporama arrêté.
+- Focus enfermé par le dialog natif, fermé par Échap ou bouton ; focus rendu à
+  l’ouvreur et overflow du body restauré. Erreur de chargement explicite. Pas
+  de changement en base, fichier source ou dépendance. Agrandissement volontaire
+  seulement : les images de faible résolution ne gagnent pas de détails.
+- Validation : 17 tests offres/médias réussis, régressions existantes enrichies
+  pour zéro/une/plusieurs photos ; syntaxe des deux scripts JS, check Django,
+  build Tailwind, collectstatic et diff --check réussis. Suite complète non
+  répétée pour ce lot frontend ; dernier passage complet : 338 tests (1 ignoré).
+- Navigateur : moto 447 × 447 affichée à 894 × 894 au zoom 200 %, limite 400 %
+  et bouton + désactivé, déplacement à 300 % constaté sur les offsets de scroll,
+  reset et Échap avec focus/scroll restaurés. Galerie de deux photos : arrêt
+  du diaporama, passage à 2/2, synchronisation et ouverture par Entrée vérifiés.
+  Capture hors dépôt : zoom-galerie-moto.png. Pincement matériel et contrôle
+  visuel sur téléphone réel restent à réaliser ; ne pas les annoncer validés.
+- Six documents consultés, réconciliés et actualisés. Serveur local rechargé,
+  workers inchangés. Commit/push selon la consigne permanente, résultat dans Git.

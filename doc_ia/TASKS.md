@@ -68,6 +68,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   initiales, activation/ordre, listes partagées mobile/Pro/catalogue et conservation
   des anciennes devises en édition. Validation détaillée dans MEMORY.md.
 
+- [x] Ajouter une vue agrandie aux galeries : zoom 100–400 %, déplacement,
+  navigation et commandes clavier, arrêt du diaporama et restauration du focus.
+  Validation : 17 tests offres/médias et contrôles navigateur sur une/deux photos.
+  Pincement et ergonomie sur téléphone matériel restent à contrôler.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

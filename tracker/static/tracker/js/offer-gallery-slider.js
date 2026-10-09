@@ -37,6 +37,8 @@
       track.scrollTo({left: index * track.clientWidth, behavior: reduced.matches ? 'instant' : 'smooth'});
       update(manual);
     };
+    gallery.addEventListener('gallery:zoom-open', () => setPlaying(false));
+    gallery.addEventListener('gallery:select', event => go(event.detail.index));
     gallery.querySelector('[data-gallery-prev]').addEventListener('click', () => go(index - 1));
     gallery.querySelector('[data-gallery-next]').addEventListener('click', () => go(index + 1));
     thumbs.forEach((thumb, i) => thumb.addEventListener('click', event => { event.preventDefault(); go(i); }));
