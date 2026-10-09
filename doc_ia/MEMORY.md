@@ -404,3 +404,30 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
   réelle non modifiée. Serveur fictif arrêté ; workers inchangés.
 - Six documents consultés et réconciliés ; PROD, ARCHITECTURE, DESIGN, TASKS et
   MEMORY actualisés. RULES reste cohérent. Commit/push selon la consigne permanente.
+
+## 2026-10-09 — Accueil en place de marché
+
+- Demande : page plus créative, ressemblant à une zone marchande. Skill ECC
+  frontend-design-direction appliqué : vitrine de produits, repères de rayons,
+  prix/vendeur, palette émeraude/ambre et appel à publier. Pas de faux produits.
+- Nouveau marketplace_home.html avec recherche compacte, options repliables,
+  pictogrammes de rayons et grille de vraies annonces. Badges d’origine gardés,
+  sponsoring distinct, photos 4/3 entières sans agrandissement automatique ;
+  recherches communautaires dans leur section. Formulaire de résultats conservé.
+- Nouveau module marketplace : filtres réels de type, vendeur, pays et ville ;
+  options invalides ignorées, URLs encodées et pagination conservant les filtres.
+  La navigation n’appelle aucun fournisseur et ne consomme pas le quota.
+  Compteur borné au flux existant, aucune modification de schéma/droits/données.
+- Validation : quatre tests supplémentaires (état vide/quota, vendeurs/visibilité,
+  filtres combinés/pagination, options invalides). 42 tests initiaux ciblés ;
+  suite complète 346 tests validée (1 intégration ignorée), puis 30 tests
+  accueil/comptes après compactage. Check, migrations, build/collectstatic et
+  diff --check réussis. Aucun appel LLM réel lancé dans ce lot.
+- Navigateur : accueil réel clair/sombre, rayon Services vide puis retour au
+  marché, filtre CD/Kinshasa avec deux annonces conservées. Aucun débordement
+  horizontal constaté ; grille commençant vers 561 px contre 724 avant compactage.
+  Capture hors dépôt : place-marche-bendango.png. Override 390 × 844 sans effet
+  (1280 px réels) ; rendu téléphone matériel non validé, override réinitialisé.
+  Préférence sombre restaurée. Serveur rechargé ; workers et base inchangés.
+- Six documents consultés/réconciliés ; PROD, ARCHITECTURE, DESIGN, TASKS, MEMORY
+  actualisés ; RULES reste cohérent. Livraison suivant la consigne de commit/push.

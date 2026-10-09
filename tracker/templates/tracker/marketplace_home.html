@@ -1,0 +1,57 @@
+<section class="market-intro" aria-labelledby="market-title">
+  <div><h1 id="market-title" class="text-2xl sm:text-3xl">Tout un marché, juste ici.</h1><p class="text-sm text-slate-500 dark:text-slate-400 mt-2 mb-0">Des objets à découvrir. Des services à trouver. Des vendeurs à rencontrer.</p></div>
+  <a href="{% url 'publish_offer' %}" class="market-publish"><span class="market-publish-icon" aria-hidden="true">+</span><span><strong class="block">Ouvrez votre vitrine</strong><span class="block text-xs mt-1">Publier une annonce →</span></span></a>
+</section>
+<form method="post" class="market-search" aria-label="Recherche Bendango">{% csrf_token %}
+  <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_240px_auto] items-end">
+    <div><label for="id_query" class="sr-only">Qu’est-ce que vous cherchez ?</label>{{ form.query }}</div>
+    <div><label for="id_market" class="sr-only">Marché de recherche</label>{{ form.market }}</div>
+    <button type="submit" class="button button-primary" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>Rechercher</button>
+  </div>
+  <div class="market-search-footer"><details {% if form.errors %}open{% endif %}><summary class="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300 py-2">Affiner la recherche Web et Bendango</summary>
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-3">
+      <div><label for="id_city" class="field-label">Ville</label>{{ form.city }}</div>
+      <div><label for="id_offer_type" class="field-label">Type d’offre</label>{{ form.offer_type }}</div>
+      <div><label for="id_business_category" class="field-label">Type de business</label>{{ form.business_category }}</div>
+      <div><label for="id_source" class="field-label">Source</label>{{ form.source }}</div>
+    </div>
+    <div class="field-check mt-3"><input type="checkbox" id="toggle-site-filter"><label for="toggle-site-filter">Limiter à un site</label></div>
+    <div id="site-field-group" class="hidden mt-3"><label for="id_site" class="field-label">Site e-commerce ou URL</label>{{ form.site }}</div>
+  </details>
+  {% if not request.user.is_authenticated %}<div class="market-trial">
+    {% if anonymous_search_used %}<span>Votre recherche gratuite a déjà été utilisée.</span><span><a href="{% url 'signup' %}">Créer un compte</a> · <a href="{% url 'login' %}">Se connecter</a></span>
+    {% else %}<span>1 recherche gratuite sans compte.</span><span>Parcourir les annonces reste libre.</span>{% endif %}
+  </div>{% endif %}</div>
+</form>
+<nav class="market-aisles" aria-label="Rayons du marché">
+  {% for category in market_categories %}<a href="{{ category.url }}" class="market-aisle {% if category.active %}market-aisle-active{% endif %}" {% if category.active %}aria-current="page"{% endif %}><span class="market-aisle-icon">{% include 'tracker/market_icon.html' with icon=category.code only %}</span><span>{{ category.label }}</span></a>{% endfor %}
+</nav>
+<section id="market-offers" aria-labelledby="market-offers-title">
+  <div class="market-section-head"><div><h2 id="market-offers-title" class="text-2xl">Les annonces du marché</h2></div><span class="text-sm text-slate-500 dark:text-slate-400">{{ market_offer_count }} annonce{{ market_offer_count|pluralize }}</span></div>
+  <div class="market-toolbar">
+    <nav class="market-sellers" aria-label="Filtrer les vendeurs">{% for seller in market_sellers %}<a href="{{ seller.url }}" class="market-seller {% if seller.active %}market-seller-active{% endif %}" {% if seller.active %}aria-current="page"{% endif %}>{{ seller.label }}</a>{% endfor %}</nav>
+    <details class="market-location"><summary class="cursor-pointer text-xs font-semibold py-2">⌖ Localisation{% if browse.browse_city %} · {{ browse.browse_city }}{% endif %}</summary><form method="get" class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] mt-3" aria-label="Localiser les annonces">
+      <input type="hidden" name="browse_type" value="{{ browse.browse_type }}"><input type="hidden" name="seller" value="{{ browse.seller }}">
+      <div><label for="browse-market" class="sr-only">Pays des annonces</label><select id="browse-market" name="browse_market"><option value="">Tous les pays</option>{% for code,label in market_countries %}<option value="{{ code }}" {% if browse.browse_market == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      <div><label for="browse-city" class="sr-only">Ville des annonces</label><input id="browse-city" name="browse_city" value="{{ browse.browse_city }}" placeholder="Votre ville" maxlength="120"></div>
+      <button class="button button-outline-secondary" type="submit">Appliquer</button>
+    </form></details>
+  </div>
+  {% if browse_filtered %}<div class="flex items-center justify-between gap-3 text-xs my-3"><span class="text-slate-500 dark:text-slate-400">Annonces correspondant à vos filtres</span><a href="{% url 'scrape_view' %}" class="font-semibold">Tout afficher ×</a></div>{% endif %}
+  {% if market_offers %}<div class="market-grid">
+    {% for item in market_offers %}<article class="market-product">
+      <a href="{{ item.url }}" class="market-product-photo" aria-label="Voir l’annonce : {{ item.title }}">
+        {% if item.image_url %}<img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">{% else %}<div class="market-photo-empty">{% include 'tracker/market_icon.html' with icon='product' only %}<span>Sans photo</span></div>{% endif %}
+        <span class="market-product-type">{{ item.offer_type_label }}</span>{% if item.promoted %}<span class="market-product-sponsored">Sponsorisé</span>{% endif %}
+      </a>
+      <div class="market-product-body"><div class="market-price">{% if item.price %}{{ item.price }} <span>{{ item.currency }}</span>{% if item.price_unit %}<small>/ {{ item.price_unit }}</small>{% endif %}{% else %}Prix sur demande{% endif %}</div>
+        <h3 class="text-base font-semibold leading-snug mt-2 break-words"><a href="{{ item.url }}" class="text-slate-900 dark:text-white">{{ item.title }}</a></h3>
+        <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 mb-3">{{ item.city|default:'Localisation non précisée' }} · {{ item.market_code }}{% if item.availability != 'available' %} · {{ item.availability_label }}{% endif %}</p>
+        <div class="market-product-seller"><a href="{{ item.provider_url }}" class="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{{ item.provider }}</a>{% include 'tracker/publication_origin_badge.html' with origin=item.publication_origin only %}</div>
+        <a href="{{ item.url }}" class="market-product-action">Voir l’offre <span aria-hidden="true">↗</span></a>
+      </div>
+    </article>{% endfor %}
+  </div>{% else %}<div class="market-empty"><div class="market-aisle-icon mx-auto">{% include 'tracker/market_icon.html' with icon='' only %}</div><h3 class="mt-4">{% if browse_filtered %}Ce rayon attend ses prochaines annonces.{% else %}Le marché vous attend.{% endif %}</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-2">{% if browse_filtered %}Essayez un autre rayon ou élargissez votre zone.{% else %}Soyez le premier à ouvrir votre vitrine et à partager votre offre.{% endif %}</p><a href="{% if browse_filtered %}{% url 'scrape_view' %}{% else %}{% url 'publish_offer' %}{% endif %}" class="button button-primary">{% if browse_filtered %}Voir tout le marché{% else %}Publier une annonce{% endif %}</a></div>{% endif %}
+</section>
+{% if market_searches %}<section class="market-community" aria-labelledby="community-title"><div class="market-section-head"><div><p class="eyebrow mb-1">Du côté de la communauté</p><h2 id="community-title" class="text-xl">Les produits qui se recherchent</h2></div><span class="tag tag-light">Recherché récemment</span></div><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{% for item in market_searches %}<a href="{{ item.url }}" class="market-topic"><span class="market-topic-icon" aria-hidden="true">↗</span><span class="min-w-0"><strong class="block text-sm break-words">{{ item.title }}</strong><span class="block text-xs text-slate-500 dark:text-slate-400 mt-1">Recherche Bendango · {{ item.offer_count }} offre{{ item.offer_count|pluralize }} trouvée{{ item.offer_count|pluralize }} · {{ item.market_code }}</span></span></a>{% endfor %}</div></section>{% endif %}
+{% if discovery_page.paginator.num_pages > 1 %}<nav aria-label="Pagination du marché" class="mt-8"><ul class="pagination justify-center flex-wrap">{% for number in discovery_page.paginator.page_range %}<li class="page-item {% if number == discovery_page.number %}active{% endif %}"><a href="?{{ marketplace_query }}{% if marketplace_query %}&amp;{% endif %}page={{ number }}" class="page-link" {% if number == discovery_page.number %}aria-current="page"{% endif %}>{{ number }}</a></li>{% endfor %}</ul><p class="text-center text-xs text-slate-500 dark:text-slate-400 mt-3">Page {{ discovery_page.number }} sur {{ discovery_page.paginator.num_pages }}</p></nav>{% endif %}

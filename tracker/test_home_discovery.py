@@ -45,9 +45,9 @@ class HomepageDiscoveryFeedTests(TestCase):
         response = self.client.get(reverse('scrape_view'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Produits publiés et recherches de la communauté')
+        self.assertContains(response, 'Les annonces du marché')
         self.assertContains(response, 'Aquafina 500ml')
-        self.assertContains(response, 'Publié sur Bendango')
+        self.assertContains(response, 'Pro validé')
         self.assertContains(response, 'Samsung Galaxy A56 8GB 256GB')
         self.assertContains(response, 'Recherché récemment')
         self.assertNotContains(response, 'private-searcher-name')
@@ -87,6 +87,51 @@ class HomepageDiscoveryFeedTests(TestCase):
         self.assertEqual(second_page.number, 2)
         self.assertEqual(len(second_page.object_list), 2)
         self.assertContains(second, 'Page 2 sur 2')
+
+    def test_marketplace_empty_state_and_category_browsing_do_not_consume_trial(self):
+        self.assertContains(self.client.get(reverse('scrape_view')), 'Le marché vous attend.')
+        Offer.objects.create(business=self.profile, title='Produit du marché', offer_type='product')
+        Offer.objects.create(business=self.profile, title='Service du marché', offer_type='service')
+        SearchRun.objects.create(query='Sujet de la communauté')
+        response = self.client.get(reverse('scrape_view'), {'browse_type': 'service'})
+        self.assertContains(response, 'Service du marché')
+        self.assertNotContains(response, 'Produit du marché')
+        self.assertNotContains(response, 'Sujet de la communauté')
+        self.assertEqual(SearchRun.objects.count(), 1)
+        self.assertFalse(self.client.session.get('anonymous_search_used', False))
+        self.assertContains(self.client.get(reverse('scrape_view'), {'browse_type': 'accommodation'}), 'Ce rayon attend ses prochaines annonces.')
+
+    def test_seller_filters_respect_individual_priority_and_public_visibility(self):
+        Offer.objects.create(business=self.profile, title='Offre validée')
+        individual = BusinessProfile.objects.create(user=User.objects.create_user(username='browse-individual'),
+            business_name='Individuel', is_individual=True, is_verified=True)
+        pending = BusinessProfile.objects.create(user=User.objects.create_user(username='browse-pending'),
+            business_name='Non validé', is_verified=False)
+        Offer.objects.create(business=individual, title='Offre particulière')
+        Offer.objects.create(business=pending, title='Offre non validée')
+        Offer.objects.create(business=pending, title='Offre cachée', is_public=False)
+        for seller, expected in [('individual', 'Offre particulière'), ('pro_verified', 'Offre validée'), ('pro_unverified', 'Offre non validée')]:
+            response = self.client.get(reverse('scrape_view'), {'seller': seller})
+            self.assertEqual([item['title'] for item in response.context['market_offers']], [expected])
+            self.assertNotContains(response, 'Offre cachée')
+
+    def test_browse_filters_combine_and_survive_pagination(self):
+        for index in range(13):
+            Offer.objects.create(business=self.profile, title=f'Service Paris {index}', offer_type='service', city='Paris', market_code='FR')
+        Offer.objects.create(business=self.profile, title='Service ailleurs', offer_type='service', city='Lyon', market_code='FR')
+        params = {'browse_type': 'service', 'seller': 'pro_verified', 'browse_market': 'FR', 'browse_city': 'Paris'}
+        response = self.client.get(reverse('scrape_view'), params)
+        self.assertEqual(response.context['market_offer_count'], 13)
+        self.assertContains(response, 'browse_type=service&amp;seller=pro_verified&amp;browse_market=FR&amp;browse_city=Paris&amp;page=2')
+        second = self.client.get(reverse('scrape_view'), {**params, 'page': 2})
+        self.assertEqual(len(second.context['market_offers']), 1)
+        self.assertNotContains(second, 'Service ailleurs')
+
+    def test_invalid_browse_options_are_ignored(self):
+        Offer.objects.create(business=self.profile, title='Offre du marché')
+        response = self.client.get(reverse('scrape_view'), {'browse_type': 'unknown', 'seller': 'unknown', 'browse_market': 'unknown'})
+        self.assertFalse(response.context['browse_filtered'])
+        self.assertContains(response, 'Offre du marché')
 
     def test_publication_origin_distinguishes_pro_status_and_individual(self):
         profiles = [(self.profile, 'pro_verified', 'Pro validé')]

@@ -22,7 +22,8 @@ Une source de découverte n'est pas une offre marchande vérifiée.
 - Administration client Pro après approbation : tableau de bord, navigation de
   gestion, offres, catalogue, photos, boosts et édition du profil entreprise.
   Les indicateurs reflètent les seules données du business et de son utilisateur.
-- Pages publiques des business et des offres ; accueil de découverte paginé.
+- Pages publiques des business et des offres ; accueil marchand paginé,
+  rayons, filtres de vendeur/pays/ville et recherches communautaires séparées.
   Les annonces de l’accueil et du détail indiquent leur origine : Pro validé,
   Pro non validé ou Particulier, selon le statut actuel du profil.
 - Photos uploadées optimisées en WebP qualité 85, jusqu’à 1600 px, avec

@@ -163,3 +163,43 @@
   .offer-gallery-thumbnails img { @apply size-full object-cover; }
   .offer-gallery [hidden] { display: none !important; }
 }
+
+@layer components {
+  .market-intro { @apply flex flex-wrap items-center justify-between gap-5 mb-4; }
+  .market-publish { @apply flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 text-amber-950 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200; }
+  .market-publish-icon { @apply flex size-10 items-center justify-center rounded-full bg-amber-200 text-2xl dark:bg-amber-900; }
+  .market-search { @apply rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900; }
+  .market-search-footer { @apply mt-2 flex flex-wrap items-center justify-between gap-2; }
+  .market-search-footer details[open] { width: 100%; }
+  .market-trial { @apply flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400; }
+  .market-aisles { @apply my-4 flex gap-2 overflow-x-auto pb-2; }
+  .market-aisle { @apply flex min-w-20 shrink-0 flex-col items-center gap-1 rounded-xl px-3 py-2 text-center text-xs font-medium text-slate-600 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-900; }
+  .market-aisle-icon { @apply flex size-10 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-xs dark:bg-slate-800 dark:text-slate-300; }
+  .market-aisle-active { @apply bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300; }
+  .market-aisle-active .market-aisle-icon { @apply bg-brand-600 text-white; }
+  .market-section-head { @apply mb-4 flex flex-wrap items-end justify-between gap-3; }
+  .market-toolbar { @apply mb-5 flex flex-wrap items-start justify-between gap-3 border-y border-slate-200 py-3 dark:border-slate-800; }
+  .market-location[open] { width: 100%; }
+  .market-sellers { @apply flex flex-wrap gap-2; }
+  .market-seller { @apply inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-4 text-xs font-medium text-slate-600 hover:border-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300; }
+  .market-seller-active { @apply border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900; }
+  .market-grid { @apply grid grid-cols-1 gap-5 min-[380px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4; }
+  .market-product { @apply min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900; }
+  .market-product-photo { @apply relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-stone-100 dark:bg-slate-800; }
+  .market-product-photo img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
+  .market-product-type { @apply absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:bg-slate-950/90 dark:text-slate-200; }
+  .market-product-sponsored { @apply absolute bottom-3 left-3 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-900; }
+  .market-product-body { @apply p-3 sm:p-4; }
+  .market-price { @apply text-xl font-bold tracking-tight text-slate-900 dark:text-white; overflow-wrap: anywhere; }
+  .market-price span { @apply text-sm font-semibold; }
+  .market-price small { @apply ml-1 text-xs font-normal text-slate-500 dark:text-slate-400; }
+  .market-product-seller { @apply flex flex-col items-start gap-2 border-t border-slate-100 pt-3 dark:border-slate-800; }
+  .market-product-seller > a { max-width: 100%; }
+  .market-product-action { @apply mt-3 flex min-h-10 items-center justify-between text-xs font-semibold; }
+  .market-photo-empty { @apply flex flex-col items-center gap-3 text-xs text-slate-400 dark:text-slate-500; }
+  .market-photo-empty svg { @apply size-10; }
+  .market-empty { @apply rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center dark:border-slate-700; }
+  .market-community { @apply mt-10 border-t border-slate-200 pt-6 dark:border-slate-800; }
+  .market-topic { @apply flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-700 hover:border-emerald-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200; }
+  .market-topic-icon { @apply flex size-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300; }
+}

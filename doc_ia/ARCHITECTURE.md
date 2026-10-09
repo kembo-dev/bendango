@@ -358,3 +358,20 @@ statut dans les seules cartes d’offres, avec le business déjà chargé. Le pa
 publication_origin_badge.html est partagé par accueil et détail d’offre. Les
 sujets de recherche restent anonymes et sans statut de vendeur ; le badge
 Sponsorisé reste indépendant. Les contrôles de publication/accès restent identiques.
+
+## Navigation de la place de marché
+
+marketplace.py valide browse_type/seller/browse_market/browse_city, applique
+les filtres au queryset d’offres publiques/actives et construit les liens de
+navigation avec urlencode. Filtres de vendeurs : priorité aux particuliers ;
+Pro validé/non validé exige is_individual=false et le bon indicateur is_verified.
+Le filtre de ville accepte celle du vendeur si l’annonce ne précise pas de ville.
+
+Le flux existant conserve sa pagination de 12 éléments et ses limites de
+120 annonces récentes/120 sujets dédupliqués. marketplace_context sépare les
+éléments de la page en annonces et sujets pour leur présentation dans
+marketplace_home.html. Le compteur décrit les annonces dans ce flux borné,
+pas un inventaire global. Avec un filtre de navigation, seuls les offres
+correspondantes sont paginées et les sujets sont omis. GET de navigation
+n’ouvre aucune SearchRun et ne consomme pas le quota ; la recherche POST
+conserve son contrat, CSRF, droits et options. Pas de nouvelle dépendance ni migration.

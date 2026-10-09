@@ -1,8 +1,9 @@
 {% extends "tracker/base.html" %}
-{% block title %}Comparateur de prix - Bendango{% endblock %}
+{% block title %}{% if marketplace %}Le marché Bendango · Annonces et vendeurs{% else %}Comparateur de prix - Bendango{% endif %}{% endblock %}
 {% block content %}
-<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-8"><div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4 justify-center"><div class="w-full md:w-10/12">
+<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6"><div><div>
     {% if messages %}{% for message in messages %}<div class="notice notice-success">{{ message }}</div>{% endfor %}{% endif %}
+    {% if marketplace %}{% include 'tracker/marketplace_home.html' %}{% else %}
     <div class="hero-panel mb-6"><div class="eyebrow">Votre prochaine trouvaille</div><h1 class="mb-2">Le bon choix commence ici.</h1><p class="mb-0">Les offres locales et les marchands du Web, réunis pour vous aider à choisir.</p></div>
 
     {% if not request.user.is_authenticated %}
@@ -43,102 +44,6 @@
         <button type="submit" class="button button-primary mt-6 w-full search-submit" {% if anonymous_search_used and not request.user.is_authenticated %}disabled{% endif %}>{% if anonymous_search_used and not request.user.is_authenticated %}Créez un compte pour continuer{% else %}Rechercher sur Bendango{% endif %}</button>
     </form>
 
-    {% if discovery_page %}
-    <section class="mt-6 discovery-home-panel">
-        <div class="flex justify-between items-start gap-3 flex-wrap mb-4">
-            <div>
-                <div class="eyebrow mb-2">Découvrir Bendango</div>
-                <h2 class="text-xl mb-1">Produits publiés et recherches de la communauté</h2>
-                <p class="text-slate-500 mb-0 dark:text-slate-400">Découvrez les annonces des professionnels et des particuliers, ainsi que les produits recherchés par la communauté.</p>
-            </div>
-            <span class="tag tag-light border">{{ discovery_page.paginator.count }} élément{{ discovery_page.paginator.count|pluralize }}</span>
-        </div>
-
-        {% if discovery_page.object_list %}
-        <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4 ">
-            {% for item in discovery_page %}
-            <div class="w-full md:w-6/12">
-                <div class="panel h-full border-0 shadow-sm discovery-feed-card">
-                    <div class="panel-body p-6">
-                        <div class="flex gap-3 items-start">
-                            {% if item.image_url %}
-                            <img src="{{ item.image_url }}" alt="{{ item.title }}" class="discovery-feed-image">
-                            {% else %}
-                            <div class="discovery-feed-placeholder">B</div>
-                            {% endif %}
-                            <div class="grow min-w-0">
-                                <div class="flex justify-between gap-2 flex-wrap mb-2">
-                                    <div>
-                                        {% if item.kind == 'offer' %}
-                                        <span class="tag tag-light border">{{ item.badge }}</span>
-                                        {% if item.promoted %}<span class="tag tag-warning">Sponsorisé</span>{% endif %}
-                                        {% else %}
-                                        <span class="tag tag-primary">{{ item.badge }}</span>
-                                        {% endif %}
-                                    </div>
-                                    <span class="tag tag-light border">Marché {{ item.market_code }}</span>
-                                </div>
-                                <h3 class="text-lg mb-1">{{ item.title }}</h3>
-                                <div class="text-sm text-slate-500 mb-2 dark:text-slate-400">
-                                    {{ item.provider }}
-                                    {% if item.city %} · {{ item.city }}{% endif %}
-                                </div>
-                                {% if item.kind == 'offer' %}<div class="mb-3">{% include 'tracker/publication_origin_badge.html' with origin=item.publication_origin only %}</div>{% endif %}
-
-                                {% if item.price %}
-                                <div class="font-bold text-brand-700 mb-2 dark:text-emerald-300">
-                                    {{ item.price }} {{ item.currency }}
-                                    {% if item.price_unit %}<span class="font-normal text-slate-500 dark:text-slate-400">/ {{ item.price_unit }}</span>{% endif %}
-                                </div>
-                                {% endif %}
-
-                                {% if item.kind == 'search' %}
-                                <div class="text-sm text-slate-500 mb-4 dark:text-slate-400">
-                                    {{ item.offer_count }} offre{{ item.offer_count|pluralize }} trouvée{{ item.offer_count|pluralize }}
-                                </div>
-                                {% endif %}
-
-                                <a href="{{ item.url }}" class="button {% if item.kind == 'offer' %}button-success{% else %}button-outline-primary{% endif %} button-sm">
-                                    {% if item.kind == 'offer' %}Voir l'offre{% else %}Voir cette recherche{% endif %}
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        {% if discovery_page.paginator.num_pages > 1 %}
-        <nav class="mt-6" aria-label="Pagination découverte Bendango">
-            <ul class="pagination justify-center flex-wrap">
-                {% if discovery_page.has_previous %}
-                <li class="page-item"><a class="page-link" href="?page={{ discovery_page.previous_page_number }}">Précédent</a></li>
-                {% else %}
-                <li class="page-item disabled"><span class="page-link">Précédent</span></li>
-                {% endif %}
-
-                {% for page_number in discovery_page.paginator.page_range %}
-                    {% if page_number == discovery_page.number %}
-                    <li class="page-item active" aria-current="page"><span class="page-link">{{ page_number }}</span></li>
-                    {% elif page_number >= discovery_page.number|add:'-2' and page_number <= discovery_page.number|add:'2' %}
-                    <li class="page-item"><a class="page-link" href="?page={{ page_number }}">{{ page_number }}</a></li>
-                    {% endif %}
-                {% endfor %}
-
-                {% if discovery_page.has_next %}
-                <li class="page-item"><a class="page-link" href="?page={{ discovery_page.next_page_number }}">Suivant</a></li>
-                {% else %}
-                <li class="page-item disabled"><span class="page-link">Suivant</span></li>
-                {% endif %}
-            </ul>
-            <div class="text-center text-sm text-slate-500 dark:text-slate-400">Page {{ discovery_page.number }} sur {{ discovery_page.paginator.num_pages }}</div>
-        </nav>
-        {% endif %}
-        {% else %}
-        <div class="notice notice-light border mb-0">Les premières offres et recherches apparaîtront ici dès qu'elles seront publiées.</div>
-        {% endif %}
-    </section>
     {% endif %}
 
         {% if search_run and run_state %}<section id="search-progress" class="search-progress mt-6" data-status-url="{% url 'search_run_status' search_run.pk %}" data-running="{% if async_waiting %}1{% else %}0{% endif %}">

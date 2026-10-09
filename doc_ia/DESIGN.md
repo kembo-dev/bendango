@@ -18,10 +18,11 @@ bordures fines, angles arrondis et ombres légères. Les composants `button`, `p
 `tag`, `notice`, `metric`, `data-table` et les formulaires partagent ces règles.
 Les badges d'avertissement et d'erreur conservent leurs couleurs sémantiques.
 
-L'accueil présente « Le bon choix commence ici. », puis le formulaire : produit
-au premier plan, marché/ville, filtres de type/business/source et restriction
-optionnelle à un site. Le quota visiteur reste annoncé. Les champs s'empilent sur
-mobile ; les tableaux peuvent défiler horizontalement dans leur conteneur.
+L’accueil est une place de marché : « Tout un marché, juste ici. », recherche
+compacte, rayons, filtres de vendeurs et grille d’annonces avec photos/prix/statut.
+Les options de recherche complète et la localisation sont repliables ; le quota
+visiteur reste annoncé. Le détail des résultats conserve son formulaire complet.
+Les champs s’empilent sur mobile ; les tableaux peuvent défiler dans leur conteneur.
 Les labels sont associés aux champs, le focus est visible et les animations
 respectent la préférence de mouvement réduit. Une certification d'accessibilité
 complète reste hors du périmètre de cette refonte.
@@ -237,7 +238,23 @@ Sous le nom public de l’auteur, les cartes de l’accueil affichent un badge :
 « Pro validé » (bouclier/coché, vert), « Pro non validé » (horloge, ambre) ou
 « Particulier » (personne, neutre). Libellés explicites en plus des couleurs et
 icônes décoratives ; tooltip précisant que la validation concerne le compte.
-Le détail d’offre reprend le même badge. « Publié sur Bendango » devient neutre
-et « Sponsorisé » reste un indicateur distinct. Les recherches communautaires
+Le détail d’offre reprend le même badge. La vitrine identifie les publications
+Bendango ; « Sponsorisé » reste un indicateur distinct. Les recherches communautaires
 restent identifiées comme recherches, sans badge de vendeur. Le texte d’introduction
 mentionne les professionnels et les particuliers.
+
+## Vitrine marchande (2026-10-09)
+
+Skill ECC frontend-design-direction : marché quotidien à parcourir, émeraude et
+ambre, rayons avec pictogrammes, action « Ouvrez votre vitrine ». Recherche
+compacte au-dessus des rayons ; options avancées et localisation en details
+natifs, utilisables sans JavaScript. Photos entières en cadres 4/3, sans
+agrandissement automatique ; cartes 1 colonne sous 380 px, 2 à partir de 380,
+3 à partir de lg et 4 à partir de xl. Prix, unité, titre, ville/pays, vendeur,
+validation et lien d’offre ; disponibilité atypique et sponsoring explicites.
+
+Les sujets de la communauté apparaissent dans une section séparée sous les
+annonces. Rayons et filtres Pro/particulier/pays/ville rechargent la vitrine,
+sans appel externe ni consommation du quota de recherche. État vide avec
+retour au marché ou publication. Pagination conserve les filtres actifs.
+Visuels et comptes réels uniquement ; aucun faux stock, favori ou achat simulé.

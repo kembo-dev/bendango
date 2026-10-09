@@ -78,6 +78,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   Validation : quatre nouveaux cas, 49 tests ciblés et trois badges inspectés
   dans le navigateur sur données fictives séparées.
 
+- [x] Transformer l’accueil en place de marché : grille photo/prix/vendeur,
+  rayons et filtres réels, recherche compacte et communauté séparée. Quatre
+  nouveaux tests de navigation, 346 tests de suite (1 ignoré), puis 30 tests
+  ciblés après compactage. Rendu téléphone réel restant à vérifier.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

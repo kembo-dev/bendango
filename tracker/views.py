@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import BusinessAccountRequestForm, BusinessProfileForm, OfferBoostRequestForm, OfferEditForm, ProCatalogProductForm, QuickOfferForm, SearchOrScrapeForm, SignUpForm
+from .marketplace import browse_filters, filter_offers, marketplace_context
 from .market_coverage import coverage_summary, distinct_merchant_count, merchant_key
 from .offer_search import find_matching_offers
 from .unified_search import build_unified_results
@@ -131,13 +132,14 @@ def _run_state(search_run):
 
 
 def _public_discovery_feed(request, *, per_page=12):
+    filters = browse_filters(request)
     offers = list(
-        Offer.objects.filter(
+        filter_offers(Offer.objects.filter(
             is_public=True,
             is_active=True,
             business__is_public=True,
             business__is_active=True,
-        )
+        ), filters)
         .select_related("business")
         .prefetch_related("media", "boost_requests")
         .order_by("-updated_at")[:120]
@@ -151,7 +153,7 @@ def _public_discovery_feed(request, *, per_page=12):
     )
 
     recent_runs = list(
-        SearchRun.objects.filter(query__gt="")
+        (SearchRun.objects.none() if any(filters.values()) else SearchRun.objects.filter(query__gt=""))
         .annotate(
             offer_count=Count(
                 "jobs",
@@ -206,6 +208,10 @@ def _public_discovery_feed(request, *, per_page=12):
             "market_code": offer.market_code,
             "badge": "Publié sur Bendango",
             "publication_origin": offer.business.publication_origin,
+            "provider_url": f"/business/{offer.business.slug}/",
+            "offer_type_label": offer.get_offer_type_display(),
+            "availability": offer.availability,
+            "availability_label": offer.get_availability_display(),
             "promoted": bool(offer.offer_type == Offer.TYPE_PRODUCT and offer.is_boosted),
             "url": f"/offer/{offer.slug}/",
             "created_at": offer.updated_at,
@@ -1154,8 +1160,10 @@ def scrape_view(request):
         form = SearchOrScrapeForm()
         if request.method == "GET":
             discovery_page = _public_discovery_feed(request, per_page=12)
+            form.fields["query"].widget.attrs["placeholder"] = "Rechercher un produit, un service, une envie…"
 
     return render(request, "tracker/scrape.html", {
+        **marketplace_context(request, discovery_page),
         "form": form,
         "listings": listings,
         "first_party_offers": first_party_offers,

@@ -1,0 +1,10 @@
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="size-6">
+{% if icon == 'product' %}<path d="M5 8h14l1 13H4L5 8Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>
+{% elif icon == 'service' %}<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>
+{% elif icon == 'accommodation' %}<path d="M3 18V7m18 11V11H3m0 5h18M6 8h5v3H6V8Z"/>
+{% elif icon == 'restaurant' %}<path d="M5 3v6m3-6v6m-6-6v6c0 3 6 3 6 0M5 12v9m12 0V3c-4 1-4 10 0 10"/>
+{% elif icon == 'health' %}<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6V3Z"/>
+{% elif icon == 'transport' %}<path d="m4 10 2-6h12l2 6M3 16v-6h18v6H3Zm2 0v4m14-4v4M6 13h2m8 0h2"/>
+{% elif icon == 'real_estate' %}<path d="m3 10 9-7 9 7M5 9v12h14V9m-9 12v-7h4v7"/>
+{% else %}<path d="M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z"/>{% endif %}
+</svg>
