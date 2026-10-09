@@ -4,7 +4,31 @@ from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, GLOBAL_MARKET_CODE, market_choices
 from .image_processing import prepare_photo
-from .models import BusinessCategory, BusinessProfile, Offer, OfferBoostRequest
+from .models import BusinessCategory, BusinessProfile, Currency, Offer, OfferBoostRequest
+
+
+class CurrencyChoiceField(forms.ChoiceField):
+    def to_python(self, value):
+        return super().to_python(value).strip().upper()
+
+
+class CurrencyConfiguredForm(forms.Form):
+    currency = CurrencyChoiceField(label='Devise', widget=forms.Select(attrs={'class': 'field-input'}),
+        error_messages={'invalid_choice': 'Choisissez une devise disponible dans la liste.'})
+
+    def __init__(self, *args, **kwargs):
+        # Uniquement une valeur provenant de l'objet édité côté serveur, jamais du POST.
+        current_currency = kwargs.pop('current_currency', None)
+        super().__init__(*args, **kwargs)
+        choices = [(currency.code, str(currency)) for currency in Currency.objects.filter(is_active=True)]
+        available_codes = {code for code, label in choices}
+        if current_currency and current_currency not in available_codes:
+            choices.append((current_currency, f'{current_currency} — Devise de cette annonce (conservée)'))
+        self.fields['currency'].choices = choices or [('', 'Aucune devise disponible')]
+        self.fields['currency'].help_text = ('Choisissez la devise de votre prix.' if choices else
+            'La publication est temporairement indisponible : aucune devise n’est activée.')
+        if self.initial.get('currency') not in {code for code, label in choices}:
+            self.initial['currency'] = choices[0][0] if choices else ''
 
 
 
@@ -231,7 +255,7 @@ class BusinessProfileForm(forms.ModelForm):
 
 
 
-class ProCatalogProductForm(forms.Form):
+class ProCatalogProductForm(CurrencyConfiguredForm):
     name = forms.CharField(
         label='Nom du produit',
         max_length=255,
@@ -273,12 +297,6 @@ class ProCatalogProductForm(forms.Form):
         decimal_places=2,
         widget=forms.NumberInput(attrs={'class': 'field-input', 'step': '0.01'}),
     )
-    currency = forms.CharField(
-        label='Devise',
-        max_length=10,
-        initial='USD',
-        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'USD, EUR, CDF...'}),
-    )
     in_stock = forms.BooleanField(
         label='En stock',
         required=False,
@@ -295,7 +313,7 @@ class ProCatalogProductForm(forms.Form):
 
 
 
-class QuickOfferForm(forms.Form):
+class QuickOfferForm(CurrencyConfiguredForm):
     offer_type = forms.ChoiceField(
         label="Type d'offre",
         choices=Offer.OFFER_TYPES,
@@ -313,12 +331,6 @@ class QuickOfferForm(forms.Form):
         max_digits=14,
         decimal_places=2,
         widget=forms.NumberInput(attrs={'class': 'field-input', 'step': '0.01', 'placeholder': 'Laisser vide si sur demande'}),
-    )
-    currency = forms.CharField(
-        label='Devise',
-        max_length=10,
-        initial='USD',
-        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'USD, CDF, EUR...'}),
     )
     price_unit = forms.CharField(
         label='Unité de prix',

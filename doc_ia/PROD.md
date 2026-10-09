@@ -99,3 +99,14 @@ sert les fichiers statiques, pas les uploads en production.
 
 Modifier ce document lorsque changent le périmètre produit, les parcours métier,
 les marchés, les services disponibles ou les conditions de lancement.
+
+## Devises de publication configurables
+
+Les devises proposées à `/publish/`, aux offres Pro et au catalogue sont stockées
+en base (`Currency`) et administrables dans `/admin/tracker/currency/` : code,
+nom, symbole, activation et ordre. Dix devises des marchés existants sont
+initialisées par migration. La devise du pays est présélectionnée si elle est
+active ; sinon la première devise active est utilisée. Les nouvelles publications
+refusent les devises désactivées ou inconnues. Les anciens montants et codes
+restent conservés, y compris lors d’une édition. Sans devise active, la création
+est bloquée avec une explication. Ce catalogue ne fournit aucun taux de change.

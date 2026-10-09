@@ -4,9 +4,29 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+
+
+class Currency(models.Model):
+    """Catalogue administratif des devises autorisées à la publication."""
+    code = models.CharField('Code', max_length=3, unique=True, validators=[
+        RegexValidator(r'^[A-Z]{3}$', 'Utilisez un code de trois lettres majuscules, par exemple CDF.')])
+    name = models.CharField('Nom', max_length=100)
+    symbol = models.CharField('Symbole', max_length=10, blank=True)
+    is_active = models.BooleanField('Disponible à la publication', default=True)
+    sort_order = models.PositiveIntegerField('Ordre', default=100,
+        help_text='La première devise active sert de choix par défaut si celle du pays est indisponible.')
+
+    class Meta:
+        ordering = ['sort_order', 'code']
+        verbose_name = 'Devise (configuration)'
+        verbose_name_plural = 'Devises (configuration)'
+
+    def __str__(self):
+        return f'{self.code} — {self.name}'
 
 
 class Retailer(models.Model):

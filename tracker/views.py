@@ -536,7 +536,7 @@ def pro_product_edit(request, listing_id):
         "sale_url": listing.url,
     }
     if request.method == "POST":
-        form = ProCatalogProductForm(request.POST)
+        form = ProCatalogProductForm(request.POST, current_currency=listing.currency)
         if form.is_valid():
             if product.listings.exclude(retailer=retailer).exists():
                 product = Product.objects.create(
@@ -567,7 +567,7 @@ def pro_product_edit(request, listing_id):
             messages.success(request, "Le produit a été mis à jour.")
             return redirect("pro_products")
     else:
-        form = ProCatalogProductForm(initial=initial)
+        form = ProCatalogProductForm(initial=initial, current_currency=listing.currency)
     return render(request, "tracker/pro_product_form.html", {
         "profile": profile,
         "form": form,
@@ -827,7 +827,7 @@ def pro_offer_edit(request, offer_id):
         'contact_method': offer.contact_method,
     }
     if request.method == 'POST':
-        form = OfferEditForm(request.POST, request.FILES)
+        form = OfferEditForm(request.POST, request.FILES, current_currency=offer.currency)
         if form.is_valid():
             for field in (
                 'offer_type', 'title', 'price', 'currency', 'price_unit',
@@ -841,7 +841,7 @@ def pro_offer_edit(request, offer_id):
             messages.success(request, "Votre offre a été mise à jour.")
             return redirect('pro_offers')
     else:
-        form = OfferEditForm(initial=initial)
+        form = OfferEditForm(initial=initial, current_currency=offer.currency)
     return render(request, 'tracker/pro_offer_form.html', {
         'profile': profile,
         'offer': offer,

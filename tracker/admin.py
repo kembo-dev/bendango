@@ -1,7 +1,18 @@
 from django.contrib import admin
 from django.utils import timezone
 
-from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Offer, OfferBoostRequest, OfferMedia, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+from tracker.models import BusinessAccountRequest, BusinessCategory, BusinessProfile, Currency, Offer, OfferBoostRequest, OfferMedia, PriceHistory, PriceListing, Product, Retailer, SearchDiagnostic, SearchRun
+
+
+@admin.register(Currency)
+class CurrencyAdmin(admin.ModelAdmin):
+    list_display = ('code', 'name', 'symbol', 'is_active', 'sort_order')
+    list_editable = ('name', 'symbol', 'is_active', 'sort_order')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'name')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('code',) if obj else ()
 
 
 @admin.register(Product)

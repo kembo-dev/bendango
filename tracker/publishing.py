@@ -25,7 +25,7 @@ def _editor(request, offer=None):
                'market_code': profile.market_code if profile else DEFAULT_MARKET_CODE}
     if offer:
         initial.update({name: getattr(offer, name) for name in ('title', 'offer_type', 'description', 'price', 'currency', 'whatsapp', 'city', 'market_code')})
-    form = MobilePublishForm(request.POST if request.method == 'POST' else None, request.FILES if request.method == 'POST' else None, initial=initial, editing=bool(offer))
+    form = MobilePublishForm(request.POST if request.method == 'POST' else None, request.FILES if request.method == 'POST' else None, initial=initial, editing=bool(offer), current_currency=offer.currency if offer else None)
     valid = request.method == 'POST' and form.is_valid()
     if valid and offer and offer.media.count() + len(form.cleaned_data['photos']) > 8:
         form.add_error('photos', 'Une annonce peut contenir au maximum 8 photos.')

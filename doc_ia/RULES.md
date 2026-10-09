@@ -167,3 +167,12 @@ Les tests réussis ne prouvent pas la qualité des résultats sur le Web réel.
 - Optimiser les anciennes images via la commande dédiée, sans écraser leurs
   fichiers sources ni télécharger de liens externes. Supprimer les variantes
   avec le média dans l'action propriétaire et tester l'idempotence du traitement.
+
+## Devises de publication
+
+- Les choix de nouvelles publications proviennent uniquement des devises actives
+  en base ; ne pas réintroduire de saisie libre ou de liste codée dans les formulaires.
+- Une édition peut conserver uniquement la devise historique de son objet, transmise
+  par la vue après contrôle du propriétaire ; ne jamais la déduire du POST.
+- Désactiver une devise ne modifie ni prix ni annonces existants. Le catalogue des
+  devises disponibles ne doit pas être confondu avec les taux de conversion.

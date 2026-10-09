@@ -64,6 +64,10 @@ pas une autorisation générale de modification, publication ou appel à un serv
   photos existantes sans écrasement des sources. Validation : 31 tests ciblés,
   328 tests SQLite réussis (1 ignoré), neuf nouveaux cas et contrôle navigateur.
 
+- [x] Gérer les devises de publication en base et dans Django admin : dix devises
+  initiales, activation/ordre, listes partagées mobile/Pro/catalogue et conservation
+  des anciennes devises en édition. Validation détaillée dans MEMORY.md.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

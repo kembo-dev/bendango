@@ -336,3 +336,26 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
 - Serveur local rechargé, capture hors dépôt, workers inchangés. Les six documents
   doc_ia ont été consultés, réconciliés et mis à jour dans ce lot. Livraison Git
   suivant la consigne permanente ; résultat vérifiable dans l'historique.
+
+## 2026-10-09 — Devises administrables en base
+
+- Demande : configurer les devises dans la base pour le parcours `/publish/`.
+- Currency et son administration : code unique, nom, symbole, disponibilité et
+  ordre. Dix devises des marchés existants initialisées par migrations 0023/0024,
+  appliquées à PostgreSQL local ; aucune modification des anciens prix/codes.
+- Listes dynamiques communes à publication mobile, offres Pro et catalogue ;
+  codes normalisés et vérifiés côté serveur. Ordre en base pour le repli si la
+  devise initiale du pays est indisponible. Sans devise active, création bloquée
+  et explication affichée. Modification du catalogue effective sans redémarrage.
+- Édition : la vue transmet seulement la devise de l’objet possédé. Cette devise
+  reste conservable si désactivée ou historique, sans autoriser d’autres codes
+  désactivés. Les conversions et leurs limites existantes restent inchangées.
+- Validation : dix nouveaux tests ; 24 tests ciblés réussis ; suite complète
+  de 338 tests SQLite validée (1 intégration ignorée). Check Django, cohérence
+  des migrations, build CSS, collectstatic et diff --check réussis. PostgreSQL :
+  dix devises actives constatées. Aucun appel LLM réel.
+- Navigateur sur instance SQLite fictive séparée : dix options lisibles, choix
+  CDF et aperçu 25.00 CDF vérifiés sans soumettre de modification. Capture hors
+  dépôt : devises-publication.png. Pas de test matériel sur téléphone dans ce lot.
+- Les six documents doc_ia ont été consultés et réconciliés dans ce lot. Livraison
+  Git selon la consigne permanente ; résultat vérifiable dans l’historique.

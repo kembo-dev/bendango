@@ -316,3 +316,20 @@ L'action propriétaire de suppression des médias supprime aussi leurs rendition
 miniature ; `--apply` génère les versions, `--offer-id` limite la sélection.
 Une seconde exécution ignore les éléments déjà traités. La commande ne télécharge
 pas les images externes et rapporte séparément les sources absentes/invalides.
+
+## Configuration des devises en base
+
+`Currency` stocke code unique de trois lettres, nom, symbole, activation et
+ordre. Migration 0023 : table ; 0024 : dix devises correspondant aux marchés
+existants, sans modification des prix historiques. Django admin expose le
+catalogue ; le code est immuable dans l’édition administrative.
+
+`CurrencyConfiguredForm` charge les devises actives à chaque instanciation,
+sans cache ni requête à l’import. Choix et validation sont partagés par les
+formulaires mobile, offres Pro et catalogue. Les vues d’édition transmettent
+explicitement `current_currency` depuis leur objet filtré par propriétaire ;
+seule cette devise historique peut être conservée même désactivée ou absente.
+Les champs texte de devise sur Offer/PriceListing restent inchangés pour
+préserver l’historique et les imports. Marchés géographiques et conversions
+restent respectivement dans markets.py et currency.py ; activer un code dans
+le catalogue n’ajoute pas un taux de conversion.

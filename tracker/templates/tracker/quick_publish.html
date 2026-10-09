@@ -26,7 +26,7 @@
           {% include 'tracker/publish_field.html' with field=form.title %}
           {% include 'tracker/publish_field.html' with field=form.offer_type %}
           {% include 'tracker/publish_field.html' with field=form.description %}
-          <div class="grid grid-cols-[minmax(0,1fr)_100px] gap-3">{% include 'tracker/publish_field.html' with field=form.price %}{% include 'tracker/publish_field.html' with field=form.currency %}</div>
+          <div class="grid gap-3 sm:grid-cols-2">{% include 'tracker/publish_field.html' with field=form.price %}{% include 'tracker/publish_field.html' with field=form.currency %}</div>
           <p class="text-xs text-slate-500 dark:text-slate-400">Sans prix, l’annonce indiquera « Prix sur demande ».</p>
           {% if form.price_unit %}{% include 'tracker/publish_field.html' with field=form.price_unit %}{% endif %}
         </section>

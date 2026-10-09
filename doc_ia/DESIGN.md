@@ -205,3 +205,12 @@ avec un côté maximal de 1600 px ; orientation corrigée, transparence conserv�
 Les images externes gardent leur URL et le même cadre d'affichage. Les petites
 photos ne gagnent pas de détails : sur l'offre Esika, les deux sources de 64 × 64
 sont désormais affichées à cette taille, sans le flou de leur ancien agrandissement.
+
+## Choix de devise à la publication
+
+Le champ Devise devient une liste : code et nom explicite, par exemple
+« CDF — Franc congolais ». Prix et devise occupent deux colonnes dès sm,
+et sont empilés sur petit écran. L’aperçu utilise toujours le code sélectionné.
+La liste suit l’activation et l’ordre de l’administration sans redémarrage.
+Une devise historique indisponible est signalée comme conservée en édition.
+Sans devise active, le formulaire annonce l’indisponibilité de publication.
