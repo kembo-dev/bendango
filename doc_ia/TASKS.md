@@ -5,6 +5,89 @@ Dernière mise à jour : 2026-10-09.
 Les tâches ouvertes ci-dessous proviennent de l'analyse ; elles ne constituent
 pas une autorisation générale de modification, publication ou appel à un service payant.
 
+## Prochaines tâches — feuille de route du 2026-10-09
+
+Demande utilisateur : inscrire les manques identifiés pour les prochaines tâches.
+Cette planification n’implémente pas les fonctionnalités et ne lance aucun service
+payant. Traiter les lots dans l’ordre ci-dessous ; les critères techniques déjà
+présents dans les sections de priorité restent la référence, sans les dupliquer.
+
+### Lot 1 — Fiabilité et sécurité, prochaine tâche à réaliser
+
+Les trois tâches sont déjà ouvertes dans « Priorité haute » :
+
+1. Protéger les URL collectées contre les réseaux internes, y compris après
+   résolution DNS et redirection.
+2. Corriger la comparaison multi-devise lorsque le taux de conversion manque.
+3. Préserver les états d’échec dans le suivi des recherches et l’interface.
+
+Terminer ce lot lorsque les tests de régression et les parcours d’erreur sont
+validés, sans exposer de prix comparables fictifs ni de faux succès.
+
+### Lot 2 — Récupération de compte et confiance
+
+- [ ] Ajouter le parcours « Mot de passe oublié ».
+  Validation : lien depuis la connexion, email de réinitialisation, jeton expirant
+  à usage unique, réponse ne révélant pas l’existence d’un compte et tests d’accès.
+  Dépendance : backend email de production (tâche déjà ouverte).
+- [ ] Vérifier les adresses email des comptes.
+  Validation : lien expirant, renvoi limité, statut visible ; définir l’effet sur
+  la publication et préserver l’accès des comptes existants pendant la transition.
+- [ ] Permettre le signalement d’une annonce et son traitement administratif.
+  Validation : motif, file de modération, décision tracée, retrait/rétablissement,
+  protection contre l’abus ; seul le personnel autorisé décide de la modération.
+
+### Lot 3 — Retour au marché et échanges
+
+- [ ] Ajouter les favoris et une page personnelle pour les retrouver.
+  Validation : ajouter/retirer sans doublon, isolation par compte, accès depuis
+  les cartes et le détail ; gérer les annonces retirées ou devenues privées.
+- [ ] Ajouter les recherches sauvegardées.
+  Validation : conserver requête et filtres, relancer la recherche, renommer ou
+  supprimer ; aucun utilisateur ne peut accéder aux sauvegardes d’un autre.
+- [ ] Ajouter une messagerie entre acheteur et vendeur liée à l’annonce.
+  Validation : ouvrir une conversation depuis une offre, lire/envoyer seulement
+  comme participant, afficher les non-lus, bloquer/signaler et limiter les abus.
+  Conserver les contacts WhatsApp/téléphone pendant la transition.
+- [ ] Ajouter les brouillons de publication et le statut « vendu ».
+  Validation : reprise d’un brouillon privé depuis le téléphone, publication
+  explicite, modification réservée au propriétaire ; une annonce vendue affiche
+  son statut et sort des offres disponibles sans perdre son historique.
+
+### Lot 4 — Notifications et pilotage
+
+- [ ] Notifier les nouveaux messages, les décisions Pro et les annonces
+  correspondant aux recherches sauvegardées.
+  Validation : centre de notifications, état lu/non lu, préférences et désactivation,
+  absence de doublons et respect de la confidentialité. Définir les canaux email
+  ou navigateur avant leur intégration ; dépend des lots 2 et 3.
+- [ ] Mesurer les vues et clics de contact par annonce pour son propriétaire.
+  Validation : compteurs réels, exclusion des rafraîchissements abusifs et accès
+  isolé ; documenter la collecte et la durée de conservation.
+- [ ] Définir puis ajouter les avis vendeurs avec preuve de l’échange.
+  Validation : critère d’éligibilité explicite, anti-doublon, modération et réponse
+  du vendeur ; ne pas afficher « achat vérifié » sans preuve d’une transaction.
+  La méthode de vérification reste à décider avant implémentation.
+
+### Lot 5 — Monétisation après stabilisation
+
+- [ ] Ajouter le paiement des boosts.
+  Validation : choisir fournisseur et devises, vérifier les notifications signées
+  et l’idempotence, gérer échec/annulation et activer le boost une seule fois selon
+  une règle d’approbation explicite. Tester en environnement de paiement de test.
+  Les demandes et approbations existantes ne constituent pas un paiement effectué.
+  Les paiements réels et engagements commerciaux nécessitent un périmètre explicite.
+
+### Conditions transversales avant ouverture publique
+
+Les tâches restent ouvertes dans « Priorité moyenne » et « Maintenance » :
+installation reproductible, PostgreSQL et restauration des sauvegardes,
+stockage des médias hors DEBUG, HTTPS, emails, configuration Redis, décision
+Celery/workers, services systemd et CI. Prévoir aussi les contrôles d’abus et de
+confidentialité déjà listés. Valider sur téléphone physique la publication,
+les galeries et le zoom, les nouveaux parcours et leur utilisation au clavier.
+L’intégration Celery doit préserver les tâches existantes si elle est retenue.
+
 ## Réalisé dans cette session
 
 - [x] Cloner le dépôt et sélectionner `clean/bendango-v2` au commit `3aeba33`.

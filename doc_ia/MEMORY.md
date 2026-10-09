@@ -453,3 +453,21 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
 - Serveur local rechargé. Base et workers conservés. Six documents réexaminés :
   ARCHITECTURE, DESIGN, TASKS et MEMORY actualisés ; PROD et RULES restent cohérents.
   Livraison sur la branche existante selon l’autorisation de commit/push.
+
+## 2026-10-09 — Planification des prochaines tâches
+
+- Demande utilisateur : ajouter les manques recensés aux prochaines tâches.
+- TASKS contient désormais cinq lots ordonnés : sécurité/fiabilité, récupération
+  de compte/modération, favoris/recherches sauvegardées/messagerie et brouillons,
+  notifications/statistiques/avis, puis paiement des boosts. Critères de validation
+  et dépendances ajoutés ; les tâches techniques existantes sont référencées sans
+  duplication. Le lot 1 est la prochaine tâche proposée.
+- Les conditions avant ouverture publique restent explicites : infrastructure,
+  PostgreSQL et restauration, médias, HTTPS, emails, workers/Redis/CI et téléphone
+  physique. Avis vérifiés et paiement restent conditionnés à des règles définies.
+- Six documents réexaminés : TASKS et MEMORY actualisés ; PROD, ARCHITECTURE, RULES
+  et DESIGN restent cohérents puisque le comportement de l’application ne change
+  pas. Aucune tâche de réalisation cochée, aucun code, donnée ou service modifié.
+- Validation documentaire : relecture des lots et dépendances, diff --check.
+  Tests applicatifs non relancés pour ce changement documentaire uniquement.
+  Commit et publication sur la branche existante selon la consigne utilisateur.
