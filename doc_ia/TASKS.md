@@ -160,3 +160,12 @@ pas une autorisation générale de modification, publication ou appel à un serv
 Après chaque évolution, ajuster les cases, critères et priorités ; ajouter la
 preuve de réalisation dans MEMORY.md. Cocher uniquement ce qui est effectivement
 réalisé et vérifié. Conserver les tâches bloquées ouvertes avec leur cause.
+
+## Aperçus animés — 2026-10-09
+
+- [x] Animer les photos des cartes : fondu, survol, flèches, compteur et points.
+- [x] Conserver proportions/qualité, charger les photos supplémentaires à la demande,
+  respecter la réduction des mouvements et les contrôles au clavier.
+- [x] Vérifier les galeries multiples, uniques, vides, le repli et la limite de huit.
+  Suite : 349 tests, dont une intégration ignorée ; parcours navigateur validé.
+- [ ] Vérifier sur un téléphone physique les commandes tactiles et le rendu étroit.

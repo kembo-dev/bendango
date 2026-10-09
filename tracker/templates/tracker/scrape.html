@@ -1,4 +1,5 @@
 {% extends "tracker/base.html" %}
+{% load static %}
 {% block title %}{% if marketplace %}Le marché Bendango · Annonces et vendeurs{% else %}Comparateur de prix - Bendango{% endif %}{% endblock %}
 {% block content %}
 <div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6"><div><div>
@@ -268,4 +269,5 @@ document.addEventListener('DOMContentLoaded',function(){
     setTimeout(poll,700);
 });
 </script>
+{% if marketplace %}<script src="{% static 'tracker/js/market-preview.js' %}" defer></script>{% endif %}
 {% endblock %}

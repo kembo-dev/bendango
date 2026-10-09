@@ -196,10 +196,19 @@ def _public_discovery_feed(request, *, per_page=12):
 
     offer_items = []
     for offer in offers:
+        # Use the prefetched gallery: primary first, no query per photo/card.
+        preview_images = [
+            {'url': media.url, 'alt': media.alt_text or offer.title}
+            for media in sorted(offer.media.all(), key=lambda media: not media.is_primary)
+            if media.url
+        ][:8]
+        if not preview_images and offer.primary_image_url:
+            preview_images = [{'url': offer.primary_image_url, 'alt': offer.title}]
         offer_items.append({
             "kind": "offer",
             "title": offer.title,
-            "image_url": offer.display_image_url or "",
+            "image_url": preview_images[0]["url"] if preview_images else "",
+            "preview_images": preview_images,
             "price": offer.price,
             "currency": offer.currency,
             "price_unit": offer.price_unit,

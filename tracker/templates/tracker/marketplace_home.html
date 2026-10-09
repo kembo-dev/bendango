@@ -40,10 +40,17 @@
   {% if browse_filtered %}<div class="flex items-center justify-between gap-3 text-xs my-3"><span class="text-slate-500 dark:text-slate-400">Annonces correspondant à vos filtres</span><a href="{% url 'scrape_view' %}" class="font-semibold">Tout afficher ×</a></div>{% endif %}
   {% if market_offers %}<div class="market-grid">
     {% for item in market_offers %}<article class="market-product">
-      <a href="{{ item.url }}" class="market-product-photo" aria-label="Voir l’annonce : {{ item.title }}">
-        {% if item.image_url %}<img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">{% else %}<div class="market-photo-empty">{% include 'tracker/market_icon.html' with icon='product' only %}<span>Sans photo</span></div>{% endif %}
-        <span class="market-product-type">{{ item.offer_type_label }}</span>{% if item.promoted %}<span class="market-product-sponsored">Sponsorisé</span>{% endif %}
-      </a>
+      <div class="market-preview" data-market-preview>
+        <a href="{{ item.url }}" class="market-product-photo" aria-label="Voir l’annonce : {{ item.title }}">
+          {% for photo in item.preview_images %}<span class="market-photo-frame {% if forloop.first %}is-current{% endif %}" data-photo-frame aria-hidden="{% if forloop.first %}false{% else %}true{% endif %}"><img {% if forloop.first %}src="{{ photo.url }}" loading="lazy"{% else %}data-src="{{ photo.url }}"{% endif %} alt="{{ photo.alt }}" decoding="async"></span>{% empty %}<div class="market-photo-empty">{% include 'tracker/market_icon.html' with icon='product' only %}<span>Sans photo</span></div>{% endfor %}
+          <span class="market-product-type">{{ item.offer_type_label }}</span>{% if item.promoted %}<span class="market-product-sponsored">Sponsorisé</span>{% endif %}
+        </a>
+        {% if item.preview_images|length > 1 %}<div class="market-preview-controls" hidden>
+          <button type="button" data-photo-prev aria-label="Photo précédente : {{ item.title }}">‹</button>
+          <span data-photo-count aria-live="polite" aria-atomic="true">1 / {{ item.preview_images|length }}</span>
+          <button type="button" data-photo-next aria-label="Photo suivante : {{ item.title }}">›</button>
+        </div><div class="market-photo-dots" aria-hidden="true" hidden>{% for photo in item.preview_images %}<span {% if forloop.first %}class="is-current"{% endif %}></span>{% endfor %}</div>{% endif %}
+      </div>
       <div class="market-product-body"><div class="market-price">{% if item.price %}{{ item.price }} <span>{{ item.currency }}</span>{% if item.price_unit %}<small>/ {{ item.price_unit }}</small>{% endif %}{% else %}Prix sur demande{% endif %}</div>
         <h3 class="text-base font-semibold leading-snug mt-2 break-words"><a href="{{ item.url }}" class="text-slate-900 dark:text-white">{{ item.title }}</a></h3>
         <p class="text-xs text-slate-500 dark:text-slate-400 mt-2 mb-3">{{ item.city|default:'Localisation non précisée' }} · {{ item.market_code }}{% if item.availability != 'available' %} · {{ item.availability_label }}{% endif %}</p>

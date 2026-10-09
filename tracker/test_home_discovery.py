@@ -260,3 +260,35 @@ class HomepageDiscoveryFeedTests(TestCase):
         self.assertTrue(offer_items[0]['promoted'])
         self.assertContains(response, 'Sponsorisé')
         self.assertIn(normal.title, [item['title'] for item in offer_items])
+
+    def test_preview_orders_primary_first_and_skips_empty_media(self):
+        from tracker.models import OfferMedia
+        offer = Offer.objects.create(business=self.profile, title='Galerie', primary_image_url='https://example.com/fallback.jpg')
+        OfferMedia.objects.create(offer=offer, position=0)
+        OfferMedia.objects.create(offer=offer, external_url='https://example.com/second.jpg', position=1)
+        OfferMedia.objects.create(offer=offer, external_url='https://example.com/primary.jpg', position=2, is_primary=True)
+        response = self.client.get(reverse('scrape_view'))
+        images = response.context['market_offers'][0]['preview_images']
+        self.assertEqual([image['url'] for image in images], ['https://example.com/primary.jpg', 'https://example.com/second.jpg'])
+        self.assertContains(response, 'src="https://example.com/primary.jpg" loading="lazy"')
+        self.assertContains(response, 'data-src="https://example.com/second.jpg"')
+        self.assertContains(response, 'Photo suivante : Galerie')
+        self.assertNotContains(response, 'fallback.jpg')
+
+    def test_single_photo_and_empty_offer_do_not_have_preview_controls(self):
+        Offer.objects.create(business=self.profile, title='Une photo', primary_image_url='https://example.com/one.jpg')
+        Offer.objects.create(business=self.profile, title='Sans image')
+        response = self.client.get(reverse('scrape_view'))
+        self.assertContains(response, 'src="https://example.com/one.jpg" loading="lazy"')
+        self.assertContains(response, 'Sans photo')
+        self.assertNotContains(response, 'data-photo-next')
+
+    def test_preview_is_limited_to_eight_photos(self):
+        from tracker.models import OfferMedia
+        offer = Offer.objects.create(business=self.profile, title='Album')
+        for index in range(10):
+            OfferMedia.objects.create(offer=offer, external_url=f'https://example.com/{index}.jpg', position=index)
+        response = self.client.get(reverse('scrape_view'))
+        self.assertEqual(len(response.context['market_offers'][0]['preview_images']), 8)
+        self.assertContains(response, '1 / 8')
+        self.assertNotContains(response, 'https://example.com/8.jpg')

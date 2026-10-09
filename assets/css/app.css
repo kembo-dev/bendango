@@ -186,6 +186,22 @@
   .market-grid { @apply grid grid-cols-1 gap-5 min-[380px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4; }
   .market-product { @apply min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900; }
   .market-product-photo { @apply relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-stone-100 dark:bg-slate-800; }
+  .market-preview { position: relative; }
+  .market-photo-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 450ms ease, visibility 450ms; }
+  .market-photo-frame.is-current { opacity: 1; visibility: visible; }
+  .market-photo-frame img { transition: transform 600ms cubic-bezier(.2,.7,.2,1); }
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .market-preview:hover .market-photo-frame.is-current img { transform: translateY(-3px); }
+  }
+  .market-preview-controls { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: rgb(15 23 42 / .85); color: white; box-shadow: 0 2px 8px rgb(0 0 0 / .15); }
+  .market-preview-controls[hidden], .market-photo-dots[hidden] { display: none; }
+  .market-preview-controls button { width: 44px; height: 44px; border-radius: 50%; font-size: 24px; line-height: 1; color: white; }
+  .market-preview-controls button:hover { background: rgb(255 255 255 / .2); }
+  .market-preview-controls button:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+  .market-preview-controls span { min-width: 32px; font-size: 11px; font-variant-numeric: tabular-nums; text-align: center; }
+  .market-photo-dots { position: absolute; top: 16px; right: 12px; display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: rgb(15 23 42 / .4); }
+  .market-photo-dots span { width: 5px; height: 5px; border-radius: 999px; background: rgb(255 255 255 / .45); transition: width 300ms ease, background 300ms ease; }
+  .market-photo-dots span.is-current { width: 14px; background: white; }
   .market-product-photo img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
   .market-product-type { @apply absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:bg-slate-950/90 dark:text-slate-200; }
   .market-product-sponsored { @apply absolute bottom-3 left-3 rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-900; }

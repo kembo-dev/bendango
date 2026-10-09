@@ -431,3 +431,25 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
   Préférence sombre restaurée. Serveur rechargé ; workers et base inchangés.
 - Six documents consultés/réconciliés ; PROD, ARCHITECTURE, DESIGN, TASKS, MEMORY
   actualisés ; RULES reste cohérent. Livraison suivant la consigne de commit/push.
+
+## 2026-10-09 — Photos animées dans les annonces du marché
+
+- Demande : rendre les images des annonces plus animées. Ajout d’aperçus à fondu,
+  lecture au survol (3,2 s), flèches de 44 px, compteur et points. Pause hors écran,
+  onglet masqué, sortie du survol et focus des commandes ; réduction des mouvements
+  respectée. Petit déplacement vertical sans agrandissement des photos uniques.
+- Médias préchargés réutilisés, principale en premier, maximum huit ; fallback
+  sur `primary_image_url`. Les photos suivantes chargent et décodent à la demande,
+  avec protection contre les réponses obsolètes et conservation de l’image si erreur.
+- Validation : trois tests ajoutés (ordre/principale, zéro/une photo et repli,
+  limite huit). Suite complète SQLite : 349 tests en 56 s, 1 intégration ignorée.
+  Check Django, migrations sans changement, syntaxe JS, build CSS, collectstatic
+  et diff --check réussis. Le premier test avait précédé collectstatic : manifeste
+  manquant corrigé par collecte, puis suite complète réussie. Aucun appel LLM réel.
+- Navigateur réel : photo suivante/précédente au clavier, bouclage 2→1, changement
+  au survol, ouverture du détail et absence d’erreur console vérifiés. Images
+  décodées et commandes 44 × 44 confirmées ; aucun débordement à 1280 px. Capture
+  hors dépôt : annonces-photos-animees.png. Téléphone physique non vérifié.
+- Serveur local rechargé. Base et workers conservés. Six documents réexaminés :
+  ARCHITECTURE, DESIGN, TASKS et MEMORY actualisés ; PROD et RULES restent cohérents.
+  Livraison sur la branche existante selon l’autorisation de commit/push.

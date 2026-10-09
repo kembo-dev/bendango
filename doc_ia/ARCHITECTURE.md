@@ -375,3 +375,15 @@ pas un inventaire global. Avec un filtre de navigation, seuls les offres
 correspondantes sont paginées et les sujets sont omis. GET de navigation
 n’ouvre aucune SearchRun et ne consomme pas le quota ; la recherche POST
 conserve son contrat, CSRF, droits et options. Pas de nouvelle dépendance ni migration.
+
+## Aperçus des cartes du marché — 2026-10-09
+
+`_public_discovery_feed` expose `preview_images` (maximum huit), depuis les médias
+préchargés, triés avec la photo principale en premier et les entrées vides exclues.
+`primary_image_url` sert de repli sans galerie exploitable. Aucun appel média
+supplémentaire par carte. `market-preview.js`, chargé seulement sur le marché,
+gère le fondu, les commandes et la lecture au survol. Seule la première photo
+porte un `src` initial ; les autres sont chargées à la demande puis décodées avant
+le changement. Une erreur de chargement conserve la photo affichée. Un numéro de
+révision empêche les chargements asynchrones anciens de remplacer un choix récent.
+Aucune dépendance ou migration ajoutée ; la galerie du détail reste indépendante.

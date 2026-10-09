@@ -258,3 +258,16 @@ annonces. Rayons et filtres Pro/particulier/pays/ville rechargent la vitrine,
 sans appel externe ni consommation du quota de recherche. État vide avec
 retour au marché ou publication. Pagination conserve les filtres actifs.
 Visuels et comptes réels uniquement ; aucun faux stock, favori ou achat simulé.
+
+## Aperçus animés des annonces — 2026-10-09
+
+Les cartes du marché affichent la photo principale puis jusqu’à sept autres
+photos. Un fondu de 450 ms accompagne le changement ; sur ordinateur, le survol
+fait défiler les photos toutes les 3,2 secondes et soulève légèrement l’image,
+sans agrandissement ni recadrage. Le défilement s’arrête en quittant la carte,
+quand elle sort de l’écran, quand l’onglet est masqué ou pendant l’utilisation
+au clavier des commandes. Les flèches de 44 × 44 px restent accessibles au
+clic, au tactile et au clavier ; compteur et points montrent la position.
+Une seule photo conserve une présentation simple ; aucune photo affiche
+« Sans photo ». Sans JavaScript, la première image et le lien restent utilisables.
+La préférence de réduction des mouvements désactive lecture et transitions.
