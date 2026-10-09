@@ -13,7 +13,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.utils import timezone
 from botocore.config import Config as BotoConfig
-from config.llm import load_config, model_reference
+from config.llm import DISABLED_REFERENCE, load_config, load_policy, model_reference
 from pydantic import BaseModel, Field
 
 try:
@@ -76,8 +76,55 @@ def get_llm_config(reference=None):
     )
 
 
+class LLMRequiredError(RuntimeError):
+    """An operator selected required mode but no extraction could be completed."""
+
+
+LLM_PUBLIC_ERROR = "La collecte complémentaire est indisponible. Les résultats disponibles sont conservés."
+
+
+def get_llm_policy():
+    return load_policy(settings.LLM_CONFIG_FILE)
+
+
+def _check_llm_auth(config):
+    if config['provider'] == 'openai-compatible' and config['require_api_key'] and not config['api_key']:
+        raise ImproperlyConfigured('Clé API LLM absente ; renseigner api_key_env dans l’environnement.')
+
+
+def _fallback_config(policy, current_profile=None):
+    name = policy['fallback_profile']
+    if not name or name == current_profile:
+        return None
+    config = load_config(settings.LLM_CONFIG_FILE, getattr(settings, 'LLM_CONFIG', {}), profile=name)
+    _check_llm_auth(config)
+    local = config['provider'] != 'bedrock' and urlparse(config['base_url']).hostname in {'localhost', '127.0.0.1', '::1'}
+    if not local and not policy['allow_paid_fallback']:
+        logging.getLogger(__name__).warning('Secours LLM distant bloqué par allow_paid_fallback=false.')
+        return None
+    return config
+
+
 def get_llm_model_reference():
-    return model_reference(get_llm_config())
+    policy = get_llm_policy()
+    if policy['mode'] == 'disabled':
+        return DISABLED_REFERENCE
+    try:
+        config = get_llm_config()
+        _check_llm_auth(config)
+        return model_reference(config)
+    except ImproperlyConfigured as error:
+        logging.getLogger(__name__).warning('Configuration LLM indisponible : %s', error)
+    try:
+        fallback = _fallback_config(policy)
+        if fallback:
+            return model_reference(fallback)
+    except ImproperlyConfigured as error:
+        logging.getLogger(__name__).warning('Configuration du secours LLM indisponible : %s', error)
+    if policy['mode'] == 'required':
+        raise LLMRequiredError(LLM_PUBLIC_ERROR)
+    # Persist this sentinel so later configuration changes cannot activate old jobs.
+    return DISABLED_REFERENCE
 
 
 def resolve_bedrock_model_id(model_name,region=None):return (model_name or "").strip()
@@ -197,20 +244,44 @@ def extract_with_bedrock(html_snippet, model_name, config=None):
 
 
 def _extract_llm_only(html_snippet, model_name=None):
-    config = get_llm_config(model_name)
+    policy = get_llm_policy()
+    if policy['mode'] == 'disabled' or model_name == DISABLED_REFERENCE:
+        if policy['mode'] == 'required':
+            raise LLMRequiredError(LLM_PUBLIC_ERROR)
+        return None
     providers = {
         "bedrock": extract_with_bedrock,
         "ollama": extract_with_ollama,
         "openai-compatible": extract_with_openai_compatible,
     }
+    current_profile = None
     try:
-        return providers[config["provider"]](html_snippet, config["selected_model"], config=config)
+        config = get_llm_config(model_name)
+        current_profile = config['profile']
+        _check_llm_auth(config)
+        result = providers[config['provider']](html_snippet, config['selected_model'], config=config)
+        if result is not None:
+            return result
+    except ImproperlyConfigured as error:
+        logging.getLogger(__name__).warning('Configuration LLM indisponible : %s', error)
     except Exception as error:
         logging.getLogger(__name__).warning("Extraction LLM indisponible (%s).", type(error).__name__)
-        return None
+    try:
+        fallback = _fallback_config(policy, current_profile)
+        if fallback:
+            result = providers[fallback['provider']](html_snippet, fallback['selected_model'], config=fallback)
+            if result is not None:
+                return result
+    except Exception as error:
+        logging.getLogger(__name__).warning('Secours LLM indisponible (%s).', type(error).__name__)
+    if policy['mode'] == 'required':
+        raise LLMRequiredError(LLM_PUBLIC_ERROR)
+    return None
 
 
-def extract_with_llm(html_snippet,model_name=None):return _fallback_extract_html(html_snippet) or _extract_llm_only(html_snippet,model_name)
+def extract_with_llm(html_snippet, model_name=None):
+    structured, _ = _structured_to_extracted(html_snippet)
+    return structured or _fallback_extract_html(html_snippet) or _extract_llm_only(html_snippet, model_name)
 
 
 def _structured_to_extracted(html,query=None):
@@ -325,9 +396,12 @@ def process_url_and_save(url,model_name=None,expected_query=None,allowed_hosts=N
         else:
             pre_llm_mismatch=_clearly_irrelevant_before_llm(expected_query,html)
             if pre_llm_mismatch is not None:return (cached,None) if cached else (None,f"Produit non pertinent ({pre_llm_mismatch.reason}, score={pre_llm_mismatch.score:.2f}).")
-            extracted=_extract_llm_only(html,model_name)
+            try:
+                extracted=_extract_llm_only(html,model_name)
+            except LLMRequiredError:
+                return (cached,None) if cached else (None,LLM_PUBLIC_ERROR)
             source="llm" if extracted else "html"
-    if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué.")
+    if not extracted:return (cached,None) if cached else (None,"L'extraction a échoué. Les données de cette page n’ont pas pu être vérifiées ; les résultats peuvent être incomplets.")
     page_text=BeautifulSoup(html,"html.parser").get_text(" ",strip=True);page_currency=_detect_page_currency(page_text)
     name=(extracted.product_name or "").strip();currency=normalize_currency_code(page_currency or extracted.currency,context=page_text);price=_safe_price_decimal(extracted.price)
     if price is None or not name or name.lower() in {"unknown","inconnu","n/a","na"} or not _is_plausible_price(price,currency):return (cached,None) if cached else (None,"Données extraites invalides ou page non exploitable.")

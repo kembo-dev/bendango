@@ -2,6 +2,13 @@
 # legacy conserve LLM_PROVIDER / LLM_MODEL de l'environnement existant.
 active_profile = "legacy"
 
+# auto : extraction locale d'abord ; LLM facultatif. disabled : aucun LLM.
+# required : configuration et appel requis quand l'extraction locale ne suffit pas.
+[policy]
+mode = "auto"
+fallback_profile = ""
+allow_paid_fallback = false
+
 [defaults]
 timeout = 20.0
 temperature = 0.1

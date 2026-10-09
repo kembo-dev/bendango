@@ -196,6 +196,33 @@ Ne jamais conserver de secrets ou de données personnelles dans ce journal.
   consulter l'historique Git pour le résultat. Tests PostgreSQL et qualité réelle
   de chaque fournisseur restent hors de cette validation.
 
+## 2026-10-09 — extraction LLM facultative
+
+- Demande acceptée : mode auto par défaut, disabled/required, secours facultatif
+  et refus d'un secours payant sans autorisation explicite dans la configuration.
+- `[policy]` partagé ou privé relu à chaque appel. Auto autorise les recherches sans
+  modèle ni clé API ; JSON-LD/métadonnées/HTML sont prioritaires. Les tâches créées
+  sans complément mémorisent une référence réservée et restent sans LLM après
+  configuration ultérieure. Disabled interdit tous les adaptateurs.
+- Required exige un complément utilisable et renvoie une erreur contrôlée si
+  nécessaire ; l'extraction locale réussie et les offres déjà vérifiées restent
+  valables. Pas de prix créé quand les données sont insuffisantes.
+- Secours nommé essayé une seule fois, sans boucle sur le profil courant ; tout
+  endpoint hors localhost/127.0.0.1/::1 exige `allow_paid_fallback=true`.
+- Diagnostic CLI/logs réservé aux opérateurs, messages publics génériques. Résultats
+  et détail de recherche signalent les pages échouées et une collecte possiblement
+  incomplète ; le modèle reste masqué. `scrape_url` suit la politique commune.
+- Validation : suite complète 296 tests SQLite réussie (1 intégration ignorée,
+  environ 41 s), incluant 24 régressions de politique/recherche/affichage. Appels
+  SDK et HTTP simulés pour les tests LLM ; aucun appel fournisseur réel effectué.
+  Check Django et cohérence des migrations réussis ; build Tailwind et collectstatic
+  réussis. Le profil actuel legacy/Bedrock est conservé, sans secours configuré.
+- Serveur web et worker de collecte existants rechargés, aucune collecte active
+  lors du redémarrage. Worker de découverte non lancé pour cette validation.
+- Les six documents sont réconciliés et mis à jour, ainsi que readme. Aucun
+  changement de schéma, de dépendance ou d'identifiant privé. Publication sur
+  clean/bendango-v2 suivant l'autorisation permanente ; résultat dans Git.
+
 ## Modèle des futures entrées
 
 Pour chaque lot, ajouter une entrée datée avec : demande et périmètre ; comportement

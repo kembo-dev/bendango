@@ -9,7 +9,8 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.management.base import BaseCommand, CommandError
 
-from config.llm import load_config, model_reference, read_document
+from config.llm import DISABLED_REFERENCE, load_config, model_reference, read_document
+from tracker.services import LLMRequiredError, get_llm_model_reference
 
 
 class Command(BaseCommand):
@@ -31,6 +32,11 @@ class Command(BaseCommand):
                     self.stdout.write(name)
                 if not options['profile'] and not options['use'] and not options['check']:
                     return
+            policy = document['policy']
+            self.stdout.write(f"Mode : {policy['mode']}\nSecours : {policy['fallback_profile'] or 'aucun'}\nSecours distant autorisé : {policy['allow_paid_fallback']}")
+            if not options['profile'] and not options['use'] and get_llm_model_reference() == DISABLED_REFERENCE:
+                self.stdout.write(self.style.WARNING('Extraction sans LLM active. Vérifier le modèle, la clé ou le profil pour activer le complément.'))
+                return
             name = options['use'] or options['profile']
             config = load_config(path, getattr(settings, 'LLM_CONFIG', {}), profile=name)
             if options['check'] and config['provider'] == 'openai-compatible' and config['require_api_key'] and not config['api_key']:
@@ -63,7 +69,7 @@ class Command(BaseCommand):
                 self.stdout.write('Authentification : chaîne de credentials AWS du SDK ; non testée sur réseau.')
             if options['check']:
                 self.stdout.write(self.style.SUCCESS('Configuration valide. Aucun appel au fournisseur effectué.'))
-        except ImproperlyConfigured as error:
+        except (ImproperlyConfigured, LLMRequiredError) as error:
             raise CommandError(str(error)) from None
         except OSError:
             raise CommandError('Impossible de lire ou écrire la préférence LLM locale.') from None

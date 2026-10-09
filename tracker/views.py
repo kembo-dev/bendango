@@ -20,7 +20,7 @@ from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferBoostRequest, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
-from .services import get_llm_config, get_llm_model_reference, process_url_and_save
+from .services import LLMRequiredError, LLM_PUBLIC_ERROR, get_llm_config, get_llm_model_reference, process_url_and_save
 
 
 def _comparison_price(listing):
@@ -1093,52 +1093,56 @@ def scrape_view(request):
             source_filter = form.cleaned_data.get("source", "").strip()
             business_category = form.cleaned_data.get("business_category", "").strip()
             market = get_market(market_code)
-            model_name = get_llm_model_reference()
-            if site is not None:
-                site = site.strip()
-            if not site:
-                site = "all"
+            try:
+                model_name = get_llm_model_reference()
+            except LLMRequiredError:
+                errors.append(LLM_PUBLIC_ERROR)
+                model_name = None
+            if model_name is not None:
+                if site is not None:
+                    site = site.strip()
+                if not site:
+                    site = "all"
 
-            if query.startswith("http://") or query.startswith("https://"):
-                try:
-                    listing, error = process_url_and_save(query, model_name)
-                except ValidationError:
-                    errors.append("Cette page est déjà enregistrée et a été mise à jour.")
-                    listing = None
-                    error = None
-                if listing:
-                    listings.append(listing)
-                if error:
-                    errors.append(error)
-                if not request.user.is_authenticated:
-                    request.session["anonymous_search_used"] = True
-            else:
-                target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
-                search_run = SearchRun.objects.create(
-                    user=request.user if request.user.is_authenticated else None,
-                    query=query,
-                    site_filter=site,
-                    target_merchants=target_merchants,
-                    model_name=model_name or "",
-                    market_code=market.code,
-                    market_currency=market.currency,
-                    status=SearchRun.STATUS_QUEUED,
-                )
-                if not request.user.is_authenticated:
-                    request.session["anonymous_search_used"] = True
-                params = {"q": query, "run": str(search_run.pk), "market": market.code}
-                if site != "all":
-                    params["site"] = site
-                if city:
-                    params["city"] = city
-                if offer_type:
-                    params["offer_type"] = offer_type
-                if source_filter:
-                    params["source"] = source_filter
-                if business_category:
-                    params["business_category"] = business_category
-                return redirect(f"/?{urlencode(params)}")
-
+                if query.startswith("http://") or query.startswith("https://"):
+                    try:
+                        listing, error = process_url_and_save(query, model_name)
+                    except ValidationError:
+                        errors.append("Cette page est déjà enregistrée et a été mise à jour.")
+                        listing = None
+                        error = None
+                    if listing:
+                        listings.append(listing)
+                    if error:
+                        errors.append(error)
+                    if not request.user.is_authenticated:
+                        request.session["anonymous_search_used"] = True
+                else:
+                    target_merchants = 1 if site != "all" else max(2, int(getattr(settings, "MARKET_COVERAGE_TARGET", 3)))
+                    search_run = SearchRun.objects.create(
+                        user=request.user if request.user.is_authenticated else None,
+                        query=query,
+                        site_filter=site,
+                        target_merchants=target_merchants,
+                        model_name=model_name or "",
+                        market_code=market.code,
+                        market_currency=market.currency,
+                        status=SearchRun.STATUS_QUEUED,
+                    )
+                    if not request.user.is_authenticated:
+                        request.session["anonymous_search_used"] = True
+                    params = {"q": query, "run": str(search_run.pk), "market": market.code}
+                    if site != "all":
+                        params["site"] = site
+                    if city:
+                        params["city"] = city
+                    if offer_type:
+                        params["offer_type"] = offer_type
+                    if source_filter:
+                        params["source"] = source_filter
+                    if business_category:
+                        params["business_category"] = business_category
+                    return redirect(f"/?{urlencode(params)}")
         if listings:
             listings, summary = _decorate_results(listings, query, site)
     else:

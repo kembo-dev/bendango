@@ -23,6 +23,8 @@
         <div class="w-1/2 md:w-3/12"><div class="metric"><small>Marchands</small><strong>{{ run_state.merchants }}/{{ run_state.target_merchants }}</strong></div></div>
     </div>
 
+    {% if run_state.failed %}<div class="notice notice-warning mt-4" role="status">Certaines pages n’ont pas pu être vérifiées. Les résultats peuvent être incomplets.</div>{% endif %}
+
     <div class="panel border-0 shadow-sm mb-6">
         <div class="panel-body p-6">
             <h2 class="text-lg mb-4">Informations</h2>

@@ -37,6 +37,12 @@ pas une autorisation générale de modification, publication ou appel à un serv
 - [x] Déclarer `ddgs` et `pydantic` dans `requirements.txt` ; `pip check` réussi.
   L'installation dans un environnement vide reste à vérifier.
 
+- [x] Rendre le LLM facultatif avec `policy.mode=auto`, modes disabled/required,
+  secours explicite et garde pour les endpoints distants. Préserver les tâches
+  sans LLM, afficher les résultats potentiellement incomplets, diagnostic opérateur.
+  Validation : 296 tests SQLite réussis (1 ignoré), contrôles Django/migrations,
+  compilation Tailwind et collecte des assets. Aucun appel LLM réel.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

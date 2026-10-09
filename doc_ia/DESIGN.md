@@ -49,6 +49,10 @@ rechargement/navigation, accueil sombre et connexion mobile sans débordement.
   Le navigateur interroge l'API de statut puis recharge à la fin.
 - Résultats : source, prix et devise, disponibilité, marchand et indices de fiabilité.
 - Détail de recherche : le nom du modèle IA est masqué dans les informations.
+- Collecte partielle : si une tâche échoue, accueil des résultats et détail affichent
+  « Certaines pages n’ont pas pu être vérifiées. Les résultats peuvent être incomplets. »
+  Les offres déjà trouvées restent visibles. Un complément requis indisponible
+  affiche un message générique ; les détails de modèle ou clé restent opérateur.
 - Espace Pro : tableaux de bord, édition de produits/offres, médias et demandes de boost.
 - Pages publiques : business, offre et possibilités de contact.
 

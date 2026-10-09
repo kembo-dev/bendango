@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from tracker.models import Product, Retailer, PriceListing
-from tracker.services import ExtractedProductData, get_llm_model_reference, _extract_llm_only
+from tracker.services import LLMRequiredError, ExtractedProductData, get_llm_model_reference, extract_with_llm
 
 
 class Command(BaseCommand):
@@ -23,7 +23,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         url = options["url"]
-        model_name = options["model"] or get_llm_model_reference()
+        try:
+            model_name = options["model"] or get_llm_model_reference()
+        except LLMRequiredError as error:
+            raise CommandError(str(error)) from None
 
         self.stdout.write(self.style.NOTICE(f"Début du traitement pour : {url}"))
 
@@ -34,7 +37,10 @@ class Command(BaseCommand):
 
         # --- ÉTAPE 2 : Extraction structurée avec le profil LLM ---
         self.stdout.write(f"Extraction des données avec le profil LLM ({model_name})...")
-        extracted_data = _extract_llm_only(html_content, model_name)
+        try:
+            extracted_data = extract_with_llm(html_content, model_name)
+        except LLMRequiredError as error:
+            raise CommandError(str(error)) from None
 
         if not extracted_data:
             raise CommandError("Échec de l'extraction avec le profil LLM.")

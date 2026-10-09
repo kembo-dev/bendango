@@ -786,7 +786,7 @@ contexte peuvent être modifiés sans redémarrer. `LLM_PROFILE` impose un profi
 par environnement et prend priorité sur la sélection du fichier. Les nouvelles
 recherches gardent leur référence `profil::modèle` ; vider les anciennes files
 sans préfixe avant une bascule. Un profil utilisé par des travaux en cours doit
-rester disponible. Il n'y a pas de repli automatique vers le cloud.
+rester disponible. Un secours distant exige une autorisation explicite dans `[policy]`.
 
 `--check` ne fait aucun appel réseau : il valide la configuration et la présence
 de la clé requise, sans tester les droits API ni la disponibilité du modèle.
@@ -799,3 +799,31 @@ Les API distantes utilisent HTTPS ; HTTP est accepté sur localhost uniquement.
 Références : [Ollama Chat](https://docs.ollama.com/api/chat),
 [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat),
 [Bedrock Converse](https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-runtime/client/converse.html).
+
+
+### Fonctionner sans modèle configuré
+
+Le mode livré est `auto` : Bendango tente JSON-LD/métadonnées/HTML, puis le LLM
+si un profil utilisable est configuré. Sans modèle ou clé, la recherche continue.
+Les données invérifiables sont ignorées ; aucune valeur de prix n'est inventée.
+Les résultats signalent les pages en échec et leur éventuelle couverture incomplète.
+
+```toml
+[policy]
+mode = "auto"                 # auto, disabled ou required
+fallback_profile = ""         # par exemple "local", pour un secours explicite
+allow_paid_fallback = false
+```
+
+`disabled` interdit les appels LLM, même si un modèle est configuré. `required`
+exige une configuration utilisable et arrête l'extraction complémentaire si tous
+les adaptateurs autorisés échouent ; l'extraction locale réussie reste valable.
+Les nouvelles tâches créées sans LLM restent sans LLM si un modèle est ajouté ensuite.
+Un secours est essayé une seule fois ; un endpoint distant (y compris Bedrock)
+exige `allow_paid_fallback = true`. Aucun fournisseur alternatif n'est choisi seul.
+
+Diagnostic opérateur sans appel API : `manage.py llm_config --check` pour l'état
+courant, ou `manage.py llm_config --profile api --check` pour vérifier strictement
+un profil. Les logs précisent les options manquantes, sans publier les clés.
+Un fichier absent autorise le mode auto ; un TOML malformé ou un mode inconnu doit
+être corrigé et ne provoque aucun appel à un fournisseur.

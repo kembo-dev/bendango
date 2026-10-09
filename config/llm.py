@@ -15,6 +15,9 @@ FIELDS = {
     'api_key_env', 'require_api_key', 'region', 'region_env', 'json_mode',
     'timeout', 'temperature', 'max_tokens', 'max_input_chars',
 }
+DISABLED_REFERENCE = '__disabled__::none'
+POLICY_DEFAULTS = {'mode': 'auto', 'fallback_profile': '', 'allow_paid_fallback': False}
+
 DEFAULTS = {'timeout': 20.0, 'temperature': 0.1, 'max_tokens': 1024, 'max_input_chars': 24000}
 NAME = re.compile(r'^[a-zA-Z0-9_-]+$')
 ENV_NAME = re.compile(r'^[A-Z][A-Z0-9_]*$')
@@ -30,12 +33,13 @@ def _read(path, optional=False):
         raise ImproperlyConfigured('Fichier de configuration LLM introuvable.') from None
     except (OSError, tomllib.TOMLDecodeError):
         raise ImproperlyConfigured('Fichier de configuration LLM illisible ou TOML invalide.') from None
-    if set(data) - {'active_profile', 'defaults', 'profiles'}:
-        raise ImproperlyConfigured('Section LLM inconnue ; utiliser active_profile, defaults ou profiles.')
+    if set(data) - {'active_profile', 'defaults', 'profiles', 'policy'}:
+        raise ImproperlyConfigured('Section LLM inconnue ; utiliser active_profile, defaults, profiles ou policy.')
     if not isinstance(data.get('defaults', {}), dict) or not isinstance(data.get('profiles', {}), dict):
         raise ImproperlyConfigured('defaults et profiles doivent être des tables TOML.')
+    validate_policy(data.get('policy', {}))
     for name, profile in data.get('profiles', {}).items():
-        if not NAME.fullmatch(name) or name == 'legacy' or not isinstance(profile, dict):
+        if not NAME.fullmatch(name) or name in {'legacy', '__disabled__'} or not isinstance(profile, dict):
             raise ImproperlyConfigured('Nom ou table de profil LLM invalide.')
         if set(profile) - FIELDS:
             raise ImproperlyConfigured('Option LLM inconnue ; les secrets doivent référencer une variable *_env.')
@@ -44,11 +48,30 @@ def _read(path, optional=False):
     return data
 
 
-def read_document(path):
+def validate_policy(policy):
+    if not isinstance(policy, dict) or set(policy) - set(POLICY_DEFAULTS):
+        raise ImproperlyConfigured('Table policy LLM invalide.')
+    result = {**POLICY_DEFAULTS, **policy}
+    if result['mode'] not in ('auto', 'disabled', 'required'):
+        raise ImproperlyConfigured('Mode LLM : auto, disabled ou required attendu.')
+    fallback = result['fallback_profile']
+    if not isinstance(fallback, str) or (fallback and not NAME.fullmatch(fallback)):
+        raise ImproperlyConfigured('Profil de secours LLM invalide.')
+    if not isinstance(result['allow_paid_fallback'], bool):
+        raise ImproperlyConfigured('allow_paid_fallback doit être un booléen.')
+    return result
+
+
+def load_policy(path):
+    return read_document(path, optional=True)['policy']
+
+
+def read_document(path, optional=False):
     """Overlay local preferences without changing the shared repository config."""
-    document = _read(path)
+    document = _read(path, optional=optional)
     local = _read(Path(path).with_suffix('.local.toml'), optional=True)
     return {
+        'policy': validate_policy({**POLICY_DEFAULTS, **document.get('policy', {}), **local.get('policy', {})}),
         'active_profile': local.get('active_profile', document.get('active_profile', 'legacy')),
         'defaults': {**DEFAULTS, **document.get('defaults', {}), **local.get('defaults', {})},
         'profiles': {

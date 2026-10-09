@@ -276,6 +276,8 @@
     </section>
     {% endif %}
 
+    {% if run_state.failed %}<div class="notice notice-warning mt-4" role="status">Certaines pages n’ont pas pu être vérifiées. Les résultats peuvent être incomplets.</div>{% endif %}
+
     {% if errors and not unified_results and not listings and not first_party_offers %}<div class="notice notice-warning mt-6"><div class="font-semibold mb-2">{% if async_waiting %}Bendango recherche les meilleures offres{% else %}Aucune offre marchande vérifiée{% endif %}</div>{% for error in errors %}<div>{{ error }}</div>{% endfor %}</div>{% endif %}
     {% if request.method == 'POST' and not unified_results and not listings and not first_party_offers and not errors and not discovery_sources %}<div class="notice notice-info mt-6">Aucune offre valide n’a été trouvée. Essayez un nom de produit plus précis.</div>{% endif %}
 

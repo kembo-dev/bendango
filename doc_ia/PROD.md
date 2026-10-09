@@ -69,6 +69,11 @@ la disponibilité puis le montant. Il est distinct du classement marchand collec
   maison. Vérifier les processus avant de supposer qu'ils tournent encore.
 - Extraction LLM configurable par profils : Ollama local, serveur compatible OpenAI
   avec ou sans clé, Bedrock. Sélection dynamique via TOML et commande `llm_config`.
+  Mode `auto` par défaut : la recherche fonctionne sans modèle ni clé, avec
+  extraction structurée et HTML. Modes `disabled` et `required` disponibles ;
+  secours distant seulement si explicitement autorisé. Les données invérifiables
+  ne créent pas de prix ; les pages en échec déclenchent une indication de résultats
+  potentiellement incomplets.
   Le profil `legacy` conserve le fournisseur existant ; les profils d'exemple API
   et Studio demandent un vrai nom de modèle. Aucun appel réel à un LLM validé ici.
 

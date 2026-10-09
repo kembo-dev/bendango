@@ -54,6 +54,12 @@ Dernière mise à jour : 2026-10-09.
 - Toute évolution du chargeur ou des adaptateurs doit vérifier le rechargement,
   la priorité des réglages, la sélection des tâches, la validation et la non
   divulgation de clés. Utiliser des réponses HTTP/SDK simulées.
+- Sans configuration LLM, préserver la recherche en mode auto et les extractions
+  locales. `disabled` interdit tout appel ; `required` doit échouer de manière
+  contrôlée. Une tâche mémorisée sans LLM doit rester sans LLM.
+- Le secours distant exige `allow_paid_fallback=true` et un profil explicite.
+  Vérifier timeout, configuration absente, absence de clé, prix non inventés,
+  repli local autorisé et repli payant refusé avec des adaptateurs simulés.
 - Ne pas déclencher de repli implicite vers une API payante. Contrôler la présence
   de la clé avec `manage.py llm_config --check` avant une bascule.
 
@@ -83,7 +89,7 @@ Dernière mise à jour : 2026-10-09.
 | Offres, médias et boosts | `tracker.test_offers`, `tracker.test_offer_media`, `tracker.test_offer_boosts` |
 | Accueil et confidentialité | `tracker.test_home_discovery`, `tracker.test_recent_search_history` |
 | Recherche unifiée et filtres | `tracker.test_unified_search`, `tracker.test_markets` |
-| Profils et adaptateurs LLM | `tracker.test_llm_config` |
+| Profils et adaptateurs LLM | `tracker.test_llm_config`, `tracker.test_llm_policy` |
 | File et finalisation | `tracker.test_job_queue`, `tracker.test_search_run_finalization`, `tracker.test_job_queue_priority` |
 | Extraction et devises | `tracker.test_local_first_extraction`, `tracker.test_currency_safety`, `tracker.test_reliable_collection` |
 

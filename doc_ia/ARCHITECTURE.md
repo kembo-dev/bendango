@@ -143,8 +143,8 @@ dans l'environnement, puis la valeur du fichier si la variable est vide.
 
 Profils fournis : `local` (Ollama `/api/chat`), `studio` (serveur local compatible
 OpenAI), `api` (Chat Completions avec clé), `aws` (Bedrock Converse), `legacy`
-(variables historiques). Le profil actif livré reste `legacy`. Aucun basculement
-automatique vers un autre fournisseur en cas d'échec. Les clés ne sont jamais
+(variables historiques). Le profil actif livré reste `legacy`. Un secours n’est utilisé que si `policy.fallback_profile` est renseigné ; tout
+secours distant exige `allow_paid_fallback=true`. Les clés ne sont jamais
 stockées dans les fichiers TOML ; `api_key_env` désigne leur variable.
 
 Les nouvelles SearchRun et ScrapeJob conservent `profil::modèle` dans `model_name`
@@ -162,10 +162,33 @@ Le fichier est relu sans redémarrage ; modifier `.env` exige de redémarrer le 
 et les workers. `llm_config --check` valide localement, sans vérifier la disponibilité
 réseau, le modèle installé ni les droits du fournisseur.
 
+### Politique d'extraction
+
+`[policy]` est relu avec les profils : `auto` par défaut, `disabled` pour interdire
+les appels, `required` pour exiger un complément utilisable. JSON-LD, métadonnées
+et heuristiques HTML sont essayés avant les adaptateurs. En auto, modèle absent,
+profil invalide ou clé API manquante désactivent le complément sans bloquer la
+création des recherches. Un fichier absent utilise la politique auto ; une syntaxe
+TOML ou une politique invalide est une erreur explicite de configuration.
+
+Les travaux créés sans complément mémorisent `__disabled__::none` : configurer
+un modèle ensuite ne les active pas rétroactivement. `disabled` interdit les
+appels même pour une tâche qui conserve un modèle. En required, une configuration
+absente renvoie une erreur contrôlée à la vue ; si l'extraction locale échoue et
+le complément reste indisponible, la page n'est pas enregistrée. Les offres déjà
+vérifiées restent disponibles. Un prix ne peut pas être inventé faute d'extraction.
+
+Le secours est essayé une seule fois, jamais récursivement ni sur le même profil.
+Seuls les endpoints localhost/127.0.0.1/::1 sont considérés locaux ; tout autre
+endpoint est potentiellement payant et exige l'autorisation explicite du fichier.
+Les détails opérateur restent dans `llm_config --check`, `--profile ... --check`
+et les logs ; les pages publiques affichent un message générique. Les résultats
+et le détail signalent une collecte incomplète quand une tâche a échoué.
+
 ## Configuration et exploitation
 
 - Chargement `.env` via `python-dotenv` ; `LLM_MODEL` requis seulement pour le profil
-  `legacy`, au moment de résoudre la configuration LLM.
+  `legacy` pour activer le complément LLM ; son absence ne bloque pas le mode auto.
 - `DB_ENGINE` : SQLite par défaut ou PostgreSQL ; `REDIS_URL` active le cache partagé.
 - HTTPS, cookies sécurisés et HSTS sont activés par la configuration hors DEBUG.
 - Plusieurs réglages métier sont lus via `getattr(settings, ...)` et ne sont pas
