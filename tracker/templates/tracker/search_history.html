@@ -1,66 +1,60 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mes recherches - Bendango</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-<div class="container py-5">
-    <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+{% extends "tracker/base.html" %}
+{% block title %}Mes recherches - Bendango{% endblock %}
+{% block content %}
+<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
+    <div class="flex justify-between items-center gap-3 flex-wrap mb-6">
         <div>
-            <div class="text-primary text-uppercase fw-bold small mb-2">Bendango Compare</div>
-            <h1 class="h2 mb-1">Mes recherches</h1>
-            <p class="text-muted mb-0">Retrouvez les recherches enregistrées avec votre compte Bendango.</p>
+            <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Bendango Compare</div>
+            <h1 class="text-3xl mb-1">Mes recherches</h1>
+            <p class="text-slate-500 mb-0 dark:text-slate-400">Retrouvez les recherches enregistrées avec votre compte Bendango.</p>
         </div>
-        <a href="{% url 'scrape_view' %}" class="btn btn-primary">Nouvelle recherche</a>
+        <a href="{% url 'scrape_view' %}" class="button button-primary">Nouvelle recherche</a>
     </div>
 
-    <form method="get" class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-3 p-md-4">
-            <label for="history-product-search" class="form-label fw-bold">Rechercher un produit dans l'historique</label>
+    <form method="get" class="panel border-0 shadow-sm mb-6">
+        <div class="panel-body p-4 md:p-6">
+            <label for="history-product-search" class="field-label font-bold">Rechercher un produit dans l'historique</label>
             <div class="input-group">
                 <input
                     id="history-product-search"
                     type="search"
                     name="q"
                     value="{{ product_query }}"
-                    class="form-control"
+                    class="field-input"
                     placeholder="Ex. Samsung Galaxy A56, iPhone 16, string..."
                     autocomplete="off"
                 >
-                <button class="btn btn-primary" type="submit">Rechercher</button>
+                <button class="button button-primary" type="submit">Rechercher</button>
                 {% if product_query %}
-                <a href="{% url 'search_history' %}" class="btn btn-outline-secondary">Effacer</a>
+                <a href="{% url 'search_history' %}" class="button button-outline-secondary">Effacer</a>
                 {% endif %}
             </div>
             {% if product_query %}
-            <div class="form-text mt-2">Résultats pour « {{ product_query }} ».</div>
+            <div class="field-help mt-2">Résultats pour « {{ product_query }} ».</div>
             {% endif %}
         </div>
     </form>
 
     {% if searches %}
-    <div class="row g-3">
+    <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4 ">
         {% for item in searches %}
-        <div class="col-lg-6">
-            <a href="{% url 'search_run_detail' item.pk %}" class="text-decoration-none text-reset">
-                <div class="card h-100 shadow-sm border-0 search-card">
-                    <div class="card-body p-4">
-                        <div class="d-flex justify-content-between gap-2 flex-wrap mb-2">
+        <div class="w-full lg:w-6/12">
+            <a href="{% url 'search_run_detail' item.pk %}" class="no-underline text-inherit">
+                <div class="panel h-full shadow-sm border-0 search-card">
+                    <div class="panel-body p-6">
+                        <div class="flex justify-between gap-2 flex-wrap mb-2">
                             <div>
-                                <span class="badge text-bg-light border">Marché {{ item.market_code }}</span>
-                                {% if item.site_filter != 'all' %}<span class="badge text-bg-light border">{{ item.site_filter }}</span>{% endif %}
+                                <span class="tag tag-light border">Marché {{ item.market_code }}</span>
+                                {% if item.site_filter != 'all' %}<span class="tag tag-light border">{{ item.site_filter }}</span>{% endif %}
                             </div>
-                            {% if item.status == 'completed' %}<span class="badge text-bg-success">Terminée</span>
-                            {% elif item.status == 'failed' %}<span class="badge text-bg-danger">Échec</span>
-                            {% elif item.status == 'queued' %}<span class="badge text-bg-secondary">En attente</span>
-                            {% else %}<span class="badge text-bg-primary">En cours</span>{% endif %}
+                            {% if item.status == 'completed' %}<span class="tag tag-success">Terminée</span>
+                            {% elif item.status == 'failed' %}<span class="tag tag-danger">Échec</span>
+                            {% elif item.status == 'queued' %}<span class="tag tag-secondary">En attente</span>
+                            {% else %}<span class="tag tag-primary">En cours</span>{% endif %}
                         </div>
-                        <h2 class="h5 mb-2">{{ item.query }}</h2>
-                        <div class="small text-muted mb-3">{{ item.created_at|date:"d/m/Y H:i" }} · Run {{ item.pk|stringformat:"s"|slice:":8" }}</div>
-                        <div class="d-flex gap-2 flex-wrap">
+                        <h2 class="text-lg mb-2">{{ item.query }}</h2>
+                        <div class="text-sm text-slate-500 mb-4 dark:text-slate-400">{{ item.created_at|date:"d/m/Y H:i" }} · Run {{ item.pk|stringformat:"s"|slice:":8" }}</div>
+                        <div class="flex gap-2 flex-wrap">
                             <span class="metric-pill">{{ item.offer_count }} offre{{ item.offer_count|pluralize }}</span>
                             <span class="metric-pill">{{ item.job_count }} source{{ item.job_count|pluralize }}</span>
                             <span class="metric-pill">Objectif {{ item.target_merchants }} marchand{{ item.target_merchants|pluralize }}</span>
@@ -72,8 +66,8 @@
         {% endfor %}
     </div>
     {% if searches.paginator.num_pages > 1 %}
-    <nav class="mt-4" aria-label="Pagination historique">
-        <ul class="pagination justify-content-center flex-wrap">
+    <nav class="mt-6" aria-label="Pagination historique">
+        <ul class="pagination justify-center flex-wrap">
             {% if searches.has_previous %}
             <li class="page-item">
                 <a class="page-link" href="?{% if product_query %}q={{ product_query|urlencode }}&{% endif %}page={{ searches.previous_page_number }}">Précédent</a>
@@ -100,19 +94,13 @@
             <li class="page-item disabled"><span class="page-link">Suivant</span></li>
             {% endif %}
         </ul>
-        <div class="text-center small text-muted">
+        <div class="text-center text-sm text-slate-500 dark:text-slate-400">
             Page {{ searches.number }} sur {{ searches.paginator.num_pages }} · {{ searches.paginator.count }} recherche{{ searches.paginator.count|pluralize }}
         </div>
     </nav>
     {% endif %}
     {% else %}
-    <div class="alert alert-info">{% if product_query %}Aucune recherche enregistrée ne correspond à « {{ product_query }} ».{% else %}Aucune recherche n'est encore enregistrée.{% endif %}</div>
+    <div class="notice notice-info">{% if product_query %}Aucune recherche enregistrée ne correspond à « {{ product_query }} ».{% else %}Aucune recherche n'est encore enregistrée.{% endif %}</div>
     {% endif %}
 </div>
-<style>
-.search-card{border-radius:18px!important;transition:transform .15s ease,box-shadow .15s ease}
-.search-card:hover{transform:translateY(-2px);box-shadow:0 .7rem 1.6rem rgba(18,32,51,.12)!important}
-.metric-pill{background:#f8f9fa;border:1px solid #e9ecef;border-radius:999px;padding:.3rem .75rem;font-size:.82rem}
-</style>
-</body>
-</html>
+{% endblock %}

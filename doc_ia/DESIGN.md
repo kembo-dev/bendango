@@ -1,0 +1,123 @@
+# Interface et expérience Bendango
+
+Dernière mise à jour : 2026-10-09.
+
+## Base visuelle actuelle
+
+Templates Django avec Tailwind CSS 4.3.3 compilé localement ; interface en français.
+Les 14 pages publiques, comptes et Pro héritent de `tracker/base.html` : logo,
+navigation selon la session, lien d'accès direct au contenu et pied de page communs.
+Les styles partagés se trouvent dans `assets/css/app.css`, la feuille générée dans
+`tracker/static/tracker/css/app.css`. Aucun CDN CSS ni compilation dans le navigateur.
+
+Direction visuelle : fond pierre clair, panneaux blancs, texte ardoise, accent
+émeraude `#047857` et survol `#065f46`. Typographie système, titres hiérarchisés,
+bordures fines, angles arrondis et ombres légères. Les composants `button`, `panel`,
+`tag`, `notice`, `metric`, `data-table` et les formulaires partagent ces règles.
+Les badges d'avertissement et d'erreur conservent leurs couleurs sémantiques.
+
+L'accueil présente « Le bon choix commence ici. », puis le formulaire : produit
+au premier plan, marché/ville, filtres de type/business/source et restriction
+optionnelle à un site. Le quota visiteur reste annoncé. Les champs s'empilent sur
+mobile ; les tableaux peuvent défiler horizontalement dans leur conteneur.
+Les labels sont associés aux champs, le focus est visible et les animations
+respectent la préférence de mouvement réduit. Une certification d'accessibilité
+complète reste hors du périmètre de cette refonte.
+
+## Thème sombre
+
+Le bouton lune/soleil dans la navigation est disponible sur les 14 pages et au
+clavier. Son état `aria-pressed` indique si le thème sombre est actif et son titre
+annonce le prochain thème. Sans JavaScript, le bouton reste masqué.
+Le thème suit le système tant qu'aucun choix manuel n'est enregistré. La bascule
+mémorise le choix localement et le conserve après rechargement/navigation.
+
+Palette sombre : fond ardoise 950, panneaux/champs ardoise 900, textes clairs,
+accents émeraude lumineux. Les notifications, badges, tableaux, cartes et focus
+possèdent leurs variantes sombres ; les photos conservent leur apparence.
+Validé le 2026-10-09 : bascule aller/retour, touche Entrée, persistance après
+rechargement/navigation, accueil sombre et connexion mobile sans débordement.
+
+## Parcours à préserver
+
+- Accueil : découverte paginée des offres et sujets de recherche communautaires.
+- Recherche : produit/service/offre, site optionnel, marché, ville, type, source
+  et catégorie de business.
+- Visiteur : indication d'une recherche gratuite par session, puis invitation
+  à créer un compte ou se connecter.
+- Recherche asynchrone : état, progression, sources traitées et couverture marchande.
+  Le navigateur interroge l'API de statut puis recharge à la fin.
+- Résultats : source, prix et devise, disponibilité, marchand et indices de fiabilité.
+- Détail de recherche : le nom du modèle IA est masqué dans les informations.
+- Espace Pro : tableaux de bord, édition de produits/offres, médias et demandes de boost.
+- Pages publiques : business, offre et possibilités de contact.
+
+## Règles d'expérience
+
+- Préserver les filtres lors des redirections et actualisations.
+- Distinguer recherche en cours, aucun résultat, résultat partiel et échec.
+- Afficher explicitement la devise ; ne pas comparer des montants non normalisés.
+- Réserver les badges de vérification aux états réellement établis par le code.
+- Distinguer visibilité sponsorisée et qualité de l'offre lorsque le boost intervient.
+- Ne pas afficher l'identité des utilisateurs ni les UUID de leurs recherches
+  dans le fil public de découverte.
+- Garder formulaires utilisables au clavier, labels associés, erreurs lisibles,
+  contrastes suffisants et états accessibles. Ce sont des critères à vérifier,
+  pas une certification d'accessibilité déjà obtenue.
+
+## Sémantique des résultats et des badges
+
+- `Bendango`, `Web marchand` et découverte sociale représentent trois origines.
+- Un business vérifié et un marchand externe vérifié sont des notions distinctes.
+- Le score de qualité marchand associe confiance, extraction et pertinence ;
+  ne pas le présenter comme une probabilité certifiée.
+- La recommandation met la qualité avant le prix. Afficher distinctement le
+  prix minimum, le prix recommandé et la devise des statistiques.
+- Les offres boostées reçoivent une indication sponsorisée. Cette visibilité
+  ne doit pas être assimilée à une meilleure qualité ni à un prix inférieur.
+- Les photos jointes ont priorité sur l'URL d'image de secours : image principale
+  puis première image, sinon `primary_image_url` (`Offer.display_image_url`).
+- Les actions médias permettent image principale, suppression et déplacement
+  dans l'ordre ; elles appartiennent au business connecté et nécessitent POST.
+
+## États de recherche et limites de l'affichage
+
+| Situation métier | Affichage attendu à conserver ou corriger |
+| --- | --- |
+| En file / découverte / collecte | Attente explicite, compteurs et suivi |
+| Couverture partielle | Résultats disponibles avec couverture réelle |
+| Fin sans offre marchande, avec sources sociales | Sources utiles distinctes d'offres vérifiées |
+| Échec | Message d'échec explicite, sans badge de succès |
+| Quota anonyme utilisé | Action de recherche désactivée, liens inscription/connexion |
+
+Le script de `scrape.html` attend 700 ms puis interroge l'API toutes les 1 500 ms.
+À `data.completed`, il affiche temporairement un badge vert « Terminée » puis
+recharge après 500 ms, y compris si le traitement a échoué. Les erreurs de polling
+sont ignorées et retentées sans limite ni message spécifique. Ces comportements
+actuels sont des points à corriger, pas la définition souhaitée des états.
+
+La barre de progression mesure les marchands trouvés par rapport à l'objectif,
+pas le pourcentage de pages traitées ni une estimation du temps restant.
+Le filtre de ville favorise les offres locales ; ne pas le décrire comme une
+exclusion stricte de toute offre située ailleurs.
+
+## Contrôles visuels à prévoir
+
+Tester au minimum accueil vide/rempli, recherche active/partielle/échouée,
+offre sponsorisée, média manquant et quota anonyme atteint ; vérifier clavier,
+mobile, conservation des filtres et annonces accessibles des changements d'état.
+Contrôles réalisés pour cette refonte : accueil vide sur desktop (1440 px) et
+mobile (390 px), connexion mobile, ouverture du champ de site optionnel. Les états
+avec données, échec et quota atteint restent à vérifier visuellement ; les tests
+Django couvrent leurs parcours mais ne remplacent pas ces contrôles navigateur.
+
+## Améliorations ouvertes
+
+La validation d'images doit être renforcée. Les erreurs réseau et d'extraction
+doivent rester compréhensibles pour l'utilisateur. Toute modification des cartes,
+du classement, des badges ou du suivi doit être contrôlée sur desktop et mobile.
+
+## Mise à jour
+
+Documenter ici les changements visibles, états, textes structurants, composants,
+parcours et contraintes d'accessibilité ; référencer leurs validations dans MEMORY.md.

@@ -714,3 +714,20 @@ sudo systemctl stop bendango-web
 sudo systemctl status bendango-search-worker
 sudo systemctl status bendango-worker
 sudo systemctl status bendango-web
+## Styles Tailwind
+
+L'interface utilise Tailwind CSS 4 et une base Django commune. Le CSS compilé
+`tracker/static/tracker/css/app.css` est livré avec le projet ; Node n'est pas
+nécessaire pour servir cette feuille existante.
+
+Pour modifier le thème ou les classes (Node et pnpm 11 nécessaires) :
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run build:css
+.venv/bin/python manage.py collectstatic --noinput
+```
+
+`pnpm run watch:css` surveille les changements pendant le développement.
+Modifier `assets/css/app.css` et les templates, puis livrer la feuille générée.
+Exécuter `collectstatic` avant les tests utilisant le stockage à manifeste Django.

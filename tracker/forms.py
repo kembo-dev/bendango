@@ -40,7 +40,7 @@ class SearchOrScrapeForm(forms.Form):
         help_text="Laisser vide pour rechercher uniquement par nom du produit sur Internet.",
         widget=forms.TextInput(
             attrs={
-                "class": "form-control",
+                "class": "field-input",
                 "placeholder": "Ex: amazon.fr ou https://www.amazon.fr (optionnel)",
             }
         ),
@@ -49,7 +49,7 @@ class SearchOrScrapeForm(forms.Form):
         label="Produit à rechercher",
         widget=forms.TextInput(
             attrs={
-                "class": "form-control",
+                "class": "field-input",
                 "placeholder": "Ex: iPhone 15 128Go",
             }
         ),
@@ -58,7 +58,7 @@ class SearchOrScrapeForm(forms.Form):
         label="Marché",
         choices=market_choices(),
         initial=DEFAULT_MARKET_CODE,
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(attrs={"class": "field-input"}),
         help_text="Choisissez le pays où Bendango doit privilégier les marchands et les offres.",
     )
     city = forms.CharField(
@@ -66,7 +66,7 @@ class SearchOrScrapeForm(forms.Form):
         required=False,
         max_length=120,
         widget=forms.TextInput(attrs={
-            "class": "form-control",
+            "class": "field-input",
             "placeholder": "Ex: Kinshasa",
         }),
         help_text="Optionnel : privilégie les offres locales de cette ville.",
@@ -75,7 +75,7 @@ class SearchOrScrapeForm(forms.Form):
         label="Type d'offre",
         required=False,
         choices=[("", "Tous les types")] + list(Offer.OFFER_TYPES),
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(attrs={"class": "field-input"}),
     )
     source = forms.ChoiceField(
         label="Source",
@@ -86,13 +86,13 @@ class SearchOrScrapeForm(forms.Form):
             ("web", "Web marchand"),
             ("social", "Réseaux sociaux"),
         ],
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(attrs={"class": "field-input"}),
     )
     business_category = forms.ChoiceField(
         label="Type de business",
         required=False,
         choices=[("", "Tous les business")],
-        widget=forms.Select(attrs={"class": "form-select"}),
+        widget=forms.Select(attrs={"class": "field-input"}),
         help_text="Filtre les offres publiées par les business Bendango.",
     )
     def __init__(self, *args, **kwargs):
@@ -112,20 +112,20 @@ class SearchOrScrapeForm(forms.Form):
 class SignUpForm(UserCreationForm):
     email = forms.EmailField(
         required=True,
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'vous@exemple.com'}),
+        widget=forms.EmailInput(attrs={'class': 'field-input', 'placeholder': 'vous@exemple.com'}),
     )
 
     class Meta:
         model = User
         fields = ('username', 'email', 'password1', 'password2')
         widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control', 'placeholder': "Nom d'utilisateur"}),
+            'username': forms.TextInput(attrs={'class': 'field-input', 'placeholder': "Nom d'utilisateur"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for name in ('password1', 'password2'):
-            self.fields[name].widget.attrs.update({'class': 'form-control'})
+            self.fields[name].widget.attrs.update({'class': 'field-input'})
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
@@ -138,29 +138,29 @@ class BusinessAccountRequestForm(forms.Form):
     business_name = forms.CharField(
         label="Nom de l'entreprise",
         max_length=180,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Kembo Corporation'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: Kembo Corporation'}),
     )
     business_type = forms.CharField(
         label="Activité",
         max_length=120,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: E-commerce, distribution, mode...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: E-commerce, distribution, mode...'}),
     )
     website = forms.URLField(
         label='Site web',
         required=False,
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        widget=forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://...'}),
     )
     phone = forms.CharField(
         label='Téléphone',
         max_length=40,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+243...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': '+243...'}),
     )
     description = forms.CharField(
         label='Présentez votre business et votre besoin',
         required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+        widget=forms.Textarea(attrs={'class': 'field-input', 'rows': 5}),
     )
 
 
@@ -207,23 +207,23 @@ class BusinessProfileForm(forms.ModelForm):
             'description': 'Description',
         }
         widgets = {
-            'business_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'category': forms.Select(attrs={'class': 'form-select'}),
-            'business_type': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Pharmacie, hôtel, mode, services...'}),
-            'website': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://... (optionnel)'}),
-            'phone': forms.TextInput(attrs={'class': 'form-control'}),
-            'whatsapp': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+243...'}),
-            'public_email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'facebook_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://facebook.com/...'}),
-            'instagram_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://instagram.com/...'}),
-            'tiktok_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://tiktok.com/@...'}),
-            'country': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: RDC'}),
-            'city': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Kinshasa'}),
-            'market_code': forms.Select(attrs={'class': 'form-select'}, choices=market_choices()),
-            'address': forms.TextInput(attrs={'class': 'form-control'}),
-            'logo_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
-            'cover_image_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+            'business_name': forms.TextInput(attrs={'class': 'field-input'}),
+            'category': forms.Select(attrs={'class': 'field-input'}),
+            'business_type': forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: Pharmacie, hôtel, mode, services...'}),
+            'website': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://... (optionnel)'}),
+            'phone': forms.TextInput(attrs={'class': 'field-input'}),
+            'whatsapp': forms.TextInput(attrs={'class': 'field-input', 'placeholder': '+243...'}),
+            'public_email': forms.EmailInput(attrs={'class': 'field-input'}),
+            'facebook_url': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://facebook.com/...'}),
+            'instagram_url': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://instagram.com/...'}),
+            'tiktok_url': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://tiktok.com/@...'}),
+            'country': forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: RDC'}),
+            'city': forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: Kinshasa'}),
+            'market_code': forms.Select(attrs={'class': 'field-input'}, choices=market_choices()),
+            'address': forms.TextInput(attrs={'class': 'field-input'}),
+            'logo_url': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://...'}),
+            'cover_image_url': forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://...'}),
+            'description': forms.Textarea(attrs={'class': 'field-input', 'rows': 5}),
         }
 
 
@@ -232,49 +232,49 @@ class ProCatalogProductForm(forms.Form):
     name = forms.CharField(
         label='Nom du produit',
         max_length=255,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     brand = forms.CharField(
         label='Marque',
         max_length=100,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     model = forms.CharField(
         label='Modèle',
         max_length=150,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     sku_or_ean = forms.CharField(
         label='SKU / EAN',
         max_length=100,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     category = forms.CharField(
         label='Catégorie',
         max_length=100,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     image_url = forms.URLField(
         label='Image du produit',
         required=False,
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        widget=forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://...'}),
     )
     price = forms.DecimalField(
         label='Prix',
         min_value=0.01,
         max_digits=14,
         decimal_places=2,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+        widget=forms.NumberInput(attrs={'class': 'field-input', 'step': '0.01'}),
     )
     currency = forms.CharField(
         label='Devise',
         max_length=10,
         initial='USD',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'USD, EUR, CDF...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'USD, EUR, CDF...'}),
     )
     in_stock = forms.BooleanField(
         label='En stock',
@@ -284,7 +284,7 @@ class ProCatalogProductForm(forms.Form):
     )
     sale_url = forms.URLField(
         label='Lien de vente',
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://...'}),
+        widget=forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://...'}),
     )
 
     def clean_currency(self):
@@ -296,12 +296,12 @@ class QuickOfferForm(forms.Form):
     offer_type = forms.ChoiceField(
         label="Type d'offre",
         choices=Offer.OFFER_TYPES,
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'field-input'}),
     )
     title = forms.CharField(
         label='Nom / titre',
         max_length=255,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: Samsung A56, chambre standard, coiffure femme...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: Samsung A56, chambre standard, coiffure femme...'}),
     )
     price = forms.DecimalField(
         label='Prix',
@@ -309,25 +309,25 @@ class QuickOfferForm(forms.Form):
         min_value=0.01,
         max_digits=14,
         decimal_places=2,
-        widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': 'Laisser vide si sur demande'}),
+        widget=forms.NumberInput(attrs={'class': 'field-input', 'step': '0.01', 'placeholder': 'Laisser vide si sur demande'}),
     )
     currency = forms.CharField(
         label='Devise',
         max_length=10,
         initial='USD',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'USD, CDF, EUR...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'USD, CDF, EUR...'}),
     )
     price_unit = forms.CharField(
         label='Unité de prix',
         max_length=60,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Ex: nuit, heure, unité, mois...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex: nuit, heure, unité, mois...'}),
     )
     photos = MultipleImageFileField(
         label='Photos depuis téléphone ou ordinateur',
         required=False,
         widget=MultipleFileInput(attrs={
-            'class': 'form-control',
+            'class': 'field-input',
             'accept': 'image/*',
         }),
         help_text='Jusqu’à 8 images par envoi, 8 Mo maximum par image.',
@@ -335,30 +335,30 @@ class QuickOfferForm(forms.Form):
     primary_image_url = forms.URLField(
         label='URL image existante',
         required=False,
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://... (optionnel)'}),
+        widget=forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'https://... (optionnel)'}),
         help_text="Facultatif : utile si l'image est déjà hébergée en ligne.",
     )
     availability = forms.ChoiceField(
         label='Disponibilité',
         choices=Offer.AVAILABILITY_CHOICES,
         initial='available',
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'field-input'}),
     )
     whatsapp = forms.CharField(
         label='WhatsApp',
         max_length=40,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+243...'}),
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': '+243...'}),
     )
     external_url = forms.URLField(
         label='Lien externe / site',
         required=False,
-        widget=forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'Optionnel'}),
+        widget=forms.URLInput(attrs={'class': 'field-input', 'placeholder': 'Optionnel'}),
     )
     description = forms.CharField(
         label='Description',
         required=False,
-        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+        widget=forms.Textarea(attrs={'class': 'field-input', 'rows': 4}),
     )
 
     def clean_currency(self):
@@ -370,13 +370,13 @@ class OfferBoostRequestForm(forms.Form):
         label='Durée souhaitée',
         choices=OfferBoostRequest.DURATION_CHOICES,
         initial=7,
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'field-input'}),
     )
     note = forms.CharField(
         label='Message pour l’administrateur',
         required=False,
         widget=forms.Textarea(attrs={
-            'class': 'form-control',
+            'class': 'field-input',
             'rows': 4,
             'placeholder': 'Pourquoi souhaitez-vous mettre ce produit en avant ?',
         }),
@@ -388,16 +388,16 @@ class OfferEditForm(QuickOfferForm):
         label='Catégorie',
         max_length=120,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     city = forms.CharField(
         label='Ville',
         max_length=120,
         required=False,
-        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        widget=forms.TextInput(attrs={'class': 'field-input'}),
     )
     contact_method = forms.ChoiceField(
         label='Contact principal',
         choices=Offer.CONTACT_CHOICES,
-        widget=forms.Select(attrs={'class': 'form-select'}),
+        widget=forms.Select(attrs={'class': 'field-input'}),
     )

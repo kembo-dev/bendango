@@ -1,0 +1,86 @@
+# Bendango — produit et production
+
+Dernière mise à jour : 2026-10-09.
+
+## Produit actuel
+
+Bendango combine un comparateur de prix et une plateforme d'offres de business.
+Les résultats réunissent les offres publiées sur Bendango, les offres collectées
+sur les sites marchands et les sources de découverte externes, notamment sociales.
+Une source de découverte n'est pas une offre marchande vérifiée.
+
+- Recherche par nom ou URL ; filtre de site, marché, ville, type d'offre, source
+  et catégorie de business.
+- Marché par défaut : République démocratique du Congo (`CD`). Les autres marchés
+  disponibles et leurs devises sont définis dans `tracker/markets.py`.
+- Une recherche anonyme par session ; inscription et connexion pour poursuivre.
+- Historique des recherches pour les utilisateurs connectés.
+- Thèmes clair et sombre, préférence locale mémorisée par le navigateur.
+- Espace Pro après approbation : produits, offres, photos et demandes de boost.
+- Pages publiques des business et des offres ; accueil de découverte paginé.
+- La demande de boost et son approbation existent ; ne pas les décrire comme un
+  paiement en ligne opérationnel.
+
+## Règles métier confirmées par le code
+
+| Fonction | Comportement actuel | Source |
+| --- | --- | --- |
+| Recherche par nom | Crée un SearchRun puis redirige vers les résultats suivis par UUID | `tracker/views.py:scrape_view` |
+| Recherche par URL | Collecte synchrone dans la requête web ; ne crée pas le même parcours SearchRun | `tracker/services.py:process_url_and_save` |
+| Recommandation marchande | Stock disponible, puis qualité, puis prix ; ce n'est pas nécessairement le prix minimum | `tracker/ranking.py:offer_sort_key` |
+| Prix minimum | Minimum parmi les offres en stock, ou toutes les offres si aucune en stock | `tracker/views.py:_decorate_results` |
+| Comparaison | Une offre retenue par identité marchande après classement | `tracker/views.py:_best_listing_per_merchant` |
+| Offre Pro produit | Publication reliée au catalogue Product/PriceListing par une passerelle | `tracker/views.py:_sync_offer_product_bridge` |
+| Boost | Produits uniquement ; demande de 7, 14 ou 30 jours, décision administrative | `tracker/views.py:pro_offer_boost_request`, `tracker/models.py:OfferBoostRequest` |
+| Compte Pro | L'approbation active un BusinessProfile vérifié ; le rejet peut révoquer le profil associé | `tracker/models.py:BusinessAccountRequest` |
+| Découverte publique | Mélange publications et sujets communautaires, sans identité ni UUID des recherches | `tracker/views.py:_public_discovery_feed` |
+
+Les offres Pro sont filtrées par marché, type et catégorie. La ville privilégie
+les correspondances locales ; elle n'exclut pas toutes les autres villes.
+Le classement Pro place un boost actif avant la proximité, la pertinence,
+la disponibilité puis le montant. Il est distinct du classement marchand collecté.
+
+## Limites produit à rendre explicites
+
+- Les marchés proposés dépassent les devises convertibles : les taux par défaut
+  couvrent USD, CDF, EUR, XOF et XAF uniquement. Aucun taux de change en temps réel.
+- Les prix non normalisables peuvent retomber sur leur montant brut dans les
+  comparaisons ; corriger ce comportement avant d'afficher une économie multi-devise.
+- La recherche Pro examine au plus 250 offres récentes avant de retenir les
+  correspondances ; les publications plus anciennes peuvent être absentes.
+- La limite anonyme repose sur la session ; ce n'est pas un quota par personne
+  ni une protection contre l'abus de création de sessions.
+- Les états affichés peuvent masquer un échec terminal ; détail et correction
+  à suivre dans TASKS.md, sans assimiler fin de traitement et résultat réussi.
+
+## Exploitation locale et préproduction
+
+- Branche analysée : `clean/bendango-v2`, commit de référence `3aeba33`.
+- Python 3.12.3, Django 6.1.2, environnement pyenv `bendango` lié à `.venv`.
+- PostgreSQL actif constaté le 2026-10-08 pendant la refonte : connexion Django
+  réussie et aucune migration restante. SQLite antérieur conservé ; import de ses
+  données non vérifié. Le rôle local ne peut pas créer une base de test.
+- Interface Tailwind compilée et servie localement. Avant publication, compiler
+  les classes modifiées et exécuter `collectstatic` pour le manifeste WhiteNoise.
+- Redis répondait `PONG` lors de l'analyse du 2026-10-07, mais `REDIS_URL` n'était
+  pas configuré dans l'application. Ce constat n'est pas une garantie de disponibilité.
+- Celery 5.6.3 installé et déclaré ; aucune intégration applicative Celery.
+- Serveur local lancé précédemment sur `http://127.0.0.1:8000/` avec deux workers
+  maison. Vérifier les processus avant de supposer qu'ils tournent encore.
+- Aucun appel Bedrock réel validé dans cette session.
+
+## Conditions avant publication
+
+Priorités et critères détaillés dans TASKS.md : contrôle des URL sortantes,
+validation réelle des images, installation reproductible, configuration des
+services, emails et infrastructure adaptée aux workers.
+
+Le dernier contrôle simulant `DEBUG=False` et une clé valide signalait
+`mail.E001` : le backend email console doit être remplacé pour la production.
+Les médias utilisateurs nécessitent une stratégie de service dédiée ; WhiteNoise
+sert les fichiers statiques, pas les uploads en production.
+
+## Mise à jour
+
+Modifier ce document lorsque changent le périmètre produit, les parcours métier,
+les marchés, les services disponibles ou les conditions de lancement.

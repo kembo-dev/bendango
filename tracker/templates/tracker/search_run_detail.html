@@ -1,76 +1,69 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Détail de la recherche - Bendango</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-<div class="container py-5">
-    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+{% extends "tracker/base.html" %}
+{% block title %}Détail de la recherche - Bendango{% endblock %}
+{% block content %}
+<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
+    <div class="flex justify-between items-start gap-3 flex-wrap mb-6">
         <div>
-            <div class="text-primary text-uppercase fw-bold small mb-2">Détail de la recherche</div>
-            <h1 class="h2 mb-1">{{ search_run.query }}</h1>
-            <div class="text-muted">
+            <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Détail de la recherche</div>
+            <h1 class="text-3xl mb-1">{{ search_run.query }}</h1>
+            <div class="text-slate-500 dark:text-slate-400">
                 Run {{ search_run.pk|stringformat:"s"|slice:":8" }} · Marché {{ search_run.market_code }} · {{ search_run.created_at|date:"d/m/Y H:i" }}
             </div>
         </div>
-        <div class="d-flex gap-2">
-            <a href="{% url 'search_history' %}" class="btn btn-outline-secondary">Historique</a>
-            <a href="{% url 'scrape_view' %}" class="btn btn-primary">Nouvelle recherche</a>
+        <div class="flex gap-2">
+            <a href="{% url 'search_history' %}" class="button button-outline-secondary">Historique</a>
+            <a href="{% url 'scrape_view' %}" class="button button-primary">Nouvelle recherche</a>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3"><div class="metric"><small>Statut</small><strong>{{ run_state.status|title }}</strong></div></div>
-        <div class="col-6 col-md-3"><div class="metric"><small>Sources</small><strong>{{ run_state.total }}</strong></div></div>
-        <div class="col-6 col-md-3"><div class="metric"><small>Offres</small><strong>{{ run_state.offers }}</strong></div></div>
-        <div class="col-6 col-md-3"><div class="metric"><small>Marchands</small><strong>{{ run_state.merchants }}/{{ run_state.target_merchants }}</strong></div></div>
+    <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4  mb-6">
+        <div class="w-1/2 md:w-3/12"><div class="metric"><small>Statut</small><strong>{{ run_state.status|title }}</strong></div></div>
+        <div class="w-1/2 md:w-3/12"><div class="metric"><small>Sources</small><strong>{{ run_state.total }}</strong></div></div>
+        <div class="w-1/2 md:w-3/12"><div class="metric"><small>Offres</small><strong>{{ run_state.offers }}</strong></div></div>
+        <div class="w-1/2 md:w-3/12"><div class="metric"><small>Marchands</small><strong>{{ run_state.merchants }}/{{ run_state.target_merchants }}</strong></div></div>
     </div>
 
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body p-4">
-            <h2 class="h5 mb-3">Informations</h2>
-            <div class="row g-3 small">
-                <div class="col-md-4"><strong>Marché</strong><div class="text-muted">{{ search_run.market_code }}{% if search_run.market_currency %} · {{ search_run.market_currency }}{% endif %}</div></div>
-                <div class="col-md-4"><strong>Site limité</strong><div class="text-muted">{{ search_run.site_filter }}</div></div>
-                <div class="col-md-4"><strong>Modèle IA</strong><div class="text-muted">{{ search_run.model_name|default:"-" }}</div></div>
-                <div class="col-md-4"><strong>Créée</strong><div class="text-muted">{{ search_run.created_at|date:"d/m/Y H:i:s" }}</div></div>
-                <div class="col-md-4"><strong>Découverte terminée</strong><div class="text-muted">{{ search_run.discovery_finished_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
-                <div class="col-md-4"><strong>Terminée</strong><div class="text-muted">{{ search_run.completed_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
+    <div class="panel border-0 shadow-sm mb-6">
+        <div class="panel-body p-6">
+            <h2 class="text-lg mb-4">Informations</h2>
+            <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4  text-sm">
+                <div class="w-full md:w-4/12"><strong>Marché</strong><div class="text-slate-500 dark:text-slate-400">{{ search_run.market_code }}{% if search_run.market_currency %} · {{ search_run.market_currency }}{% endif %}</div></div>
+                <div class="w-full md:w-4/12"><strong>Site limité</strong><div class="text-slate-500 dark:text-slate-400">{{ search_run.site_filter }}</div></div>
+                <div class="w-full md:w-4/12"><strong>Créée</strong><div class="text-slate-500 dark:text-slate-400">{{ search_run.created_at|date:"d/m/Y H:i:s" }}</div></div>
+                <div class="w-full md:w-4/12"><strong>Découverte terminée</strong><div class="text-slate-500 dark:text-slate-400">{{ search_run.discovery_finished_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
+                <div class="w-full md:w-4/12"><strong>Terminée</strong><div class="text-slate-500 dark:text-slate-400">{{ search_run.completed_at|date:"d/m/Y H:i:s"|default:"-" }}</div></div>
             </div>
-            {% if search_run.discovery_error %}<div class="alert alert-warning mt-3 mb-0">{{ search_run.discovery_error }}</div>{% endif %}
+            {% if search_run.discovery_error %}<div class="notice notice-warning mt-4 mb-0">{{ search_run.discovery_error }}</div>{% endif %}
         </div>
     </div>
 
     {% if listings %}
-    <section class="mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div><div class="text-primary text-uppercase fw-bold small">Résultats</div><h2 class="h4 mb-0">Offres trouvées</h2></div>
-            <span class="badge text-bg-light border">{{ listings|length }} offre{{ listings|length|pluralize }}</span>
+    <section class="mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <div><div class="text-brand-700 uppercase tracking-wide font-bold text-sm dark:text-emerald-300">Résultats</div><h2 class="text-xl mb-0">Offres trouvées</h2></div>
+            <span class="tag tag-light border">{{ listings|length }} offre{{ listings|length|pluralize }}</span>
         </div>
         {% for listing in listings %}
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-body p-4">
-                <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+        <div class="panel border-0 shadow-sm mb-4">
+            <div class="panel-body p-6">
+                <div class="flex justify-between items-start gap-3 flex-wrap">
                     <div>
-                        <div class="small text-muted text-uppercase fw-bold">{{ listing.retailer.name }}</div>
-                        <h3 class="h5 mb-2">{{ listing.product.name }}</h3>
-                        <div class="d-flex gap-2 flex-wrap">
-                            {% if listing.in_stock %}<span class="badge text-bg-success">En stock</span>{% else %}<span class="badge text-bg-danger">Rupture</span>{% endif %}
-                            <span class="badge text-bg-light border text-dark">Matching {{ listing.match_score|floatformat:2 }}</span>
-                            <span class="badge text-bg-light border text-dark">Confiance {{ listing.confidence_score|floatformat:2 }}</span>
+                        <div class="text-sm text-slate-500 uppercase tracking-wide font-bold dark:text-slate-400">{{ listing.retailer.name }}</div>
+                        <h3 class="text-lg mb-2">{{ listing.product.name }}</h3>
+                        <div class="flex gap-2 flex-wrap">
+                            {% if listing.in_stock %}<span class="tag tag-success">En stock</span>{% else %}<span class="tag tag-danger">Rupture</span>{% endif %}
+                            <span class="tag tag-light border text-slate-900 dark:text-slate-100">Matching {{ listing.match_score|floatformat:2 }}</span>
+                            <span class="tag tag-light border text-slate-900 dark:text-slate-100">Confiance {{ listing.confidence_score|floatformat:2 }}</span>
                         </div>
                     </div>
-                    <div class="text-end">
-                        <div class="fs-4 fw-bold text-primary">{{ listing.price }} {{ listing.currency }}</div>
-                        {% if listing.normalized_price %}<div class="small text-muted">≈ {{ listing.normalized_price }} {{ listing.normalized_currency }}</div>{% endif %}
+                    <div class="text-right">
+                        <div class="text-2xl font-bold text-brand-700 dark:text-emerald-300">{{ listing.price }} {{ listing.currency }}</div>
+                        {% if listing.normalized_price %}<div class="text-sm text-slate-500 dark:text-slate-400">≈ {{ listing.normalized_price }} {{ listing.normalized_currency }}</div>{% endif %}
                     </div>
                 </div>
-                <div class="border-top mt-3 pt-3 d-flex justify-content-between gap-2 flex-wrap">
-                    <span class="small text-muted">{{ listing.url }}</span>
-                    <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Voir l'offre</a>
+                <div class="border-t mt-4 pt-4 flex justify-between gap-2 flex-wrap">
+                    <span class="text-sm text-slate-500 dark:text-slate-400">{{ listing.url }}</span>
+                    <a href="{{ listing.url }}" target="_blank" rel="noopener noreferrer" class="button button-sm button-outline-primary">Voir l'offre</a>
                 </div>
             </div>
         </div>
@@ -79,23 +72,23 @@
     {% endif %}
 
     {% if discovery_sources %}
-    <section class="mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div><div class="text-primary text-uppercase fw-bold small">Découverte</div><h2 class="h4 mb-0">Réseaux sociaux et autres sources</h2></div>
-            <span class="badge text-bg-light border">{{ discovery_sources|length }} source{{ discovery_sources|length|pluralize }}</span>
+    <section class="mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <div><div class="text-brand-700 uppercase tracking-wide font-bold text-sm dark:text-emerald-300">Découverte</div><h2 class="text-xl mb-0">Réseaux sociaux et autres sources</h2></div>
+            <span class="tag tag-light border">{{ discovery_sources|length }} source{{ discovery_sources|length|pluralize }}</span>
         </div>
-        <div class="row g-3">
+        <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4 ">
             {% for source in discovery_sources %}
-            <div class="col-md-6">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body p-4">
-                        <div class="d-flex gap-2 flex-wrap mb-2">
-                            <span class="badge text-bg-dark">{{ source.platform }}</span>
-                            <span class="badge text-bg-light border text-dark">{{ source.source_type }}</span>
+            <div class="w-full md:w-6/12">
+                <div class="panel h-full border-0 shadow-sm">
+                    <div class="panel-body p-6">
+                        <div class="flex gap-2 flex-wrap mb-2">
+                            <span class="tag tag-dark">{{ source.platform }}</span>
+                            <span class="tag tag-light border text-slate-900 dark:text-slate-100">{{ source.source_type }}</span>
                         </div>
-                        <h3 class="h6">{{ source.title }}</h3>
-                        {% if source.snippet %}<p class="small text-muted">{{ source.snippet }}</p>{% endif %}
-                        <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer nofollow" class="btn btn-sm btn-outline-primary">Ouvrir la source</a>
+                        <h3 class="text-base">{{ source.title }}</h3>
+                        {% if source.snippet %}<p class="text-sm text-slate-500 dark:text-slate-400">{{ source.snippet }}</p>{% endif %}
+                        <a href="{{ source.url }}" target="_blank" rel="noopener noreferrer nofollow" class="button button-sm button-outline-primary">Ouvrir la source</a>
                     </div>
                 </div>
             </div>
@@ -105,24 +98,24 @@
     {% endif %}
 
     <section>
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div><div class="text-primary text-uppercase fw-bold small">Technique</div><h2 class="h4 mb-0">Sources analysées</h2></div>
-            <span class="badge text-bg-light border">{{ run_state.processed }}/{{ run_state.total }}</span>
+        <div class="flex justify-between items-center mb-4">
+            <div><div class="text-brand-700 uppercase tracking-wide font-bold text-sm dark:text-emerald-300">Technique</div><h2 class="text-xl mb-0">Sources analysées</h2></div>
+            <span class="tag tag-light border">{{ run_state.processed }}/{{ run_state.total }}</span>
         </div>
-        <div class="card border-0 shadow-sm">
+        <div class="panel border-0 shadow-sm">
             <div class="table-responsive">
-                <table class="table align-middle mb-0">
+                <table class="data-table align-middle mb-0">
                     <thead><tr><th>Statut</th><th>Source</th><th>Résultat</th><th>Durée</th></tr></thead>
                     <tbody>
                     {% for job in jobs %}
                     <tr>
-                        <td><span class="badge {% if job.status == 'success' %}text-bg-success{% elif job.status == 'failed' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ job.status }}</span></td>
-                        <td class="small text-break"><a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">{{ job.url }}</a></td>
-                        <td class="small">{% if job.listing_id %}{{ job.listing.retailer.name }}{% elif job.last_error %}{{ job.last_error|truncatechars:120 }}{% else %}{{ job.fetch_status|default:"-" }}{% endif %}</td>
-                        <td class="small">{{ job.duration_ms }} ms</td>
+                        <td><span class="tag {% if job.status == 'success' %}tag-success{% elif job.status == 'failed' %}tag-danger{% else %}tag-secondary{% endif %}">{{ job.status }}</span></td>
+                        <td class="text-sm break-words"><a href="{{ job.url }}" target="_blank" rel="noopener noreferrer">{{ job.url }}</a></td>
+                        <td class="text-sm">{% if job.listing_id %}{{ job.listing.retailer.name }}{% elif job.last_error %}{{ job.last_error|truncatechars:120 }}{% else %}{{ job.fetch_status|default:"-" }}{% endif %}</td>
+                        <td class="text-sm">{{ job.duration_ms }} ms</td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="4" class="text-muted">Aucune source analysée.</td></tr>
+                    <tr><td colspan="4" class="text-slate-500 dark:text-slate-400">Aucune source analysée.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -130,10 +123,4 @@
         </div>
     </section>
 </div>
-<style>
-.metric{height:100%;background:white;border:1px solid #e9ecef;border-radius:14px;padding:1rem;display:flex;flex-direction:column;gap:.2rem;box-shadow:0 .35rem 1rem rgba(18,32,51,.04)}
-.metric small{color:#6c757d}.metric strong{color:#24364b;font-size:1.05rem}
-.card{border-radius:18px!important}
-</style>
-</body>
-</html>
+{% endblock %}

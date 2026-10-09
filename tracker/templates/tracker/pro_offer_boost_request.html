@@ -1,60 +1,53 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Demander un boost - Bendango Pro</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-<div class="container py-5" style="max-width:760px">
-  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+{% extends "tracker/base.html" %}
+{% block title %}Demander un boost - Bendango Pro{% endblock %}
+{% block content %}
+<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-8" style="max-width:760px">
+  <div class="flex justify-between items-start gap-3 flex-wrap mb-6">
     <div>
-      <div class="text-primary text-uppercase fw-bold small mb-2">Bendango Pro</div>
-      <h1 class="h2 mb-1">Demander un boost</h1>
-      <p class="text-muted mb-0">La mise en avant est activée uniquement après validation par un administrateur Bendango.</p>
+      <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Bendango Pro</div>
+      <h1 class="text-3xl mb-1">Demander un boost</h1>
+      <p class="text-slate-500 mb-0 dark:text-slate-400">La mise en avant est activée uniquement après validation par un administrateur Bendango.</p>
     </div>
-    <a href="{% url 'pro_offers' %}" class="btn btn-outline-secondary">Retour aux offres</a>
+    <a href="{% url 'pro_offers' %}" class="button button-outline-secondary">Retour aux offres</a>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-body p-4">
-      <div class="d-flex gap-3 align-items-start">
+  <div class="panel border-0 shadow-sm mb-6">
+    <div class="panel-body p-6">
+      <div class="flex gap-3 items-start">
         {% if offer.display_image_url %}
         <img src="{{ offer.display_image_url }}" alt="{{ offer.title }}" style="width:92px;height:92px;object-fit:contain;border-radius:12px;background:#fff">
         {% endif %}
         <div>
-          <span class="badge text-bg-light border mb-2">{{ offer.get_offer_type_display }}</span>
-          <h2 class="h5 mb-1">{{ offer.title }}</h2>
-          <div class="text-muted small">{{ offer.business.business_name }}</div>
+          <span class="tag tag-light border mb-2">{{ offer.get_offer_type_display }}</span>
+          <h2 class="text-lg mb-1">{{ offer.title }}</h2>
+          <div class="text-slate-500 text-sm dark:text-slate-400">{{ offer.business.business_name }}</div>
           {% if offer.price %}
-          <div class="fw-bold text-primary mt-2">{{ offer.price }} {{ offer.currency }}</div>
+          <div class="font-bold text-brand-700 mt-2 dark:text-emerald-300">{{ offer.price }} {{ offer.currency }}</div>
           {% endif %}
         </div>
       </div>
     </div>
   </div>
 
-  <div class="alert alert-info">
+  <div class="notice notice-info">
     Un produit boosté peut être placé plus haut dans les résultats et dans la découverte Bendango. Il restera clairement identifié comme <strong>Sponsorisé</strong>.
   </div>
 
-  <form method="post" class="card border-0 shadow-sm">
+  <form method="post" class="panel border-0 shadow-sm">
     {% csrf_token %}
-    <div class="card-body p-4">
-      <div class="mb-3">
-        <label class="form-label fw-bold">{{ form.duration_days.label }}</label>
+    <div class="panel-body p-6">
+      <div class="mb-4">
+        <label class="field-label font-bold">{{ form.duration_days.label }}</label>
         {{ form.duration_days }}
-        {% for error in form.duration_days.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        {% for error in form.duration_days.errors %}<div class="text-red-700 text-sm mt-1 dark:text-red-300">{{ error }}</div>{% endfor %}
       </div>
-      <div class="mb-3">
-        <label class="form-label fw-bold">{{ form.note.label }}</label>
+      <div class="mb-4">
+        <label class="field-label font-bold">{{ form.note.label }}</label>
         {{ form.note }}
-        {% for error in form.note.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+        {% for error in form.note.errors %}<div class="text-red-700 text-sm mt-1 dark:text-red-300">{{ error }}</div>{% endfor %}
       </div>
-      <button type="submit" class="btn btn-primary w-100">Envoyer la demande à l'admin</button>
+      <button type="submit" class="button button-primary w-full">Envoyer la demande à l'admin</button>
     </div>
   </form>
 </div>
-<style>.card{border-radius:18px!important}</style>
-</body>
-</html>
+{% endblock %}
