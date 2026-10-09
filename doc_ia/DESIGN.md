@@ -191,3 +191,17 @@ Sans JavaScript, défilement horizontal et liens des miniatures restent disponib
 Contrôles réels sur l'offre Esika : images chargées, flèches, miniature, clavier,
 cycle automatique 1/2 → 2/2 et pause ; capture conservée hors dépôt. Le balayage
 matériel et la réduction de mouvement sur téléphone restent à vérifier.
+
+## Cadre et poids des photos
+
+La galerie réserve un cadre carré, jusqu'à 640 × 640 px sur desktop, adapté à la
+largeur mobile. La photo entière est centrée sur un fond neutre clair/sombre ;
+proportions conservées, aucune déformation et aucun agrandissement au-delà des
+pixels disponibles. Miniatures dédiées 320 × 320, recadrées au centre puis réduites
+à la taille visuelle des boutons. Les sources plus petites restent centrées sans
+agrandissement dans leur miniature. Les uploads produisent du WebP qualité 85
+avec un côté maximal de 1600 px ; orientation corrigée, transparence conservée.
+
+Les images externes gardent leur URL et le même cadre d'affichage. Les petites
+photos ne gagnent pas de détails : sur l'offre Esika, les deux sources de 64 × 64
+sont désormais affichées à cette taille, sans le flou de leur ancien agrandissement.

@@ -600,6 +600,8 @@ class OfferBoostRequest(models.Model):
 class OfferMedia(models.Model):
     offer = models.ForeignKey(Offer, on_delete=models.CASCADE, related_name='media')
     file = models.FileField(upload_to='offers/%Y/%m/', blank=True)
+    optimized_file = models.FileField(upload_to='offers/optimized/%Y/%m/', blank=True)
+    thumbnail_file = models.FileField(upload_to='offers/thumbnails/%Y/%m/', blank=True)
     external_url = models.URLField(max_length=2048, blank=True, default='')
     alt_text = models.CharField(max_length=255, blank=True, default='')
     position = models.PositiveIntegerField(default=0)
@@ -615,14 +617,42 @@ class OfferMedia(models.Model):
 
     @property
     def url(self):
-        if self.file:
-            try:
-                return self.file.url
-            except ValueError:
-                pass
+        for field in (self.optimized_file, self.file):
+            if field:
+                try:
+                    return field.url
+                except ValueError:
+                    pass
         return self.external_url
 
+    @property
+    def thumbnail_url(self):
+        return self.thumbnail_file.url if self.thumbnail_file else self.url
+
+    def optimize_existing(self):
+        """Create renditions, preserving the existing stored source unchanged."""
+        if not self.file or self.thumbnail_file:
+            return False
+        from django.core.files.base import ContentFile
+        from .image_processing import prepare_photo
+        with self.file.open('rb') as source:
+            prepared = prepare_photo(source)
+        self.optimized_file.save(prepared.name, ContentFile(prepared.read()), save=False)
+        self.thumbnail_file.save(prepared.name, ContentFile(prepared.offer_thumbnail), save=False)
+        self.save(update_fields=['optimized_file', 'thumbnail_file'])
+        return True
+
     def save(self, *args, **kwargs):
+        if self.file and not self.file._committed:
+            from django.core.files.base import ContentFile
+            from .image_processing import prepare_photo
+            uploaded = self.file.file
+            prepared = uploaded if hasattr(uploaded, 'offer_thumbnail') else prepare_photo(uploaded)
+            self.file = prepared
+            self.optimized_file = ''
+            self.thumbnail_file.save(prepared.name, ContentFile(prepared.offer_thumbnail), save=False)
+            if kwargs.get('update_fields') is not None:
+                kwargs['update_fields'] = set(kwargs['update_fields']) | {'file', 'optimized_file', 'thumbnail_file'}
         super().save(*args, **kwargs)
         if self.is_primary:
             OfferMedia.objects.filter(offer=self.offer).exclude(pk=self.pk).update(is_primary=False)

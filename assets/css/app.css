@@ -141,10 +141,10 @@
 }
 
 @layer components {
-  .offer-gallery-track { @apply flex overflow-x-auto bg-slate-100 dark:bg-slate-950; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .offer-gallery-track { @apply mx-auto flex w-full max-w-[640px] overflow-x-auto bg-slate-100 dark:bg-slate-950; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .offer-gallery-track::-webkit-scrollbar { display: none; }
-  .offer-gallery-slide { @apply m-0 w-full shrink-0; scroll-snap-align: start; }
-  .offer-gallery-slide img { @apply block h-[300px] w-full object-contain sm:h-[440px]; }
+  .offer-gallery-slide { @apply m-0 flex aspect-square w-full shrink-0 items-center justify-center; scroll-snap-align: start; }
+  .offer-gallery-slide img { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; object-fit: contain; }
   .offer-gallery-arrow { @apply absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-3xl text-slate-900 shadow-md hover:bg-white dark:bg-slate-800/90 dark:text-white dark:hover:bg-slate-700; }
   .offer-gallery-thumbnails { @apply flex gap-3 overflow-x-auto px-4 py-4; }
   .offer-gallery-thumbnails a { @apply block size-16 shrink-0 overflow-hidden rounded-lg border-2 border-transparent opacity-60 transition-opacity hover:opacity-100 sm:size-20; }

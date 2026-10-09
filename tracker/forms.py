@@ -1,13 +1,9 @@
-from io import BytesIO
-import warnings
-
-from PIL import Image, ImageOps, UnidentifiedImageError
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
 from .markets import DEFAULT_MARKET_CODE, GLOBAL_MARKET_CODE, market_choices
+from .image_processing import prepare_photo
 from .models import BusinessCategory, BusinessProfile, Offer, OfferBoostRequest
 
 
@@ -36,29 +32,7 @@ class MultipleImageFileField(forms.FileField):
             name = (uploaded.name or '').lower()
             if not content_type.startswith('image/') and not any(name.endswith(ext) for ext in allowed_extensions):
                 raise forms.ValidationError("Seuls les fichiers image sont acceptés.")
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter('error', Image.DecompressionBombWarning)
-                    uploaded.seek(0)
-                    with Image.open(uploaded) as image:
-                        if image.format not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
-                            raise ValueError('unsupported image')
-                        if image.width * image.height > 25_000_000:
-                            raise ValueError('image dimensions')
-                        image.load()
-                        image = ImageOps.exif_transpose(image)
-                        image.thumbnail((2400, 2400))
-                        canvas = Image.new('RGB', image.size, 'white')
-                        if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
-                            rgba = image.convert('RGBA')
-                            canvas.paste(rgba, mask=rgba.getchannel('A'))
-                        else:
-                            canvas.paste(image.convert('RGB'))
-                        output = BytesIO()
-                        canvas.save(output, format='JPEG', quality=88)
-                cleaned.append(SimpleUploadedFile(uploaded.name.rsplit('.', 1)[0] + '.jpg', output.getvalue(), content_type='image/jpeg'))
-            except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
-                raise forms.ValidationError("Photo invalide : utilisez JPEG, PNG, WebP ou GIF, avec au maximum 25 mégapixels.")
+            cleaned.append(prepare_photo(uploaded))
         return cleaned
 
 class SearchOrScrapeForm(forms.Form):

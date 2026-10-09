@@ -23,6 +23,8 @@ Une source de découverte n'est pas une offre marchande vérifiée.
   gestion, offres, catalogue, photos, boosts et édition du profil entreprise.
   Les indicateurs reflètent les seules données du business et de son utilisateur.
 - Pages publiques des business et des offres ; accueil de découverte paginé.
+- Photos uploadées optimisées en WebP qualité 85, jusqu’à 1600 px, avec
+  miniatures 320 × 320 et cadre carré sans déformation ni agrandissement.
 - La demande de boost et son approbation existent ; ne pas les décrire comme un
   paiement en ligne opérationnel.
 

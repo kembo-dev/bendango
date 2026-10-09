@@ -67,7 +67,7 @@ class MobilePublishingTests(TestCase):
     def test_photos_are_reencoded_without_exif(self):
         cleaned = MultipleImageFileField().clean([photo()])[0]
         with Image.open(cleaned) as image:
-            self.assertEqual(image.format, 'JPEG'); self.assertFalse(image.getexif())
+            self.assertEqual(image.format, 'WEBP'); self.assertFalse(image.getexif())
 
     def test_upload_limits_are_enforced(self):
         from django.core.exceptions import ValidationError

@@ -310,3 +310,29 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
   sur téléphone restent à contrôler. Serveur local rechargé ; workers inchangés.
 - DESIGN, ARCHITECTURE, TASKS et MEMORY actualisés ; PROD et RULES consultés,
   cohérents sans modification nécessaire. Commit/push suivant la consigne permanente.
+
+## 2026-10-09 — dimensions et renditions des photos
+
+- Demande : appliquer cadre carré, 1600 px maximum, miniatures 320 × 320 et
+  compression WebP 85 sans déformation/agrandissement. Nouveau module commun,
+  traitement au formulaire puis stockage de la miniature sans réencoder le grand
+  fichier. Orientation, transparence et absence de métadonnées vérifiées.
+- Migration 0022 ajoute deux fichiers de rendition à OfferMedia. Nouvelles
+  publications déjà préparées ; anciennes sources conservées avec optimized_file
+  distinct. Galerie et URL publique utilisent la version optimisée ; suppression
+  propriétaire traite aussi les variantes. Images externes non téléchargées.
+- Commande optimize_offer_images avec défaut dry-run, --apply et --offer-id ;
+  idempotence et conservation des octets de source testées. Migration PostgreSQL
+  locale appliquée et deux médias optimisés, zéro erreur, sources conservées.
+- Validation : 31 tests ciblés réussis ; suite complète 328 tests SQLite réussie
+  (1 intégration ignorée, 52 s), neuf nouveaux cas. Build, collectstatic, check,
+  makemigrations --check, pip check et diff --check réussis. Aucun appel LLM réel.
+- Navigateur sur Esika : cadre 640 × 640, images WebP 64 × 64 affichées à 64 × 64,
+  miniatures 320 × 320 chargées, compteur 2/2 après changement. Ces petites sources
+  ne peuvent pas produire de détails supplémentaires. Somme des deux sources
+  4820 octets, photos optimisées 2928 octets, miniatures 3340 octets : les fichiers
+  principaux sont réduits de 39 %, mais les deux renditions cumulées sont plus lourdes
+  pour ces très petites sources. Ne pas annoncer une économie totale sur ce cas.
+- Serveur local rechargé, capture hors dépôt, workers inchangés. Les six documents
+  doc_ia ont été consultés, réconciliés et mis à jour dans ce lot. Livraison Git
+  suivant la consigne permanente ; résultat vérifiable dans l'historique.

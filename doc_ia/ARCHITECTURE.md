@@ -282,7 +282,7 @@ L'approbation Pro convertit le même profil et conserve ses annonces.
 
 `MultipleImageFileField` utilise Pillow : contenu JPEG/PNG/WebP/GIF décodé,
 8 fichiers/envoi, 8 Mo/fichier, 25 mégapixels ; orientation EXIF corrigée,
-réduction à 2400 px, JPEG réencodé sans métadonnées. GIF devient une image fixe.
+réduction à 1600 px, WebP qualité 85 sans métadonnées. GIF devient une image fixe.
 Le parcours mobile limite aussi le total à 8 lors de l'ajout en édition.
 Les vues publiques et la recherche existantes acceptent ces profils non vérifiés.
 Les vues Pro restent réservées aux profils vérifiés non particuliers.
@@ -295,3 +295,24 @@ Le partial offer_gallery.html et offer-gallery-slider.js utilisent scroll-snap,
 scrollTo, miniatures, compteur, clavier et observateurs de visibilité/taille.
 Les dimensions nulles sont ignorées pour éviter un compteur NaN à l'arrière-plan.
 Les animations ne modifient aucune donnée et ne chargent aucune dépendance.
+
+## Renditions des photos (2026-10-09)
+
+`tracker/image_processing.py:prepare_photo` produit une photo entière WebP
+(1600 px maximum, LANCZOS, qualité 85), orientée et sans métadonnées, ainsi qu'une
+miniature carrée 320 × 320. Les petites sources ne sont jamais agrandies ; les
+miniatures trop petites sont centrées sur un fond transparent. Seule la miniature
+est recadrée. La transparence est conservée et les formats/25 MP restent validés.
+
+Le formulaire prépare le fichier et transporte les octets de miniature jusqu'au
+save d'OfferMedia, afin d'éviter un second encodage de la photo principale.
+La migration 0022 ajoute optimized_file et thumbnail_file. Pour les nouvelles
+photos, file contient déjà la rendition WebP ; pour les anciennes, optimized_file
+sert la version optimisée et file reste intact. url privilégie optimized_file ;
+thumbnail_url choisit la miniature, sinon url. La galerie utilise ces deux URLs.
+L'action propriétaire de suppression des médias supprime aussi leurs renditions.
+
+`manage.py optimize_offer_images` compte par défaut les photos locales sans
+miniature ; `--apply` génère les versions, `--offer-id` limite la sélection.
+Une seconde exécution ignore les éléments déjà traités. La commande ne télécharge
+pas les images externes et rapporte séparément les sources absentes/invalides.

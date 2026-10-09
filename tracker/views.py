@@ -674,7 +674,7 @@ def public_offer(request, slug):
     media = list(offer.media.all())
     primary_media = next((item for item in media if item.is_primary), media[0] if media else None)
     gallery_images = [
-        {'url': item.url, 'alt': item.alt_text or offer.title}
+        {'url': item.url, 'thumbnail_url': item.thumbnail_url, 'alt': item.alt_text or offer.title}
         for item in sorted(media, key=lambda item: not item.is_primary)
         if item.url
     ]
@@ -868,8 +868,9 @@ def pro_offer_media_action(request, offer_id, media_id, action):
         media.save(update_fields=['is_primary'])
     elif action == 'delete':
         was_primary = media.is_primary
-        if media.file:
-            media.file.delete(save=False)
+        for image_file in (media.file, media.optimized_file, media.thumbnail_file):
+            if image_file:
+                image_file.delete(save=False)
         media.delete()
         if was_primary:
             replacement = offer.media.order_by('position', 'created_at', 'pk').first()

@@ -59,6 +59,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   tests médias/offres réussis, dont 3 régressions couverture/fallback/absence
   d'image ; contrôles navigateur réalisés sur l'offre Esika et cycle 5 s observé.
 
+- [x] Standardiser les photos : cadre carré, WebP 85 jusqu'à 1600 px, miniatures
+  320 × 320 et absence d'agrandissement. Migration 0022 et traitement des deux
+  photos existantes sans écrasement des sources. Validation : 31 tests ciblés,
+  328 tests SQLite réussis (1 ignoré), neuf nouveaux cas et contrôle navigateur.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

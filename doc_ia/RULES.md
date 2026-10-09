@@ -157,3 +157,13 @@ Les tests réussis ne prouvent pas la qualité des résultats sur le Web réel.
 - Une approbation transforme le profil existant sans perdre les annonces.
 - Vérifier propriétaire, CSRF, profil suspendu/révoqué, image trompeuse, limites
   et absence de création de profil sur GET avec `tracker.test_mobile_publish`.
+
+## Dimensions des photos
+
+- Préserver les proportions, orientation et transparence ; ne pas agrandir les
+  petites images. Recadrer seulement la miniature, jamais la photo entière.
+- Passer par image_processing.prepare_photo : 1600 px, WebP 85, miniature 320 px ;
+  ne pas réencoder une deuxième fois une photo déjà préparée dans le formulaire.
+- Optimiser les anciennes images via la commande dédiée, sans écraser leurs
+  fichiers sources ni télécharger de liens externes. Supprimer les variantes
+  avec le média dans l'action propriétaire et tester l'idempotence du traitement.

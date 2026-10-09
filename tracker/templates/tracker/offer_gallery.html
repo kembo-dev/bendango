@@ -19,7 +19,7 @@
   {% if gallery_images|length > 1 %}
   <div class="flex items-center justify-between gap-3 px-4 pt-4"><h2 class="text-sm font-semibold">Galerie · {{ gallery_images|length }} photos</h2><button type="button" data-gallery-play class="button button-outline-secondary button-sm min-h-11" aria-label="Démarrer le diaporama" hidden>▶ Diaporama</button></div>
   <nav class="offer-gallery-thumbnails" aria-label="Choisir une photo">
-    {% for image in gallery_images %}<a href="#offer-photo-{{ forloop.counter }}" data-gallery-thumb="{{ forloop.counter0 }}" aria-label="Voir la photo {{ forloop.counter }}" {% if forloop.first %}aria-current="true"{% endif %}><img src="{{ image.url }}" alt="" loading="lazy" draggable="false"></a>{% endfor %}
+    {% for image in gallery_images %}<a href="#offer-photo-{{ forloop.counter }}" data-gallery-thumb="{{ forloop.counter0 }}" aria-label="Voir la photo {{ forloop.counter }}" {% if forloop.first %}aria-current="true"{% endif %}><img src="{{ image.thumbnail_url|default:image.url }}" width="320" height="320" alt="" loading="lazy" draggable="false"></a>{% endfor %}
   </nav>
   <p class="sr-only" data-gallery-status aria-live="polite" aria-atomic="true"></p>
   {% endif %}
