@@ -143,7 +143,7 @@ Django couvrent leurs parcours mais ne remplacent pas ces contrôles navigateur.
 
 ## Améliorations ouvertes
 
-La validation d'images doit être renforcée. Les erreurs réseau et d'extraction
+Les uploads sont maintenant validés et réencodés. Les erreurs réseau et d'extraction
 doivent rester compréhensibles pour l'utilisateur. Toute modification des cartes,
 du classement, des badges ou du suivi doit être contrôlée sur desktop et mobile.
 
@@ -151,3 +151,25 @@ du classement, des badges ou du suivi doit être contrôlée sur desktop et mobi
 
 Documenter ici les changements visibles, états, textes structurants, composants,
 parcours et contraintes d'accessibilité ; référencer leurs validations dans MEMORY.md.
+
+## Publication depuis le téléphone
+
+Bouton « + Publier » public (connexion nécessaire), « Mes annonces » pour les
+comptes connectés et raccourci « Publication mobile » dans la navigation Pro.
+`quick_publish.html` garde un cadre compact et une action fixée en bas avec
+safe-area. Avec JavaScript, trois étapes : photos, détails, contact/publication.
+Sans JavaScript, tous les champs et le bouton d'envoi restent disponibles.
+
+Appareil photo natif via capture=environment, galerie multiple, miniatures,
+suppression et choix de couverture avant création. La disponibilité de la caméra
+reste celle du navigateur/téléphone. Aucun accès caméra n'est demandé au chargement.
+Aperçu titre/prix/ville/photo, thème clair/sombre, retour entre étapes et erreurs
+serveur sur la bonne étape. Les photos doivent être resélectionnées après une
+soumission invalide ; aucun brouillon ni photo n'est conservé dans localStorage.
+Le numéro WhatsApp est explicitement annoncé public. HEIC/RAW non pris en charge ;
+utiliser JPEG/PNG/WebP/GIF. En édition, les photos existantes sont conservées,
+les nouvelles ajoutées ; la couverture existante reste inchangée.
+
+« Mes annonces » propose Voir, Modifier et Masquer/Réactiver ; la visibilité
+réelle tient aussi compte de la page du vendeur. Les particuliers sont marqués
+non vérifiés. Le cadre administratif Pro et ses formulaires complets sont conservés.

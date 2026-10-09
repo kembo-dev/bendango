@@ -1,6 +1,8 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
+from .publishing import publish_offer, my_announcements, edit_announcement, toggle_announcement
+
 from .views import (
     pro_dashboard,
     pro_offer_boost_request,
@@ -25,6 +27,10 @@ from .views import (
 
 urlpatterns = [
     path('', scrape_view, name='scrape_view'),
+    path('publish/', publish_offer, name='publish_offer'),
+    path('account/announcements/', my_announcements, name='my_announcements'),
+    path('account/announcements/<int:offer_id>/edit/', edit_announcement, name='edit_announcement'),
+    path('account/announcements/<int:offer_id>/toggle/', toggle_announcement, name='toggle_announcement'),
     path('accounts/signup/', signup, name='signup'),
     path(
         'accounts/login/',

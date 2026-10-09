@@ -374,6 +374,7 @@ def _verified_business_profile(request):
     profile = BusinessProfile.objects.filter(
         user=request.user,
         is_verified=True,
+        is_individual=False,
     ).first()
     if profile is None:
         approved = BusinessAccountRequest.objects.filter(

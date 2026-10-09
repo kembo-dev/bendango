@@ -301,6 +301,7 @@ class BusinessProfile(models.Model):
         related_name='business_profile',
     )
     business_name = models.CharField(max_length=180)
+    is_individual = models.BooleanField(default=False)
     slug = models.SlugField(max_length=220, unique=True, blank=True)
     business_type = models.CharField(max_length=120, blank=True, default='')
     category = models.ForeignKey(
@@ -679,6 +680,12 @@ class BusinessAccountRequest(models.Model):
             },
         )
         changed = False
+        if profile.is_individual:
+            profile.is_individual = False
+            profile.business_name = self.business_name
+            profile.business_type = self.business_type
+            profile.verification_level = BusinessProfile.VERIFY_BUSINESS
+            changed = True
         source_fields = {
             'business_name': self.business_name,
             'business_type': self.business_type,

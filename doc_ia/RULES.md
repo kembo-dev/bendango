@@ -37,8 +37,9 @@ Dernière mise à jour : 2026-10-09.
   les documents, les captures ou les sorties de commande.
 - Objectif de correction : valider les destinations HTTP et les redirections,
   en rejetant les réseaux privés, locaux et réservés ; cette protection manque actuellement.
-- Objectif de correction : valider le contenu réel des images ; le nom et le
-  type MIME déclaré ne suffisent pas dans le code actuel.
+- Les uploads de formulaires sont décodés et réencodés via Pillow ; ne jamais
+  remplacer ce contrôle par le seul nom/type MIME. Respecter les limites de
+  taille, dimensions et nombre ; supprimer les métadonnées des fichiers livrés.
 - Garder distincts prix, devise, fiabilité, pertinence et statut de vérification.
 - Ne pas présenter une source sociale comme une offre vérifiée.
 - Ne pas déclencher de vrais appels LLM payants pour des tests unitaires ; réserver
@@ -148,3 +149,11 @@ Les tests réussis ne prouvent pas la qualité des résultats sur le Web réel.
   contrastes lisibles. Garder les badges sémantiques distincts en clair et sombre.
 - Le thème reste une préférence du navigateur, sans donnée personnelle ni écriture
   en base. Vérifier bascule clavier, navigation, rechargement et petits écrans.
+
+## Publication ouverte
+
+- Un particulier publie sans validation Pro et reste non vérifié ; ne pas lui
+  créer de marchand vérifié ni ouvrir les vues Pro/staff.
+- Une approbation transforme le profil existant sans perdre les annonces.
+- Vérifier propriétaire, CSRF, profil suspendu/révoqué, image trompeuse, limites
+  et absence de création de profil sur GET avec `tracker.test_mobile_publish`.

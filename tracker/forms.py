@@ -1,8 +1,13 @@
+from io import BytesIO
+import warnings
+
+from PIL import Image, ImageOps, UnidentifiedImageError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .markets import DEFAULT_MARKET_CODE, market_choices
+from .markets import DEFAULT_MARKET_CODE, GLOBAL_MARKET_CODE, market_choices
 from .models import BusinessCategory, BusinessProfile, Offer, OfferBoostRequest
 
 
@@ -16,6 +21,8 @@ class MultipleImageFileField(forms.FileField):
 
     def clean(self, data, initial=None):
         if not data:
+            if self.required:
+                raise forms.ValidationError("Ajoutez au moins une photo de votre annonce.")
             return []
         files = data if isinstance(data, (list, tuple)) else [data]
         if len(files) > 8:
@@ -29,7 +36,29 @@ class MultipleImageFileField(forms.FileField):
             name = (uploaded.name or '').lower()
             if not content_type.startswith('image/') and not any(name.endswith(ext) for ext in allowed_extensions):
                 raise forms.ValidationError("Seuls les fichiers image sont acceptés.")
-            cleaned.append(uploaded)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('error', Image.DecompressionBombWarning)
+                    uploaded.seek(0)
+                    with Image.open(uploaded) as image:
+                        if image.format not in {'JPEG', 'PNG', 'WEBP', 'GIF'}:
+                            raise ValueError('unsupported image')
+                        if image.width * image.height > 25_000_000:
+                            raise ValueError('image dimensions')
+                        image.load()
+                        image = ImageOps.exif_transpose(image)
+                        image.thumbnail((2400, 2400))
+                        canvas = Image.new('RGB', image.size, 'white')
+                        if image.mode in ('RGBA', 'LA') or 'transparency' in image.info:
+                            rgba = image.convert('RGBA')
+                            canvas.paste(rgba, mask=rgba.getchannel('A'))
+                        else:
+                            canvas.paste(image.convert('RGB'))
+                        output = BytesIO()
+                        canvas.save(output, format='JPEG', quality=88)
+                cleaned.append(SimpleUploadedFile(uploaded.name.rsplit('.', 1)[0] + '.jpg', output.getvalue(), content_type='image/jpeg'))
+            except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+                raise forms.ValidationError("Photo invalide : utilisez JPEG, PNG, WebP ou GIF, avec au maximum 25 mégapixels.")
         return cleaned
 
 class SearchOrScrapeForm(forms.Form):
@@ -401,3 +430,29 @@ class OfferEditForm(QuickOfferForm):
         choices=Offer.CONTACT_CHOICES,
         widget=forms.Select(attrs={'class': 'field-input'}),
     )
+
+
+class MobilePublishForm(QuickOfferForm):
+    city = forms.CharField(label='Ville', max_length=120, required=True,
+        widget=forms.TextInput(attrs={'class': 'field-input', 'placeholder': 'Ex : Kinshasa', 'autocomplete': 'address-level2'}))
+    market_code = forms.ChoiceField(label='Pays', choices=[choice for choice in market_choices() if choice[0] != GLOBAL_MARKET_CODE], initial=DEFAULT_MARKET_CODE,
+        widget=forms.Select(attrs={'class': 'field-input'}))
+
+    def __init__(self, *args, **kwargs):
+        editing = kwargs.pop('editing', False)
+        super().__init__(*args, **kwargs)
+        for name in ('primary_image_url', 'external_url', 'price_unit', 'availability'):
+            self.fields.pop(name)
+        self.fields['photos'].required = not editing
+        self.fields['photos'].widget.attrs['accept'] = 'image/jpeg,image/png,image/webp,image/gif'
+        self.fields['photos'].help_text = '8 photos maximum · 8 Mo par photo · JPEG, PNG, WebP ou GIF.'
+        self.fields['whatsapp'].required = True
+        self.fields['whatsapp'].widget.attrs.update({'type': 'tel', 'inputmode': 'tel', 'autocomplete': 'tel'})
+        self.fields['price'].widget.attrs['inputmode'] = 'decimal'
+
+    def clean_whatsapp(self):
+        import re
+        value = self.cleaned_data['whatsapp'].strip()
+        if not re.fullmatch(r'\+?[0-9 ()-]{7,40}', value) or not 7 <= len(re.sub(r'\D', '', value)) <= 15:
+            raise forms.ValidationError('Indiquez un numéro WhatsApp valide avec son indicatif pays.')
+        return value

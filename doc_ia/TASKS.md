@@ -48,6 +48,12 @@ pas une autorisation générale de modification, publication ou appel à un serv
   302 tests SQLite réussis (1 ignoré), build/collectstatic et contrôles visuels
   desktop/mobile clair/sombre sur données fictives.
 
+- [x] Ouvrir la publication mobile à tous les comptes connectés : parcours en
+  trois étapes, photos/caméra/aperçu et gestion individuelle des annonces.
+  Validation : 14 nouveaux tests, suite complète 316 tests SQLite réussie
+  (1 intégration ignorée), publication/édition testées sur base fictive séparée.
+  Migration 0021 appliquée à PostgreSQL local ; aucun droit Pro/staff accordé.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.
@@ -63,9 +69,9 @@ pas une autorisation générale de modification, publication ou appel à un serv
 - [ ] Protéger les accès HTTP sortants contre les destinations internes.
   Validation : tests des réseaux privés/locaux/réservés, résolution et redirections ;
   les pages marchandes publiques restent accessibles.
-- [ ] Valider et réencoder les images avant stockage.
-  Validation : fichier texte renommé `.jpg` rejeté, contenu trompeur rejeté,
-  véritables images acceptées avec limites de taille et dimensions.
+- [x] Valider et réencoder les uploads de formulaires avant stockage.
+  Validation : texte renommé .jpg rejeté, véritables images réencodées sans EXIF,
+  limites serveur 8 fichiers/8 Mo/25 MP. Pillow déclaré et installé.
 - [ ] Rendre l'installation reproductible.
   Validation : dépendances obligatoires (`ddgs`, `pydantic`) déclarées ;
   installation et démarrage réussis dans un environnement vide.

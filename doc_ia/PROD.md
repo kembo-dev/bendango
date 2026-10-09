@@ -15,6 +15,9 @@ Une source de découverte n'est pas une offre marchande vérifiée.
   disponibles et leurs devises sont définis dans `tracker/markets.py`.
 - Une recherche anonyme par session ; inscription et connexion pour poursuivre.
 - Historique des recherches pour les utilisateurs connectés.
+- Publication mobile ouverte à tous les comptes connectés : `/publish/`, photos,
+  titre/prix, ville/pays et WhatsApp public. Les particuliers publient sans
+  approbation Pro ; leur profil reste non vérifié. Gestion dans « Mes annonces ».
 - Thèmes clair et sombre, préférence locale mémorisée par le navigateur.
 - Administration client Pro après approbation : tableau de bord, navigation de
   gestion, offres, catalogue, photos, boosts et édition du profil entreprise.
@@ -82,7 +85,7 @@ la disponibilité puis le montant. Il est distinct du classement marchand collec
 ## Conditions avant publication
 
 Priorités et critères détaillés dans TASKS.md : contrôle des URL sortantes,
-validation réelle des images, installation reproductible, configuration des
+installation reproductible, configuration des
 services, emails et infrastructure adaptée aux workers.
 
 Le dernier contrôle simulant `DEBUG=False` et une clé valide signalait

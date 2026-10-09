@@ -255,3 +255,36 @@ Pour chaque lot, ajouter une entrée datée avec : demande et périmètre ; comp
 modifié ; décisions et raisons ; fichiers concernés ; vérifications et résultats ;
 limites et tâches restantes ; liste des documents mis à jour ou restés cohérents.
 Ne pas recopier des logs complets ni annoncer un test non exécuté.
+
+## 2026-10-09 — publication rapide ouverte à tous
+
+- Demande : publier rapidement depuis le téléphone comme Vinted ; clarification
+  reçue : tous les utilisateurs connectés. Trois étapes, caméra native/galerie,
+  jusqu'à huit photos, sélection de couverture, aperçu et action basse fixe.
+- Nouveau module publishing, formulaire mobile, routes publier/mes annonces/
+  éditer/toggle ; isolation propriétaire, CSRF et aucun changement des droits Pro.
+  Profil particulier créé seulement au premier POST valide ; pseudonyme public,
+  statut non vérifié, aucune passerelle Retailer. Suspensions et révocations
+  ne sont pas contournées. Approbation Pro convertit le profil sans perdre l'offre.
+- Migration 0021 is_individual, défaut false pour l'existant ; filtre admin ajouté.
+  Numéro WhatsApp requis et annoncé public ; photos obligatoires à la création,
+  prix facultatif ; aucune saisie, photo ou donnée de contact persistée côté client.
+- Pillow 12.3.0 installé et déclaré >=12,<13. Les uploads des deux parcours
+  sont décodés, orientés, réduits à 2400 px et réencodés JPEG sans EXIF ; limites
+  8 Mo/25 MP. HEIC/RAW non supportés, GIF figé. Fixtures médias remplacées par
+  de vraies images ; titre/slug/permissions et formulaires complets Pro conservés.
+- Validation : 316 tests SQLite réussis (1 intégration ignorée), dont 14
+  nouveaux cas ; 40 tests ciblés intermédiaires et 31 tests comptes/publication
+  après correction du type entreprise lors de l’approbation réussis ; check, pip check, migrations et build/collectstatic réussis.
+  Migration PostgreSQL locale appliquée. Aucun appel LLM ni donnée de démo en
+  base applicative. Tests initiaux corrigés : manifest assets à collecter avant
+  tests et assertion de JS tenant compte du nom hashé.
+- Navigateur sur serveur isolé SQLite 8002 : deux photos ajoutées, couverture
+  changée, trois étapes parcourues, publication confirmée dans Mes annonces,
+  édition ouverte. Aperçu clair et sombre contrôlé. La capacité viewport n'a
+  pas appliqué la largeur 390 demandée (largeur effective 1265 px) : inspection
+  visuelle sur téléphone réel et accès matériel à la caméra restent à valider.
+  Capture de démonstration hors dépôt. Serveur de test arrêté après vérification.
+- Les six documents doc_ia sont réconciliés et actualisés ; serveur applicatif
+  rechargé après migration et assets. Publication sur clean/bendango-v2 selon
+  l'autorisation permanente, résultat vérifiable dans Git.

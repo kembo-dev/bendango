@@ -14,7 +14,11 @@
                 <div class="grow">
                     <div class="flex gap-2 items-center flex-wrap mb-2">
                         <h1 class="text-3xl mb-0">{{ profile.business_name }}</h1>
-                        {% if profile.verification_level == 'partner' %}
+                        {% if profile.is_individual %}
+                            <span class="tag tag-secondary">Particulier · Non vérifié</span>
+                        {% elif not profile.is_verified %}
+                            <span class="tag tag-secondary">Non vérifié</span>
+                        {% elif profile.verification_level == 'partner' %}
                             <span class="tag tag-primary">Partenaire Bendango</span>
                         {% elif profile.verification_level == 'business' %}
                             <span class="tag tag-success">Business vérifié</span>

@@ -1,3 +1,6 @@
+from io import BytesIO
+from PIL import Image
+
 import shutil
 import tempfile
 
@@ -36,8 +39,10 @@ class OfferMediaTests(TestCase):
         self.settings_override.disable()
         shutil.rmtree(self.media_root, ignore_errors=True)
 
-    def _image(self, name, payload=b'fake-image-bytes'):
-        return SimpleUploadedFile(name, payload, content_type='image/jpeg')
+    def _image(self, name):
+        output = BytesIO()
+        Image.new('RGB', (30, 20), 'green').save(output, format='JPEG')
+        return SimpleUploadedFile(name, output.getvalue(), content_type='image/jpeg')
 
     def _payload(self, **overrides):
         data = {

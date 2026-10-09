@@ -267,3 +267,22 @@ La classe `dark` sur `<html>` active la variante Tailwind personnalisée ;
 uniquement `light` ou `dark`. Sans choix enregistré, `prefers-color-scheme` est suivi,
 y compris ses changements. Les modifications de stockage se synchronisent entre
 onglets. Si le stockage est indisponible, la bascule fonctionne pour la page courante.
+
+## Publication des particuliers et téléphone (2026-10-09)
+
+`tracker/publishing.py` gère `/publish/` et `/account/announcements/` (liste,
+édition, masquer/réactiver en POST). Les opérations filtrent `business__user`.
+`MobilePublishForm` demande une photo à la création, ville, pays et WhatsApp ;
+prix facultatif. La migration 0021 ajoute `BusinessProfile.is_individual`, false
+pour les profils existants. Au premier POST valide seulement, un particulier
+reçoit un profil public avec son pseudonyme, is_verified=false et niveau unverified.
+Aucune approbation, permission staff, Retailer vérifié ou passerelle catalogue
+n'est créée pour lui. Profils suspendus et entreprises révoquées sont refusés.
+L'approbation Pro convertit le même profil et conserve ses annonces.
+
+`MultipleImageFileField` utilise Pillow : contenu JPEG/PNG/WebP/GIF décodé,
+8 fichiers/envoi, 8 Mo/fichier, 25 mégapixels ; orientation EXIF corrigée,
+réduction à 2400 px, JPEG réencodé sans métadonnées. GIF devient une image fixe.
+Le parcours mobile limite aussi le total à 8 lors de l'ajout en édition.
+Les vues publiques et la recherche existantes acceptent ces profils non vérifiés.
+Les vues Pro restent réservées aux profils vérifiés non particuliers.

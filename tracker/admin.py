@@ -161,7 +161,7 @@ class OfferAdmin(admin.ModelAdmin):
 
 @admin.register(BusinessProfile)
 class BusinessProfileAdmin(admin.ModelAdmin):
-    list_display = ('business_name', 'category', 'user', 'market_code', 'city', 'verification_level', 'is_public', 'is_active', 'updated_at')
-    list_filter = ('verification_level', 'is_public', 'is_active', 'market_code', 'country', 'category')
+    list_display = ('business_name', 'is_individual', 'category', 'user', 'market_code', 'city', 'verification_level', 'is_public', 'is_active', 'updated_at')
+    list_filter = ('is_individual', 'verification_level', 'is_public', 'is_active', 'market_code', 'country', 'category')
     search_fields = ('business_name', 'user__username', 'user__email', 'website', 'phone', 'country')
     readonly_fields = ('approved_request', 'retailer', 'created_at', 'updated_at')
