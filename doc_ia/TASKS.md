@@ -30,6 +30,13 @@ pas une autorisation générale de modification, publication ou appel à un serv
 - [x] Enregistrer la consigne de commit et push après chaque lot validé dans
   AGENTS.md et RULES.md (2026-10-09).
 
+- [x] Ajouter `config/llm.toml`, une surcharge locale privée, cinq profils et une
+  commande de sélection/validation sans appel réseau. Adaptateurs Ollama,
+  Chat Completions et Bedrock ; références de profil conservées dans les files.
+  Validation : suite complète 271 tests (1 ignoré), puis tests ciblés complémentaires.
+- [x] Déclarer `ddgs` et `pydantic` dans `requirements.txt` ; `pip check` réussi.
+  L'installation dans un environnement vide reste à vérifier.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

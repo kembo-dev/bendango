@@ -18,7 +18,7 @@ from tracker.search_diagnostics import SearchDiagnosticsRecorder
 from tracker.search_result_intelligence import collect_search_candidates, rank_search_candidates
 from tracker.services import (
     _collect_search_urls, _deduplicate_results, _get_sort_rank, _known_merchant_domains,
-    cleanup_stale_listings, ensure_retailer_for_site, get_llm_config, normalize_site_filter, process_url_and_save,
+    cleanup_stale_listings, ensure_retailer_for_site, get_llm_config, get_llm_model_reference, normalize_site_filter, process_url_and_save,
 )
 from tracker.store_discovery import discover_product_urls
 
@@ -155,7 +155,7 @@ def _process_urls(urls, processed_urls, results, errors, diagnostics, selected, 
 
 
 def search_and_scrape_product(product_query, site_filter='all', model_name=None, max_results=3, search_run=None, market_code=None):
-    cleanup_stale_listings(days=getattr(settings, 'LISTING_STALE_DAYS', 30)); selected = (model_name or get_llm_config()['default_model']).strip(); results, errors, search_errors, urls = [], [], [], []; processed_urls = set(); site_filter = (site_filter or 'all').strip() or 'all'
+    cleanup_stale_listings(days=getattr(settings, 'LISTING_STALE_DAYS', 30)); selected = (model_name or get_llm_model_reference()).strip(); results, errors, search_errors, urls = [], [], [], []; processed_urls = set(); site_filter = (site_filter or 'all').strip() or 'all'
     market_code = normalize_market_code(market_code or (getattr(search_run, 'market_code', None) if search_run else None) or DEFAULT_MARKET_CODE); market = get_market(market_code); country = market.country; site_filters = [] if site_filter == 'all' else [part.strip() for part in site_filter.split(',') if part.strip()]
     for site in site_filters: ensure_retailer_for_site(site)
     cache_hosts = [normalize_site_filter(site)[0] for site in site_filters]; cached = find_fresh_cached_listings(product_query, site_hosts=cache_hosts, market_code=market.code); target_merchants = 1 if site_filters else max(2, int(getattr(settings, 'MARKET_COVERAGE_TARGET', max_results))); diagnostics = SearchDiagnosticsRecorder(product_query, site_filter, target_merchants)

@@ -44,6 +44,19 @@ Dernière mise à jour : 2026-10-09.
 - Ne pas déclencher de vrais appels LLM payants pour des tests unitaires ; réserver
   les tests d'intégration explicitement autorisés à une validation séparée.
 
+## Configuration LLM
+
+- Conserver les secrets dans `.env` ou l'environnement ; seuls leurs noms `*_env`
+  vont dans TOML. Le fichier `config/llm.local.toml` est ignoré par Git ; pour un
+  chemin `LLM_CONFIG_FILE` personnalisé, ignorer aussi sa surcharge privée.
+- Préserver les références `profil::modèle` des travaux en file. Ne pas supprimer
+  ou changer le fournisseur d'un profil tant que ces travaux en dépendent.
+- Toute évolution du chargeur ou des adaptateurs doit vérifier le rechargement,
+  la priorité des réglages, la sélection des tâches, la validation et la non
+  divulgation de clés. Utiliser des réponses HTTP/SDK simulées.
+- Ne pas déclencher de repli implicite vers une API payante. Contrôler la présence
+  de la clé avec `manage.py llm_config --check` avant une bascule.
+
 ## Invariants métier à préserver
 
 - Une recherche en échec doit rester un échec dans le contrat API et l'interface,
@@ -70,6 +83,7 @@ Dernière mise à jour : 2026-10-09.
 | Offres, médias et boosts | `tracker.test_offers`, `tracker.test_offer_media`, `tracker.test_offer_boosts` |
 | Accueil et confidentialité | `tracker.test_home_discovery`, `tracker.test_recent_search_history` |
 | Recherche unifiée et filtres | `tracker.test_unified_search`, `tracker.test_markets` |
+| Profils et adaptateurs LLM | `tracker.test_llm_config` |
 | File et finalisation | `tracker.test_job_queue`, `tracker.test_search_run_finalization`, `tracker.test_job_queue_priority` |
 | Extraction et devises | `tracker.test_local_first_extraction`, `tracker.test_currency_safety`, `tracker.test_reliable_collection` |
 

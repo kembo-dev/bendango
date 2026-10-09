@@ -132,9 +132,40 @@ avec confiance d'au moins 0,70. Quand un marché est demandé, il vérifie une c
 validée sur ce marché ou l'appartenance à un business vérifié compatible.
 Le cache HTML a une durée par défaut de 300 s. Les deux caches ont des fonctions distinctes.
 
+## Configuration LLM dynamique
+
+`config/llm.py` relit `config/llm.toml` et sa surcharge privée `config/llm.local.toml`
+à chaque appel. `LLM_CONFIG_FILE` peut déplacer le fichier principal. Priorité de
+sélection : référence explicite `profil::modèle`, profil demandé par la commande,
+`LLM_PROFILE`, puis `active_profile` du fichier local ou partagé. Les champs locaux
+remplacent ceux du profil partagé ; les références `*_env` prennent leur valeur
+dans l'environnement, puis la valeur du fichier si la variable est vide.
+
+Profils fournis : `local` (Ollama `/api/chat`), `studio` (serveur local compatible
+OpenAI), `api` (Chat Completions avec clé), `aws` (Bedrock Converse), `legacy`
+(variables historiques). Le profil actif livré reste `legacy`. Aucun basculement
+automatique vers un autre fournisseur en cas d'échec. Les clés ne sont jamais
+stockées dans les fichiers TOML ; `api_key_env` désigne leur variable.
+
+Les nouvelles SearchRun et ScrapeJob conservent `profil::modèle` dans `model_name`
+(champ existant, aucune migration). Changer le profil actif ne déplace pas ces
+travaux vers un autre fournisseur. Modifier le contenu d'un profil affecte ses
+appels suivants : ce n'est pas une copie immuable des réglages. Les anciennes
+références sans préfixe suivent le profil actif ; vider les anciennes files avant
+une bascule. La commande `scrape_url` utilise aussi cet adaptateur commun.
+
+Les requêtes ont des limites de contexte, sortie et timeout ; les réponses sont
+validées par Pydantic. Les API HTTP refusent les redirections et imposent HTTPS,
+sauf sur localhost. Les échecs journalisent seulement la classe d'erreur. Ajuster
+les timeouts aux budgets des workers ; le budget de découverte reste de 60 s.
+Le fichier est relu sans redémarrage ; modifier `.env` exige de redémarrer le web
+et les workers. `llm_config --check` valide localement, sans vérifier la disponibilité
+réseau, le modèle installé ni les droits du fournisseur.
+
 ## Configuration et exploitation
 
-- Chargement `.env` via `python-dotenv` ; `LLM_MODEL` obligatoire au chargement Django.
+- Chargement `.env` via `python-dotenv` ; `LLM_MODEL` requis seulement pour le profil
+  `legacy`, au moment de résoudre la configuration LLM.
 - `DB_ENGINE` : SQLite par défaut ou PostgreSQL ; `REDIS_URL` active le cache partagé.
 - HTTPS, cookies sécurisés et HSTS sont activés par la configuration hors DEBUG.
 - Plusieurs réglages métier sont lus via `getattr(settings, ...)` et ne sont pas

@@ -46,3 +46,6 @@ Thumbs.db
 /staticfiles/
 node_modules/
 
+
+# Private LLM profile overrides
+/config/llm.local.toml

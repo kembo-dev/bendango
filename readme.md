@@ -731,3 +731,71 @@ pnpm run build:css
 `pnpm run watch:css` surveille les changements pendant le développement.
 Modifier `assets/css/app.css` et les templates, puis livrer la feuille générée.
 Exécuter `collectstatic` avant les tests utilisant le stockage à manifeste Django.
+
+
+## Choisir le LLM : local, API ou AWS
+
+La configuration partagée est `config/llm.toml`. Le profil actif livré, `legacy`,
+conserve `LLM_PROVIDER` et `LLM_MODEL` de votre installation. Les profils disponibles :
+
+| Profil | Usage |
+| --- | --- |
+| `local` | Ollama local, modèle `gemma3:4b` à installer dans Ollama |
+| `studio` | Serveur local compatible OpenAI, par exemple LM Studio |
+| `api` | API compatible Chat Completions, avec clé |
+| `aws` | Bedrock Converse et authentification AWS |
+| `legacy` | Variables historiques de l'installation |
+
+```bash
+.venv/bin/python manage.py llm_config --list
+.venv/bin/python manage.py llm_config --profile local --check
+.venv/bin/python manage.py llm_config --use local
+```
+
+`--use` écrit la préférence dans `config/llm.local.toml`, ignoré par Git. Vous pouvez
+éditer ce fichier pour personnaliser vos modèles sans modifier la configuration commune :
+
+```toml
+active_profile = "local"
+
+[profiles.local]
+model = "gemma3:4b"
+
+[profiles.studio]
+model = "nom-du-modele-charge-dans-votre-serveur"
+```
+
+Pour une API, renseigner dans `.env` les variables suivantes avec les valeurs de
+votre fournisseur ; la clé reste privée :
+
+```dotenv
+LLM_API_KEY=votre-cle-privee
+LLM_API_MODEL=nom-du-modele-compatible
+LLM_API_BASE_URL=https://api.openai.com/v1
+```
+
+Redémarrer web et workers après modification de `.env`, puis :
+
+```bash
+.venv/bin/python manage.py llm_config --profile api --check
+.venv/bin/python manage.py llm_config --use api
+```
+
+Le TOML est relu à chaque appel : modèle, URL, température, limite de sortie et
+contexte peuvent être modifiés sans redémarrer. `LLM_PROFILE` impose un profil
+par environnement et prend priorité sur la sélection du fichier. Les nouvelles
+recherches gardent leur référence `profil::modèle` ; vider les anciennes files
+sans préfixe avant une bascule. Un profil utilisé par des travaux en cours doit
+rester disponible. Il n'y a pas de repli automatique vers le cloud.
+
+`--check` ne fait aucun appel réseau : il valide la configuration et la présence
+de la clé requise, sans tester les droits API ni la disponibilité du modèle.
+Les profils `api` et `studio` contiennent des noms de modèles d'exemple à remplacer.
+Le serveur local doit être déjà lancé. La compatibilité API exige les paramètres
+Chat Completions employés (notamment `temperature` et `max_tokens`) ; choisir
+`json_mode = "none"` si le serveur ne prend pas en charge `response_format`.
+Les API distantes utilisent HTTPS ; HTTP est accepté sur localhost uniquement.
+
+Références : [Ollama Chat](https://docs.ollama.com/api/chat),
+[OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat),
+[Bedrock Converse](https://docs.aws.amazon.com/boto3/latest/reference/services/bedrock-runtime/client/converse.html).

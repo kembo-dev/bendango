@@ -1,38 +1,16 @@
 from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
-import ollama
-from pydantic import BaseModel, Field
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from tracker.models import Product, Retailer, PriceListing
-from tracker.services import get_llm_config
-
-
-# 1. Définition du schéma de sortie Pydantic (inchangé)
-class ExtractedProductData(BaseModel):
-    product_name: str = Field(
-        description="Nom complet du produit tel qu'affiché sur la page"
-    )
-    price: float = Field(
-        description="Prix actuel du produit sous forme de nombre flottant sans le symbole monétaire"
-    )
-    currency: str = Field(
-        description="Code ISO de la devise (ex: EUR, USD, CDF)"
-    )
-    in_stock: bool = Field(
-        description="True si le produit est disponible en stock, False sinon"
-    )
-    sku_or_ean: str | None = Field(
-        default=None,
-        description="Code SKU, EAN, UPC ou référence unique du produit si disponible",
-    )
+from tracker.services import ExtractedProductData, get_llm_model_reference, _extract_llm_only
 
 
 class Command(BaseCommand):
-    help = "Scrape une URL produit, extrait les données avec Ollama en local et enregistre en BDD."
+    help = "Scrape une URL produit avec le profil LLM configuré et enregistre en BDD."
 
     def add_arguments(self, parser):
         parser.add_argument("url", type=str, help="L'URL de la page produit à scraper")
@@ -45,8 +23,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         url = options["url"]
-        default_model = get_llm_config().get("default_model")
-        model_name = options["model"] or default_model
+        model_name = options["model"] or get_llm_model_reference()
 
         self.stdout.write(self.style.NOTICE(f"Début du traitement pour : {url}"))
 
@@ -55,12 +32,12 @@ class Command(BaseCommand):
         if not html_content:
             raise CommandError("Impossible de récupérer ou nettoyer le contenu HTML.")
 
-        # --- ÉTAPE 2 : Extraction structurée avec Ollama ---
-        self.stdout.write(f"Extraction des données avec Ollama ({model_name})...")
-        extracted_data = self.extract_with_ollama(html_content, model_name)
+        # --- ÉTAPE 2 : Extraction structurée avec le profil LLM ---
+        self.stdout.write(f"Extraction des données avec le profil LLM ({model_name})...")
+        extracted_data = _extract_llm_only(html_content, model_name)
 
         if not extracted_data:
-            raise CommandError("Échec de l'extraction des données via Ollama.")
+            raise CommandError("Échec de l'extraction avec le profil LLM.")
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -100,31 +77,6 @@ class Command(BaseCommand):
         # Pour les modèles locaux, réduire la taille du contexte aide à la vitesse d'exécution
         return cleaned_html[:80000]
 
-    def extract_with_ollama(self, html_snippet: str, model_name: str) -> ExtractedProductData | None:
-        prompt = (
-            "Analyse ce fragment HTML d'une page e-commerce. "
-            "Extrais le nom du produit principal, son prix actuel, la devise, son état de stock "
-            "et la référence/EAN/SKU si disponible."
-        )
-
-        try:
-            response = ollama.chat(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": "Tu es un extracteur de données e-commerce précis."},
-                    {"role": "user", "content": f"{prompt}\n\nHTML:\n{html_snippet}"},
-                ],
-                # Passer directement la classe Pydantic
-                format=ExtractedProductData.model_json_schema(), 
-                options={"temperature": 0.1},
-            )
-
-            raw_json = response["message"]["content"]
-            return ExtractedProductData.model_validate_json(raw_json)
-
-        except Exception as e:
-            self.stderr.write(self.style.ERROR(f"Erreur avec Ollama : {e}"))
-            return None
     def save_to_database(self, url: str, data: ExtractedProductData):
         """Enregistre ou met à jour le commerçant, le produit et le relevé de prix."""
         parsed_url = urlparse(url)

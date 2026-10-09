@@ -45,10 +45,11 @@ def _split_csv(value: str | None) -> list[str]:
 
 LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'bedrock').strip()
 LLM_DEFAULT_MODEL = (os.environ.get('LLM_MODEL') or '').strip()
-if not LLM_DEFAULT_MODEL: raise ImproperlyConfigured('LLM_MODEL must be set in .env.')
 LLM_MODELS = _split_csv(os.environ.get('LLM_MODELS'))
 if LLM_DEFAULT_MODEL not in LLM_MODELS: LLM_MODELS.insert(0, LLM_DEFAULT_MODEL)
-LLM_CONFIG = {'provider': LLM_PROVIDER,'default_model': LLM_DEFAULT_MODEL,'models': LLM_MODELS,'region': os.environ.get('AWS_REGION') or os.environ.get('AWS_DEFAULT_REGION') or 'us-east-1','access_key_id': os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('BEDROCK_ACCESS_KEY_ID') or '','secret_access_key': os.environ.get('AWS_SECRET_ACCESS_KEY') or os.environ.get('BEDROCK_SECRET_ACCESS_KEY') or '','session_token': os.environ.get('AWS_SESSION_TOKEN') or os.environ.get('BEDROCK_SESSION_TOKEN') or '','bearer_token': os.environ.get('AWS_BEARER_TOKEN_BEDROCK') or '','base_url': os.environ.get('OPENAI_BASE_URL') or ''}
+# Profile files are read by the runtime resolver; keep overrides available for tests.
+LLM_CONFIG_FILE = Path(os.environ.get('LLM_CONFIG_FILE', BASE_DIR / 'config' / 'llm.toml'))
+LLM_CONFIG = {}
 TESTING = 'test' in sys.argv
 RUN_BEDROCK_INTEGRATION_TESTS = get_env_bool('RUN_BEDROCK_INTEGRATION_TESTS', default=False)
 if TESTING and not RUN_BEDROCK_INTEGRATION_TESTS:

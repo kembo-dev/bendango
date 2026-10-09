@@ -67,7 +67,10 @@ la disponibilité puis le montant. Il est distinct du classement marchand collec
 - Celery 5.6.3 installé et déclaré ; aucune intégration applicative Celery.
 - Serveur local lancé précédemment sur `http://127.0.0.1:8000/` avec deux workers
   maison. Vérifier les processus avant de supposer qu'ils tournent encore.
-- Aucun appel Bedrock réel validé dans cette session.
+- Extraction LLM configurable par profils : Ollama local, serveur compatible OpenAI
+  avec ou sans clé, Bedrock. Sélection dynamique via TOML et commande `llm_config`.
+  Le profil `legacy` conserve le fournisseur existant ; les profils d'exemple API
+  et Studio demandent un vrai nom de modèle. Aucun appel réel à un LLM validé ici.
 
 ## Conditions avant publication
 

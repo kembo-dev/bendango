@@ -1,0 +1,40 @@
+# Configuration partagée, sans secret. Les valeurs locales vont dans llm.local.toml.
+# legacy conserve LLM_PROVIDER / LLM_MODEL de l'environnement existant.
+active_profile = "legacy"
+
+[defaults]
+timeout = 20.0
+temperature = 0.1
+max_tokens = 1024
+max_input_chars = 24000
+
+[profiles.local]
+provider = "ollama"
+model = "gemma3:4b"
+base_url = "http://127.0.0.1:11434"
+
+# API Chat Completions compatible OpenAI : renseigner le modèle et la clé dans .env.
+[profiles.api]
+provider = "openai-compatible"
+model = "votre-modele-api"
+model_env = "LLM_API_MODEL"
+base_url = "https://api.openai.com/v1"
+base_url_env = "LLM_API_BASE_URL"
+api_key_env = "LLM_API_KEY"
+json_mode = "object"
+
+# Serveur local compatible OpenAI, par exemple LM Studio (pas de clé obligatoire).
+[profiles.studio]
+provider = "openai-compatible"
+model = "votre-modele-local"
+model_env = "LLM_STUDIO_MODEL"
+base_url = "http://127.0.0.1:1234/v1"
+require_api_key = false
+json_mode = "none"
+
+[profiles.aws]
+provider = "bedrock"
+model = "google.gemma-3-12b-it"
+model_env = "LLM_MODEL"
+region = "us-east-1"
+region_env = "AWS_REGION"

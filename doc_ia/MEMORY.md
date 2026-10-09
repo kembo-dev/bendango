@@ -168,6 +168,34 @@ Ne jamais conserver de secrets ou de données personnelles dans ce journal.
   PROD, ARCHITECTURE et DESIGN restent cohérents. Le résultat de publication est
   vérifiable dans l'historique Git et la branche distante.
 
+## 2026-10-09 — profils LLM dynamiques
+
+- Demande : fichier de configuration dynamique, modèle local ou API avec clé.
+- Ajout de `config/llm.toml` et de son chargeur sans cache ; surcharge privée
+  `llm.local.toml` ignorée par Git, sélection via CLI ou `LLM_PROFILE`.
+- Profils Ollama local, Studio compatible OpenAI, API avec clé, Bedrock et legacy.
+  La sélection livrée reste legacy pour conserver l'installation existante.
+  Les clés sont référencées par variables d'environnement, jamais écrites dans TOML.
+- Adaptateurs HTTP/Bedrock communs à la recherche et à `scrape_url` : validation
+  JSON/Pydantic, limites configurables, logs sans contenu de réponse ni clé,
+  aucun repli automatique vers une autre API. Les nouvelles tâches mémorisent
+  `profil::modèle` ; les anciennes tâches sans préfixe suivent la sélection active.
+- Ajout des dépendances déjà requises `ddgs` et `pydantic` ; versions installées
+  compatibles et `pip check` réussi. Installation vierge non validée.
+- Validation : suite SQLite de 271 tests réussie (1 intégration ignorée), puis
+  20 tests ciblés réussis après ajout du cas de référence malformée et correction
+  des préférences TOML indentées. Aucun appel réel aux fournisseurs.
+- PostgreSQL connecté ; `makemigrations --check --dry-run` sans changement.
+  `llm_config --check` legacy valide sans réseau. Serveur web et worker de collecte
+  existants relancés ; accueil HTTP 200. Worker de découverte absent, non lancé
+  dans cette validation ; deux recherches anciennes en attente observées.
+- Six documents réexaminés : PROD, ARCHITECTURE, RULES, TASKS, MEMORY et readme
+  actualisés. DESIGN reste cohérent : aucune modification d'interface et modèle
+  toujours masqué sur le détail des recherches.
+- Livraison sur `clean/bendango-v2` suivant l'autorisation permanente de push ;
+  consulter l'historique Git pour le résultat. Tests PostgreSQL et qualité réelle
+  de chaque fournisseur restent hors de cette validation.
+
 ## Modèle des futures entrées
 
 Pour chaque lot, ajouter une entrée datée avec : demande et périmètre ; comportement
