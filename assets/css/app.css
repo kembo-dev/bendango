@@ -139,3 +139,16 @@
   .publish-actionbar { @apply fixed bottom-0 inset-x-0 z-20 border-t border-slate-200 bg-white px-4 pt-3 pb-4 sm:px-6 dark:border-slate-800 dark:bg-slate-900; padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
   #quick-publish [hidden] { display: none !important; }
 }
+
+@layer components {
+  .offer-gallery-track { @apply flex overflow-x-auto bg-slate-100 dark:bg-slate-950; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .offer-gallery-track::-webkit-scrollbar { display: none; }
+  .offer-gallery-slide { @apply m-0 w-full shrink-0; scroll-snap-align: start; }
+  .offer-gallery-slide img { @apply block h-[300px] w-full object-contain sm:h-[440px]; }
+  .offer-gallery-arrow { @apply absolute top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-3xl text-slate-900 shadow-md hover:bg-white dark:bg-slate-800/90 dark:text-white dark:hover:bg-slate-700; }
+  .offer-gallery-thumbnails { @apply flex gap-3 overflow-x-auto px-4 py-4; }
+  .offer-gallery-thumbnails a { @apply block size-16 shrink-0 overflow-hidden rounded-lg border-2 border-transparent opacity-60 transition-opacity hover:opacity-100 sm:size-20; }
+  .offer-gallery-thumbnails a[aria-current="true"] { @apply border-emerald-600 opacity-100 dark:border-emerald-400; }
+  .offer-gallery-thumbnails img { @apply size-full object-cover; }
+  .offer-gallery [hidden] { display: none !important; }
+}

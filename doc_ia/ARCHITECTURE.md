@@ -286,3 +286,12 @@ réduction à 2400 px, JPEG réencodé sans métadonnées. GIF devient une image
 Le parcours mobile limite aussi le total à 8 lors de l'ajout en édition.
 Les vues publiques et la recherche existantes acceptent ces profils non vérifiés.
 Les vues Pro restent réservées aux profils vérifiés non particuliers.
+
+## Galerie des offres
+
+`public_offer` construit `gallery_images` à partir des médias avec URL, couverture
+puis ordre existant ; primary_image_url est le secours si aucun média utilisable.
+Le partial offer_gallery.html et offer-gallery-slider.js utilisent scroll-snap,
+scrollTo, miniatures, compteur, clavier et observateurs de visibilité/taille.
+Les dimensions nulles sont ignorées pour éviter un compteur NaN à l'arrière-plan.
+Les animations ne modifient aucune donnée et ne chargent aucune dépendance.

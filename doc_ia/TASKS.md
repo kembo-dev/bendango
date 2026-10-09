@@ -54,6 +54,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   (1 intégration ignorée), publication/édition testées sur base fictive séparée.
   Migration 0021 appliquée à PostgreSQL local ; aucun droit Pro/staff accordé.
 
+- [x] Animer la galerie publique des offres : carrousel, miniatures, flèches,
+  clavier, balayage natif et diaporama facultatif avec pause. Validation : 17
+  tests médias/offres réussis, dont 3 régressions couverture/fallback/absence
+  d'image ; contrôles navigateur réalisés sur l'offre Esika et cycle 5 s observé.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

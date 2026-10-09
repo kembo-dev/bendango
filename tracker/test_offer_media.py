@@ -182,3 +182,27 @@ class OfferMediaTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Seuls les fichiers image sont acceptés.')
         self.assertFalse(Offer.objects.filter(title='Service avec photos').exists())
+
+    def test_gallery_starts_with_primary_then_keeps_media_order(self):
+        offer = Offer.objects.create(business=self.profile, title='Galerie ordonnée')
+        first = OfferMedia.objects.create(offer=offer, external_url='https://example.com/first.jpg', position=0)
+        cover = OfferMedia.objects.create(offer=offer, external_url='https://example.com/cover.jpg', position=1, is_primary=True)
+        last = OfferMedia.objects.create(offer=offer, external_url='https://example.com/last.jpg', position=2)
+        response = self.client.get(reverse('public_offer', args=[offer.slug]))
+        self.assertEqual([image['url'] for image in response.context['gallery_images']], [cover.url, first.url, last.url])
+        self.assertContains(response, 'aria-label="Photo suivante"')
+        self.assertContains(response, 'data-gallery-play')
+
+    def test_gallery_uses_external_fallback_without_navigation_for_one_image(self):
+        offer = Offer.objects.create(business=self.profile, title='Photo unique', primary_image_url='https://example.com/solo.jpg')
+        response = self.client.get(reverse('public_offer', args=[offer.slug]))
+        self.assertEqual(response.context['gallery_images'], [{'url': offer.primary_image_url, 'alt': offer.title}])
+        self.assertNotContains(response, 'data-gallery-next')
+        self.assertNotContains(response, 'data-gallery-play')
+
+    def test_gallery_without_images_does_not_render_empty_controls(self):
+        offer = Offer.objects.create(business=self.profile, title='Sans photo')
+        OfferMedia.objects.create(offer=offer, is_primary=True)
+        response = self.client.get(reverse('public_offer', args=[offer.slug]))
+        self.assertEqual(response.context['gallery_images'], [])
+        self.assertNotContains(response, 'data-offer-gallery')

@@ -173,3 +173,21 @@ les nouvelles ajoutées ; la couverture existante reste inchangée.
 « Mes annonces » propose Voir, Modifier et Masquer/Réactiver ; la visibilité
 réelle tient aussi compte de la page du vendeur. Les particuliers sont marqués
 non vérifiés. Le cadre administratif Pro et ses formulaires complets sont conservés.
+
+## Galerie publique animée (2026-10-09)
+
+La photo principale et l'ancienne grille deviennent un carrousel unique sur le
+haut de chaque offre : transition horizontale douce, miniatures sélectionnables,
+compteur et flèches. Balayage natif sur téléphone, navigation au clavier
+(gauche/droite, Home/End), textes alternatifs et annonce des changements manuels.
+La couverture choisie est affichée en premier, puis les autres photos dans leur
+ordre. Une photo unique reste sans commandes ; absence de photo sans bloc vide.
+
+Le bouton « Diaporama » lance un cycle de cinq secondes, avec Pause. Il est
+facultatif, arrêté par la navigation manuelle/le toucher, suspendu au survol,
+au focus dans les photos, hors écran et onglet masqué. La préférence de réduction
+des animations désactive le diaporama et rend les transitions immédiates.
+Sans JavaScript, défilement horizontal et liens des miniatures restent disponibles.
+Contrôles réels sur l'offre Esika : images chargées, flèches, miniature, clavier,
+cycle automatique 1/2 → 2/2 et pause ; capture conservée hors dépôt. Le balayage
+matériel et la réduction de mouvement sur téléphone restent à vérifier.

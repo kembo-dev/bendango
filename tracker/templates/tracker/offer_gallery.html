@@ -1,0 +1,27 @@
+{% if gallery_images %}
+<section class="offer-gallery" data-offer-gallery aria-label="Galerie de photos" aria-roledescription="carrousel">
+  <div class="relative">
+    <div class="offer-gallery-track" data-gallery-track tabindex="0" aria-label="Photos de l’annonce : flèches gauche et droite pour naviguer">
+      {% for image in gallery_images %}
+      <figure class="offer-gallery-slide" id="offer-photo-{{ forloop.counter }}" role="group" aria-label="Photo {{ forloop.counter }} sur {{ gallery_images|length }}">
+        <img src="{{ image.url }}" alt="{{ image.alt }}" {% if not forloop.first %}loading="lazy"{% endif %} decoding="async" draggable="false">
+      </figure>
+      {% endfor %}
+    </div>
+    {% if gallery_images|length > 1 %}
+    <div data-gallery-controls hidden>
+      <button type="button" data-gallery-prev class="offer-gallery-arrow left-3" aria-label="Photo précédente">‹</button>
+      <button type="button" data-gallery-next class="offer-gallery-arrow right-3" aria-label="Photo suivante">›</button>
+      <span class="absolute bottom-3 right-4 rounded-full bg-slate-950/75 px-3 py-1 text-xs font-semibold text-white" data-gallery-counter aria-hidden="true">1 / {{ gallery_images|length }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% if gallery_images|length > 1 %}
+  <div class="flex items-center justify-between gap-3 px-4 pt-4"><h2 class="text-sm font-semibold">Galerie · {{ gallery_images|length }} photos</h2><button type="button" data-gallery-play class="button button-outline-secondary button-sm min-h-11" aria-label="Démarrer le diaporama" hidden>▶ Diaporama</button></div>
+  <nav class="offer-gallery-thumbnails" aria-label="Choisir une photo">
+    {% for image in gallery_images %}<a href="#offer-photo-{{ forloop.counter }}" data-gallery-thumb="{{ forloop.counter0 }}" aria-label="Voir la photo {{ forloop.counter }}" {% if forloop.first %}aria-current="true"{% endif %}><img src="{{ image.url }}" alt="" loading="lazy" draggable="false"></a>{% endfor %}
+  </nav>
+  <p class="sr-only" data-gallery-status aria-live="polite" aria-atomic="true"></p>
+  {% endif %}
+</section>
+{% endif %}

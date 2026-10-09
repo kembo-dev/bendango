@@ -288,3 +288,25 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
 - Les six documents doc_ia sont réconciliés et actualisés ; serveur applicatif
   rechargé après migration et assets. Publication sur clean/bendango-v2 selon
   l'autorisation permanente, résultat vérifiable dans Git.
+
+## 2026-10-09 — galerie publique animée
+
+- Demande : animer la galerie de l'offre Esika. Photo principale et grille
+  remplacées par carrousel unique : scroll-snap, transition douce, miniatures,
+  flèches, compteur et clavier. Balayage natif, clair/sombre et repli sans JS.
+- Diaporama facultatif de 5 s avec pause ; arrêt par navigation manuelle/toucher,
+  suspension au survol/focus/hors écran/onglet caché. Reduced-motion interdit
+  le diaporama et garde les commandes manuelles immédiates. Aucun autoplay imposé.
+- Vue publique : couverture en premier, médias vides ignorés, URL de secours
+  préservée ; contrôles absents avec zéro/une photo. Aucun schéma/droit modifié.
+- Validation : 17 tests ciblés médias/offres réussis, dont trois nouveaux cas ;
+  build Tailwind, collectstatic, check Django et diff --check réussis. Navigateur
+  sur l'offre demandée : deux images chargées, flèche, miniature, clavier et
+  diaporama 1/2 vers 2/2 en 5,7 s, pause confirmée. Compteur NaN découvert sur
+  un conteneur temporairement sans largeur et corrigé par gardes de dimensions.
+  Script final distinct chargé après redémarrage pour éviter le cache du prototype.
+  Capture hors dépôt ; aucun contact enregistré dans la documentation.
+- Vérification visuelle desktop ; balayage matériel et préférence reduced-motion
+  sur téléphone restent à contrôler. Serveur local rechargé ; workers inchangés.
+- DESIGN, ARCHITECTURE, TASKS et MEMORY actualisés ; PROD et RULES consultés,
+  cohérents sans modification nécessaire. Commit/push suivant la consigne permanente.

@@ -673,11 +673,19 @@ def public_offer(request, slug):
     )
     media = list(offer.media.all())
     primary_media = next((item for item in media if item.is_primary), media[0] if media else None)
+    gallery_images = [
+        {'url': item.url, 'alt': item.alt_text or offer.title}
+        for item in sorted(media, key=lambda item: not item.is_primary)
+        if item.url
+    ]
+    if not gallery_images and offer.primary_image_url:
+        gallery_images = [{'url': offer.primary_image_url, 'alt': offer.title}]
     whatsapp_digits = re.sub(r"\D+", "", offer.whatsapp or offer.business.whatsapp or offer.business.phone or "")
     return render(request, 'tracker/public_offer.html', {
         'offer': offer,
         'media': media,
         'primary_media': primary_media,
+        'gallery_images': gallery_images,
         'whatsapp_url': f"https://wa.me/{whatsapp_digits}" if whatsapp_digits else '',
     })
 
