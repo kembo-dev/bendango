@@ -23,6 +23,8 @@ Une source de découverte n'est pas une offre marchande vérifiée.
   gestion, offres, catalogue, photos, boosts et édition du profil entreprise.
   Les indicateurs reflètent les seules données du business et de son utilisateur.
 - Pages publiques des business et des offres ; accueil de découverte paginé.
+  Les annonces de l’accueil et du détail indiquent leur origine : Pro validé,
+  Pro non validé ou Particulier, selon le statut actuel du profil.
 - Photos uploadées optimisées en WebP qualité 85, jusqu’à 1600 px, avec
   miniatures 320 × 320 et cadre carré sans déformation ni agrandissement automatique.
   Vue agrandie facultative avec zoom jusqu’à 400 %, déplacement et navigation.

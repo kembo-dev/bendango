@@ -230,3 +230,14 @@ le zoom, 0 le réinitialise. La modale conserve le focus et le rend à l’ouvre
 En absence de JavaScript, les liens ouvrent le fichier image. Contrôles desktop
 réalisés sur la moto et une galerie de deux photos ; pincement matériel et
 rendu sur téléphone réel restent à vérifier.
+
+## Origine des annonces
+
+Sous le nom public de l’auteur, les cartes de l’accueil affichent un badge :
+« Pro validé » (bouclier/coché, vert), « Pro non validé » (horloge, ambre) ou
+« Particulier » (personne, neutre). Libellés explicites en plus des couleurs et
+icônes décoratives ; tooltip précisant que la validation concerne le compte.
+Le détail d’offre reprend le même badge. « Publié sur Bendango » devient neutre
+et « Sponsorisé » reste un indicateur distinct. Les recherches communautaires
+restent identifiées comme recherches, sans badge de vendeur. Le texte d’introduction
+mentionne les professionnels et les particuliers.

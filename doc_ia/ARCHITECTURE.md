@@ -347,3 +347,14 @@ diaporama et synchronisent la photo avec le carrousel. La modale isole le focus
 et rend la page sous-jacente inerte ; fermeture native par Échap, focus rendu
 à l’ouvreur et défilement du body restauré. Sans support du dialog/JavaScript,
 les liens des photos ouvrent directement leur fichier. Aucun schéma ne change.
+
+## Origine des publications
+
+La propriété BusinessProfile.publication_origin produit kind/label/description :
+is_individual prioritaire (individual), sinon is_verified (pro_verified), sinon
+pro_unverified. Le statut est calculé à partir du profil courant, sans champ
+supplémentaire ni requête pour la propriété. Le flux d’accueil transmet ce
+statut dans les seules cartes d’offres, avec le business déjà chargé. Le partial
+publication_origin_badge.html est partagé par accueil et détail d’offre. Les
+sujets de recherche restent anonymes et sans statut de vendeur ; le badge
+Sponsorisé reste indépendant. Les contrôles de publication/accès restent identiques.

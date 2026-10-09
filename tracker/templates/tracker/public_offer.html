@@ -14,6 +14,7 @@
           </div>
           <h1 class="text-3xl mb-2">{{ offer.title }}</h1>
           <a href="{% url 'public_business' offer.business.slug %}" class="no-underline font-semibold">{{ offer.business.business_name }}</a>
+          <div class="mt-2">{% include 'tracker/publication_origin_badge.html' with origin=offer.business.publication_origin only %}</div>
           <div class="text-slate-500 text-sm mt-1 dark:text-slate-400">{% if offer.city %}{{ offer.city }}{% endif %}{% if offer.business.country %} · {{ offer.business.country }}{% endif %}</div>
         </div>
         <div class="text-right">

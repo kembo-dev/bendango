@@ -384,3 +384,23 @@ Ne pas recopier des logs complets ni annoncer un test non exécuté.
   visuel sur téléphone réel restent à réaliser ; ne pas les annoncer validés.
 - Six documents consultés, réconciliés et actualisés. Serveur local rechargé,
   workers inchangés. Commit/push selon la consigne permanente, résultat dans Git.
+
+## 2026-10-09 — Origine et statut des publications
+
+- Demande : savoir sur l’accueil si une publication vient d’un Pro validé,
+  non validé ou d’un particulier. Statut calculé depuis BusinessProfile courant ;
+  is_individual prend priorité, puis is_verified. Aucun changement de droits,
+  de visibilité, de données ou de schéma. La validation concerne le compte.
+- Badge partagé accueil/détail avec libellé, icône, palette clair/sombre et
+  description. Source Bendango neutre et sponsoring séparé ; pas de statut de
+  vendeur ni nouvelle identité divulguée sur les recherches communautaires.
+- Validation : quatre nouveaux tests (trois états/detail, particulier avec
+  ancien indicateur vérifié, révocation, recherches sans statut) ; 49 tests
+  accueil/comptes/publication/offres réussis. Check Django, cohérence migrations,
+  build CSS, collectstatic et diff --check réussis. Aucun appel LLM réel.
+- Navigateur : les trois badges sont présents sur une base fictive séparée ;
+  capture origine-publications.png hors dépôt. Accueil réel rechargé : deux
+  offres du Pro validé et un sujet de recherche correctement distingués. Base
+  réelle non modifiée. Serveur fictif arrêté ; workers inchangés.
+- Six documents consultés et réconciliés ; PROD, ARCHITECTURE, DESIGN, TASKS et
+  MEMORY actualisés. RULES reste cohérent. Commit/push selon la consigne permanente.

@@ -205,6 +205,7 @@ def _public_discovery_feed(request, *, per_page=12):
             "city": offer.city or offer.business.city or "",
             "market_code": offer.market_code,
             "badge": "Publié sur Bendango",
+            "publication_origin": offer.business.publication_origin,
             "promoted": bool(offer.offer_type == Offer.TYPE_PRODUCT and offer.is_boosted),
             "url": f"/offer/{offer.slug}/",
             "created_at": offer.updated_at,

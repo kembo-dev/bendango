@@ -49,7 +49,7 @@
             <div>
                 <div class="eyebrow mb-2">Découvrir Bendango</div>
                 <h2 class="text-xl mb-1">Produits publiés et recherches de la communauté</h2>
-                <p class="text-slate-500 mb-0 dark:text-slate-400">Découvrez les offres publiées directement par les business Bendango et les produits récemment recherchés par d'autres utilisateurs.</p>
+                <p class="text-slate-500 mb-0 dark:text-slate-400">Découvrez les annonces des professionnels et des particuliers, ainsi que les produits recherchés par la communauté.</p>
             </div>
             <span class="tag tag-light border">{{ discovery_page.paginator.count }} élément{{ discovery_page.paginator.count|pluralize }}</span>
         </div>
@@ -70,7 +70,7 @@
                                 <div class="flex justify-between gap-2 flex-wrap mb-2">
                                     <div>
                                         {% if item.kind == 'offer' %}
-                                        <span class="tag tag-success">{{ item.badge }}</span>
+                                        <span class="tag tag-light border">{{ item.badge }}</span>
                                         {% if item.promoted %}<span class="tag tag-warning">Sponsorisé</span>{% endif %}
                                         {% else %}
                                         <span class="tag tag-primary">{{ item.badge }}</span>
@@ -83,6 +83,7 @@
                                     {{ item.provider }}
                                     {% if item.city %} · {{ item.city }}{% endif %}
                                 </div>
+                                {% if item.kind == 'offer' %}<div class="mb-3">{% include 'tracker/publication_origin_badge.html' with origin=item.publication_origin only %}</div>{% endif %}
 
                                 {% if item.price %}
                                 <div class="font-bold text-brand-700 mb-2 dark:text-emerald-300">

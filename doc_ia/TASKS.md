@@ -73,6 +73,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   Validation : 17 tests offres/médias et contrôles navigateur sur une/deux photos.
   Pincement et ergonomie sur téléphone matériel restent à contrôler.
 
+- [x] Identifier l’origine des publications sur l’accueil et le détail : Pro validé,
+  Pro non validé ou Particulier ; statut courant, distinct du sponsoring.
+  Validation : quatre nouveaux cas, 49 tests ciblés et trois badges inspectés
+  dans le navigateur sur données fictives séparées.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

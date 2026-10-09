@@ -385,6 +385,18 @@ class BusinessProfile(models.Model):
             models.Index(fields=['market_code', 'city'], name='tracker_biz_market_city_idx'),
         ]
 
+    @property
+    def publication_origin(self):
+        """Statut public du compte, distinct de la vérification du produit."""
+        if self.is_individual:
+            return {'kind': 'individual', 'label': 'Particulier',
+                    'description': 'Annonce publiée par un particulier, sans validation professionnelle.'}
+        if self.is_verified:
+            return {'kind': 'pro_verified', 'label': 'Pro validé',
+                    'description': 'Compte professionnel validé par Bendango. Cette validation concerne le compte, pas le produit.'}
+        return {'kind': 'pro_unverified', 'label': 'Pro non validé',
+                'description': 'Compte professionnel non validé par Bendango.'}
+
     def save(self, *args, **kwargs):
         if not self.slug:
             base = slugify(self.business_name)[:190] or 'business'

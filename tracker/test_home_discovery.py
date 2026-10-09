@@ -88,6 +88,55 @@ class HomepageDiscoveryFeedTests(TestCase):
         self.assertEqual(len(second_page.object_list), 2)
         self.assertContains(second, 'Page 2 sur 2')
 
+    def test_publication_origin_distinguishes_pro_status_and_individual(self):
+        profiles = [(self.profile, 'pro_verified', 'Pro validé')]
+        for username, individual, verified, kind, label in (
+            ('pending-pro', False, False, 'pro_unverified', 'Pro non validé'),
+            ('private-seller', True, False, 'individual', 'Particulier'),
+        ):
+            profile = BusinessProfile.objects.create(user=User.objects.create_user(username=username),
+                business_name=username, is_individual=individual, is_verified=verified)
+            profiles.append((profile, kind, label))
+        for profile, kind, label in profiles:
+            Offer.objects.create(business=profile, title=f'Annonce de {profile.business_name}')
+        response = self.client.get(reverse('scrape_view'))
+        items = {item['provider']: item for item in response.context['discovery_page'] if item['kind'] == 'offer'}
+        for profile, kind, label in profiles:
+            self.assertEqual(items[profile.business_name]['publication_origin']['kind'], kind)
+            self.assertContains(response, f'data-publication-origin="{kind}"')
+            self.assertContains(response, label)
+            offer = Offer.objects.get(business=profile)
+            detail = self.client.get(reverse('public_offer', args=[offer.slug]))
+            self.assertContains(detail, f'data-publication-origin="{kind}"')
+            self.assertContains(detail, label)
+
+    def test_individual_flag_never_displays_a_pro_validation(self):
+        self.profile.is_individual = True
+        self.profile.save(update_fields=['is_individual'])
+        Offer.objects.create(business=self.profile, title='Particulier avec ancien statut')
+        response = self.client.get(reverse('scrape_view'))
+        self.assertContains(response, 'data-publication-origin="individual"')
+        self.assertNotContains(response, 'data-publication-origin="pro_verified"')
+
+    def test_revoked_validation_changes_existing_publication_badge(self):
+        offer = Offer.objects.create(business=self.profile, title='Annonce déjà publiée')
+        self.assertContains(self.client.get(reverse('scrape_view')), 'data-publication-origin="pro_verified"')
+        account_request = BusinessAccountRequest.objects.get(user=self.profile.user)
+        account_request.status = BusinessAccountRequest.STATUS_REJECTED
+        account_request.save()
+        response = self.client.get(reverse('scrape_view'))
+        self.assertContains(response, offer.title)
+        self.assertContains(response, 'data-publication-origin="pro_unverified"')
+        self.assertNotContains(response, 'data-publication-origin="pro_verified"')
+
+    def test_search_topics_do_not_receive_a_seller_status(self):
+        SearchRun.objects.create(query='Sujet communautaire', market_code='CD')
+        response = self.client.get(reverse('scrape_view'))
+        item = response.context['discovery_page'].object_list[0]
+        self.assertEqual(item['kind'], 'search')
+        self.assertNotIn('publication_origin', item)
+        self.assertNotContains(response, 'data-publication-origin=')
+
     def test_duplicate_public_search_topics_are_collapsed(self):
         SearchRun.objects.create(
             query='iPhone 16 Pro 256GB',
