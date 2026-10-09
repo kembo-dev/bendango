@@ -43,6 +43,11 @@ pas une autorisation générale de modification, publication ou appel à un serv
   Validation : 296 tests SQLite réussis (1 ignoré), contrôles Django/migrations,
   compilation Tailwind et collecte des assets. Aucun appel LLM réel.
 
+- [x] Transformer l'espace Pro en administration client : cadre commun, navigation,
+  tableau de bord réel, priorités et profil séparé. Six tests de compteurs/isolation,
+  302 tests SQLite réussis (1 ignoré), build/collectstatic et contrôles visuels
+  desktop/mobile clair/sombre sur données fictives.
+
 ## Priorité haute
 
 - [ ] Préserver l'état d'échec dans `_run_state` et le suivi navigateur.

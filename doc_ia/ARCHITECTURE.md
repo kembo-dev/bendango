@@ -45,6 +45,20 @@ Une URL saisie directement suit actuellement un chemin synchrone dans la vue
 via `process_url_and_save`. Ne pas supposer que toutes les collectes sont asynchrones.
 L'extraction structurée et les heuristiques HTML précèdent le recours au LLM.
 
+## Cadre administratif Pro
+
+`pro_base.html` réutilise la base racine, le thème et le lien d'accès au contenu,
+avec menu latéral desktop et navigation repliable mobile. Six templates Pro
+héritent de ce cadre. `pro_navigation.html`, `pro_icon.html` et `theme_toggle.html`
+centralisent navigation, icônes et bascule du thème.
+
+`tracker/pro_overview.py:dashboard_context` construit les compteurs, la checklist,
+les offres/boosts récents et les recherches propres au compte. Toutes les offres
+et demandes de boost sont filtrées par business ; le catalogue dépend de son
+retailer. Les boosts en cours respectent statut approuvé et fenêtre de dates.
+`pro_dashboard` conserve la validation BusinessProfileForm et les droits existants ;
+`?section=profile` sélectionne l'édition sans ajouter de route ni permission.
+
 ## Données et isolation
 
 - Catalogue : `Product`, `Retailer`, `PriceListing`, `PriceHistory`.

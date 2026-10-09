@@ -223,6 +223,32 @@ Ne jamais conserver de secrets ou de données personnelles dans ce journal.
   changement de schéma, de dépendance ou d'identifiant privé. Publication sur
   clean/bendango-v2 suivant l'autorisation permanente ; résultat dans Git.
 
+## 2026-10-09 — administration client Pro
+
+- Demande : donner à `/pro/` une véritable présentation administrative du client,
+  plus créative. Skill ECC frontend-design-direction appliqué : outil de gestion
+  quotidien, dense et lisible, menu ardoise sombre et accents émeraude/bleu/ambre.
+- Ajout de pro_base/navigation/icon et extraction du bouton de thème en partial.
+  Le cadre couvre dashboard, offres, produits, formulaires et demande de boost.
+- Tableau de bord : offres en ligne, catalogue, boosts en cours, checklist de
+  profil ; table des six dernières offres, demandes de boost, recherches et
+  actions à traiter. Les chiffres sont réels et isolés par business/utilisateur.
+  Pas de statistiques de ventes ou revenus inexistantes.
+- Édition entreprise dans `?section=profile`, soumission et redirection existantes
+  préservées, erreurs visibles. Aucun nouveau privilège, route ou modèle.
+- Validation : 44 tests comptes/catalogue/offres/boosts/médias réussis, six nouveaux
+  tests de compteurs, profils masqués, boosts expirés et isolation réussis, puis
+  suite complète 302 tests SQLite réussie (1 intégration ignorée, environ 43 s).
+  Build Tailwind, collectstatic et check Django réussis.
+- Vérifications navigateur sur rendu de démonstration, sans écrire dans la base
+  applicative : desktop 1440 px et mobile 390 px, clair/sombre, navigation mobile
+  et profil. Débordement initial du texte sr-only dans le tableau corrigé par un
+  conteneur positionné ; document mobile ensuite limité à sa largeur. Capture
+  de démonstration conservée hors dépôt. Le navigateur réel demandait une connexion.
+- Serveur web local rechargé ; workers et politique LLM inchangés. Six documents
+  réconciliés et actualisés. Livraison sur clean/bendango-v2 suivant l'instruction
+  permanente ; résultat vérifiable dans Git.
+
 ## Modèle des futures entrées
 
 Pour chaque lot, ajouter une entrée datée avec : demande et périmètre ; comportement

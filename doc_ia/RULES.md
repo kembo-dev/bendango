@@ -118,6 +118,16 @@ livraison. Avant production, contrôler `check --deploy` avec la configuration
 de production réelle ; documenter les erreurs restantes sans masquer les contrôles.
 Les tests réussis ne prouvent pas la qualité des résultats sur le Web réel.
 
+## Administration du business
+
+- Réutiliser `pro_base.html` sur les écrans Pro ; maintenir navigation et thème
+  sans dépendance JavaScript supplémentaire.
+- Filtrer tout indicateur par business/utilisateur courant, respecter visibilité
+  de la page et dates des boosts. Ne jamais inventer ventes, visiteurs ou revenus.
+- Le libellé administrateur du business ne confère aucun droit Django staff.
+  Conserver approbation Pro, isolation des propriétaires et CSRF.
+- Vérifier les compteurs et frontières d'accès avec `tracker.test_pro_overview`.
+
 ## Interface Tailwind
 
 - Réutiliser `tracker/base.html` et les composants de `assets/css/app.css`.

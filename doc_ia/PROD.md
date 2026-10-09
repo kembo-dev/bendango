@@ -16,7 +16,9 @@ Une source de découverte n'est pas une offre marchande vérifiée.
 - Une recherche anonyme par session ; inscription et connexion pour poursuivre.
 - Historique des recherches pour les utilisateurs connectés.
 - Thèmes clair et sombre, préférence locale mémorisée par le navigateur.
-- Espace Pro après approbation : produits, offres, photos et demandes de boost.
+- Administration client Pro après approbation : tableau de bord, navigation de
+  gestion, offres, catalogue, photos, boosts et édition du profil entreprise.
+  Les indicateurs reflètent les seules données du business et de son utilisateur.
 - Pages publiques des business et des offres ; accueil de découverte paginé.
 - La demande de boost et son approbation existent ; ne pas les décrire comme un
   paiement en ligne opérationnel.

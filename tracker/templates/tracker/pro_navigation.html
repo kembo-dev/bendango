@@ -1,0 +1,9 @@
+{% with page=request.resolver_match.url_name %}
+<nav aria-label="Administration du business" class="space-y-1">
+    <a href="{% url 'pro_dashboard' %}" class="pro-nav {% if page == 'pro_dashboard' and not show_profile %}pro-nav-active{% endif %}" {% if page == 'pro_dashboard' and not show_profile %}aria-current="page"{% endif %}>{% include 'tracker/pro_icon.html' with name='grid' %}Vue d’ensemble</a>
+    <a href="{% url 'pro_offers' %}" class="pro-nav {% if 'pro_offer' in page %}pro-nav-active{% endif %}" {% if 'pro_offer' in page %}aria-current="page"{% endif %}>{% include 'tracker/pro_icon.html' with name='offers' %}Offres & publications</a>
+    <a href="{% url 'pro_products' %}" class="pro-nav {% if 'pro_product' in page %}pro-nav-active{% endif %}" {% if 'pro_product' in page %}aria-current="page"{% endif %}>{% include 'tracker/pro_icon.html' with name='box' %}Catalogue produits</a>
+    <a href="{% url 'pro_dashboard' %}#boosts" class="pro-nav">{% include 'tracker/pro_icon.html' with name='bolt' %}Promotions & boosts</a>
+    <a href="{% url 'pro_dashboard' %}?section=profile" class="pro-nav {% if show_profile %}pro-nav-active{% endif %}" {% if show_profile %}aria-current="page"{% endif %}>{% include 'tracker/pro_icon.html' with name='business' %}Profil entreprise</a>
+</nav>
+{% endwith %}

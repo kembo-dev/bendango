@@ -5,8 +5,10 @@ Dernière mise à jour : 2026-10-09.
 ## Base visuelle actuelle
 
 Templates Django avec Tailwind CSS 4.3.3 compilé localement ; interface en français.
-Les 14 pages publiques, comptes et Pro héritent de `tracker/base.html` : logo,
-navigation selon la session, lien d'accès direct au contenu et pied de page communs.
+Les pages publiques et comptes héritent de `tracker/base.html` avec navigation
+et pied de page communs. Les pages Pro utilisent `tracker/pro_base.html`, qui
+hérite de cette base et remplace le cadre par une navigation administrative.
+Le lien d'accès direct au contenu et le thème sont conservés.
 Les styles partagés se trouvent dans `assets/css/app.css`, la feuille générée dans
 `tracker/static/tracker/css/app.css`. Aucun CDN CSS ni compilation dans le navigateur.
 
@@ -23,6 +25,30 @@ mobile ; les tableaux peuvent défiler horizontalement dans leur conteneur.
 Les labels sont associés aux champs, le focus est visible et les animations
 respectent la préférence de mouvement réduit. Une certification d'accessibilité
 complète reste hors du périmètre de cette refonte.
+
+## Administration du client
+
+`/pro/` est un espace de gestion du business approuvé : menu latéral ardoise sombre,
+marque Bendango Pro, identité du business et accès à vue d'ensemble, offres,
+catalogue, boosts et profil. Sur mobile, la navigation est un menu repliable natif,
+utilisable sans JavaScript. Les pages d'édition gardent ce cadre commun.
+
+La vue d'ensemble présente quatre indicateurs réels : offres publiques actives
+(seulement si le business est visible), catalogue, boosts en cours, complétude du
+profil. Les six dernières offres sont dans un tableau avec prix, type, statut et
+accès Modifier. Les demandes de boosts, recherches récentes et priorités à traiter
+restent distinctes. Aucun chiffre de ventes ou de revenus n'est simulé.
+
+Le profil se modifie dans `/pro/?section=profile` : formulaire à deux colonnes sur
+desktop, une sur mobile, erreurs et champs obligatoires visibles. Le score de
+complétude porte sur six éléments (nom, présentation, logo, ville, adresse, contact) ;
+il n'est pas un score de vérification. Les offres privées/désactivées et une page
+business masquée ont des libellés distincts.
+
+Validé : aperçu fictif desktop 1440 px et mobile 390 px, clair/sombre, ouverture du
+menu mobile et navigation au profil. Aucun débordement du document mobile ; le
+tableau défile dans son conteneur. Les données de démonstration ne sont pas dans
+la base applicative. Sauvegarde et droits validés par les tests Django.
 
 ## Thème sombre
 

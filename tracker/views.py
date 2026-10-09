@@ -18,6 +18,7 @@ from .offer_search import find_matching_offers
 from .unified_search import build_unified_results
 from .markets import DEFAULT_MARKET_CODE, get_market, normalize_market_code
 from .models import BusinessAccountRequest, BusinessProfile, Offer, OfferBoostRequest, OfferMedia, PriceListing, Product, ScrapeJob, SearchRun
+from .pro_overview import dashboard_context
 from .pricing import attach_price_history_stats
 from .ranking import attach_offer_quality, offer_sort_key
 from .services import LLMRequiredError, LLM_PUBLIC_ERROR, get_llm_config, get_llm_model_reference, process_url_and_save
@@ -439,18 +440,11 @@ def pro_dashboard(request):
     else:
         form = BusinessProfileForm(instance=profile)
 
-    recent_searches = SearchRun.objects.filter(user=request.user).order_by("-created_at")[:5]
     return render(request, "tracker/pro_dashboard.html", {
         "profile": profile,
         "form": form,
-        "recent_searches": recent_searches,
-        "search_count": SearchRun.objects.filter(user=request.user).count(),
-        "product_count": (
-            PriceListing.objects.filter(retailer=profile.retailer).count()
-            if profile.retailer_id
-            else 0
-        ),
-        "offer_count": profile.offers.count(),
+        "show_profile": request.GET.get("section") == "profile" or request.method == "POST",
+        **dashboard_context(profile, request.user),
     })
 
 

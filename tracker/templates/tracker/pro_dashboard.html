@@ -1,91 +1,40 @@
-{% extends "tracker/base.html" %}
-{% block title %}Espace Pro - Bendango{% endblock %}
-{% block content %}
-<div class="mx-auto w-full max-w-7xl px-4 sm:px-6 py-8">
-    <div class="flex justify-between items-start gap-3 flex-wrap mb-6">
-        <div>
-            <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Bendango Pro</div>
-            <h1 class="text-3xl mb-1">{{ profile.business_name }}</h1>
-            <div class="text-slate-500 dark:text-slate-400">
-                {% if profile.is_verified %}<span class="tag tag-success">Compte Pro actif</span>{% endif %}
-                {% if profile.business_type %} · {{ profile.business_type }}{% endif %}
-                {% if profile.country %} · {{ profile.country }}{% endif %}
-            </div>
-        </div>
-        <div class="flex gap-2 flex-wrap">
-            {% if profile.is_public and profile.is_active %}
-            <a href="{% url 'public_business' profile.slug %}" class="button button-outline-success" target="_blank">Voir ma page publique</a>
-            {% endif %}
-            <a href="{% url 'search_history' %}" class="button button-outline-primary">Mes recherches</a>
-            <a href="{% url 'scrape_view' %}" class="button button-primary">Comparer un produit</a>
-        </div>
+{% extends "tracker/pro_base.html" %}
+{% block title %}Administration · {{ profile.business_name }} — Bendango Pro{% endblock %}
+{% block pro_content %}
+<div class="flex flex-wrap items-start justify-between gap-4 mb-7">
+    <div><div class="eyebrow mb-2">{{ profile.business_name }}</div><h1 class="text-2xl sm:text-3xl">{% if show_profile %}Profil de l’entreprise{% else %}Vue d’ensemble{% endif %}</h1><p class="text-sm text-slate-500 dark:text-slate-400 mt-2 mb-0">{% if show_profile %}Les informations que vos clients retrouvent sur votre page publique.{% else %}{% now 'd/m/Y' %} · Votre activité en un regard.{% endif %}</p></div>
+    <div class="flex flex-wrap gap-2">{% if profile.is_public and profile.is_active %}<a href="{% url 'public_business' profile.slug %}" class="button button-outline-secondary" target="_blank" rel="noopener noreferrer">Ma page publique ↗</a>{% endif %}<a href="{% url 'pro_offer_create' %}" class="button button-primary">+ Nouvelle offre</a></div>
+</div>
+{% for message in messages %}<div class="notice {% if message.tags == 'error' %}notice-danger{% else %}notice-success{% endif %} mb-5" role="status">{{ message }}</div>{% endfor %}
+{% if show_profile %}
+<section class="pro-section">
+    <div class="pro-section-title"><h2>Identité & coordonnées</h2><span class="tag tag-success">Compte Pro actif</span></div>
+    <div class="p-5 sm:p-7"><form method="post" action="{% url 'pro_dashboard' %}?section=profile">{% csrf_token %}
+        {% for error in form.non_field_errors %}<div class="notice notice-danger mb-4" role="alert">{{ error }}</div>{% endfor %}
+        <div class="grid gap-5 md:grid-cols-2">{% for field in form %}<div class="{% if field.name == 'description' %}md:col-span-2{% endif %}"><label for="{{ field.id_for_label }}" class="field-label">{{ field.label }}{% if field.field.required %}<span class="text-red-600 dark:text-red-400"> *</span>{% endif %}</label>{{ field }}{% if field.help_text %}<div class="field-help">{{ field.help_text }}</div>{% endif %}{% for error in field.errors %}<div class="text-sm text-red-700 dark:text-red-300 mt-2" role="alert">{{ error }}</div>{% endfor %}</div>{% endfor %}</div>
+        <div class="mt-7 pt-5 border-t flex flex-wrap gap-3"><button type="submit" class="button button-primary">Enregistrer les modifications</button><a href="{% url 'pro_dashboard' %}" class="button button-outline-secondary">Retour au tableau de bord</a></div>
+    </form></div>
+</section>
+{% else %}
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5 mb-7">
+    <div class="pro-stat border-b-emerald-500"><div class="flex items-center justify-between gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">Offres en ligne{% include 'tracker/pro_icon.html' with name='offers' %}</div><div class="pro-stat-number">{{ published_offer_count }}</div><div class="text-xs text-slate-500 dark:text-slate-400 mt-2">sur {{ offer_count }} publication{{ offer_count|pluralize }}</div></div>
+    <div class="pro-stat border-b-sky-500"><div class="flex items-center justify-between gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">Catalogue{% include 'tracker/pro_icon.html' with name='box' %}</div><div class="pro-stat-number">{{ product_count }}</div><div class="text-xs text-slate-500 dark:text-slate-400 mt-2">produit{{ product_count|pluralize }} enregistré{{ product_count|pluralize }}</div></div>
+    <div class="pro-stat border-b-amber-500"><div class="flex items-center justify-between gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">Boosts en cours{% include 'tracker/pro_icon.html' with name='bolt' %}</div><div class="pro-stat-number">{{ active_boost_count }}</div><div class="text-xs text-slate-500 dark:text-slate-400 mt-2">{{ pending_boost_count }} demande{{ pending_boost_count|pluralize }} en attente</div></div>
+    <div class="pro-stat border-b-slate-400"><div class="flex items-center justify-between gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">Profil complété{% include 'tracker/pro_icon.html' with name='business' %}</div><div class="pro-stat-number">{{ profile_completion }}<span class="text-lg text-slate-400"> %</span></div><div class="text-xs text-slate-500 dark:text-slate-400 mt-2">identité, présentation & contact</div></div>
+</div>
+<div class="grid xl:grid-cols-[minmax(0,1fr)_320px] gap-6">
+    <div class="min-w-0 space-y-6">
+        <section class="pro-section"><div class="pro-section-title"><div><h2>Dernières publications</h2><div class="text-xs text-slate-500 dark:text-slate-400 mt-1">Vos offres récemment mises à jour</div></div><a href="{% url 'pro_offers' %}" class="text-xs font-semibold whitespace-nowrap">Tout gérer →</a></div>
+        {% if recent_offers %}<div class="table-responsive relative"><table class="data-table min-w-[600px]"><thead><tr><th scope="col">Offre</th><th scope="col">Prix</th><th scope="col">Statut</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>{% for offer in recent_offers %}<tr><td><div class="flex gap-3 items-center">{% if offer.display_image_url %}<img src="{{ offer.display_image_url }}" alt="" loading="lazy" class="size-10 rounded-lg object-cover bg-stone-50">{% else %}<span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-800">{% include 'tracker/pro_icon.html' with name='offers' %}</span>{% endif %}<div><a href="{% url 'pro_offer_edit' offer.pk %}" class="font-medium text-slate-900 dark:text-slate-100">{{ offer.title|truncatechars:45 }}</a><div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ offer.get_offer_type_display }} · {{ offer.updated_at|date:'d/m/Y' }}</div></div></div></td><td class="whitespace-nowrap">{% if offer.price %}{{ offer.price }} <span class="text-xs text-slate-500 dark:text-slate-400">{{ offer.currency }}</span>{% else %}<span class="text-slate-500 dark:text-slate-400">Sur demande</span>{% endif %}</td><td>{% if offer.is_active and offer.is_public and profile.is_active and profile.is_public %}<span class="tag tag-success">En ligne</span>{% elif offer.is_active and offer.is_public %}<span class="tag tag-warning">Page masquée</span>{% elif offer.is_active %}<span class="tag tag-secondary">Privée</span>{% else %}<span class="tag tag-secondary">Désactivée</span>{% endif %}</td><td><a href="{% url 'pro_offer_edit' offer.pk %}" class="text-xs font-semibold" aria-label="Modifier {{ offer.title }}">Modifier</a></td></tr>{% endfor %}</tbody></table></div>
+        {% else %}<div class="p-8 sm:p-10 text-center"><div class="mx-auto size-12 flex items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-emerald-950 dark:text-emerald-300 mb-4">{% include 'tracker/pro_icon.html' with name='offers' %}</div><h3 class="text-lg">Votre première publication commence ici</h3><p class="text-sm text-slate-500 dark:text-slate-400 mt-2">Un produit, un service ou une offre à partager avec vos clients.</p><a href="{% url 'pro_offer_create' %}" class="button button-primary">Créer une offre</a></div>{% endif %}</section>
+        <section class="pro-section" id="boosts"><div class="pro-section-title"><h2>Promotions & boosts</h2><span class="tag tag-warning">{{ active_boost_count }} en cours</span></div><div class="px-5 py-2">{% for boost in recent_boosts %}<div class="flex flex-wrap justify-between items-center gap-3 py-4 border-b last:border-b-0"><div><a href="{% url 'pro_offer_edit' boost.offer_id %}" class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ boost.offer.title }}</a><div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ boost.duration_days }} jours · Demande du {{ boost.created_at|date:'d/m/Y' }}{% if boost.ends_at %} · Fin {{ boost.ends_at|date:'d/m/Y' }}{% endif %}</div></div><span class="tag {% if boost.is_active %}tag-success{% elif boost.status == 'pending' %}tag-warning{% else %}tag-secondary{% endif %}">{% if boost.is_active %}Actif{% else %}{{ boost.get_status_display }}{% endif %}</span></div>{% empty %}<div class="flex flex-wrap items-center justify-between gap-4 py-5"><div><h3 class="text-sm">Donnez plus de visibilité à un produit</h3><p class="text-xs text-slate-500 dark:text-slate-400 mt-2 mb-0">Les demandes de boost sont soumises à validation.</p></div><a href="{% url 'pro_offers' %}" class="button button-outline-secondary button-sm">Choisir une offre →</a></div>{% endfor %}</div></section>
+        <section class="pro-section"><div class="pro-section-title"><h2>Recherches récentes</h2><a href="{% url 'search_history' %}" class="text-xs font-semibold">Historique →</a></div><div class="px-5">{% for item in recent_searches %}<a href="{% url 'search_run_detail' item.pk %}" class="flex justify-between items-center gap-3 py-4 border-b last:border-b-0"><div class="min-w-0"><div class="text-sm font-medium text-slate-900 dark:text-slate-100 break-words">{{ item.query }}</div><div class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ item.created_at|date:'d/m/Y H:i' }} · {{ item.market_code }}</div></div>{% include 'tracker/pro_icon.html' with name='arrow' %}</a>{% empty %}<p class="text-sm text-slate-500 dark:text-slate-400 py-5 mb-0">Aucune recherche pour ce compte. <a href="{% url 'scrape_view' %}">Comparer un produit →</a></p>{% endfor %}</div></section>
     </div>
-
-    {% if messages %}
-        {% for message in messages %}<div class="notice notice-success">{{ message }}</div>{% endfor %}
-    {% endif %}
-
-    <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4  mb-6">
-        <div class="w-full md:w-4/12"><div class="metric"><small>Statut</small><strong>{% if profile.is_verified %}Pro vérifié{% else %}Pro{% endif %}</strong></div></div>
-        <div class="w-full md:w-4/12"><div class="metric"><small>Recherches du compte</small><strong>{{ search_count }}</strong></div></div>
-        <div class="w-full md:w-4/12"><div class="metric"><small>Offres publiées</small><strong>{{ offer_count }}</strong></div></div>
-    </div>
-
-    <div class="flex flex-wrap -mx-3 [&>div]:px-3 [&>div]:mb-4 ">
-        <div class="w-full lg:w-7/12">
-            <div class="panel border-0 shadow-sm">
-                <div class="panel-body p-6 md:p-8">
-                    <div class="flex justify-between gap-3 items-start mb-6">
-                        <div>
-                            <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Profil business</div>
-                            <h2 class="text-xl mb-1">Informations de votre entreprise</h2>
-                            <p class="text-slate-500 mb-0 dark:text-slate-400">Ces informations serviront à votre présence professionnelle dans Bendango.</p>
-                        </div>
-                        {% if profile.logo_url %}<img src="{{ profile.logo_url }}" alt="Logo {{ profile.business_name }}" style="max-width:90px;max-height:70px;object-fit:contain">{% endif %}
-                    </div>
-                    <form method="post">{% csrf_token %}
-                        {% for field in form %}
-                        <div class="mb-4">
-                            <label for="{{ field.id_for_label }}" class="field-label font-semibold">{{ field.label }}</label>
-                            {{ field }}
-                            {% for error in field.errors %}<div class="text-red-700 text-sm dark:text-red-300">{{ error }}</div>{% endfor %}
-                        </div>
-                        {% endfor %}
-                        <button class="button button-primary" type="submit">Enregistrer le profil</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="w-full lg:w-5/12">
-            <div class="panel border-0 shadow-sm mb-6">
-                <div class="panel-body p-6">
-                    <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Activité</div>
-                    <h2 class="text-lg">Recherches récentes</h2>
-                    {% for item in recent_searches %}
-                    <a href="{% url 'search_run_detail' item.pk %}" class="block no-underline border rounded p-4 mb-2 text-slate-900 dark:text-slate-100">
-                        <div class="font-semibold">{{ item.query }}</div>
-                        <div class="text-sm text-slate-500 dark:text-slate-400">{{ item.created_at|date:"d/m/Y H:i" }} · {{ item.market_code }}</div>
-                    </a>
-                    {% empty %}
-                    <p class="text-slate-500 mb-0 dark:text-slate-400">Aucune recherche liée à ce compte.</p>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="panel border-0 shadow-sm">
-                <div class="panel-body p-6">
-                    <div class="text-brand-700 uppercase tracking-wide font-bold text-sm mb-2 dark:text-emerald-300">Publication</div>
-                    <h2 class="text-lg">Mes offres</h2>
-                    <p class="text-slate-500 dark:text-slate-400">Publiez un produit, un service, une chambre, une offre pharmacie, restaurant, transport ou autre.</p>
-                    <div class="flex gap-2 flex-wrap">
-                        <a href="{% url 'pro_offer_create' %}" class="button button-primary">Publication rapide</a>
-                        <a href="{% url 'pro_offers' %}" class="button button-outline-primary">Gérer mes offres</a>
-                        <a href="{% url 'pro_products' %}" class="button button-outline-secondary">Ancien catalogue produits</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="space-y-6">
+        <section class="pro-section"><div class="pro-section-title"><h2>À traiter</h2><span class="size-2 rounded-full bg-amber-500" aria-hidden="true"></span></div><div class="divide-y px-5"><a href="{% url 'pro_offers' %}" class="flex items-center justify-between gap-3 py-4 text-sm text-slate-700 dark:text-slate-200"><span>Offres non publiées</span><span class="font-semibold tabular-nums">{{ unpublished_offer_count }}</span></a><a href="{% url 'pro_products' %}" class="flex items-center justify-between gap-3 py-4 text-sm text-slate-700 dark:text-slate-200"><span>Produits en rupture</span><span class="font-semibold tabular-nums">{{ unavailable_product_count }}</span></a><a href="#boosts" class="flex items-center justify-between gap-3 py-4 text-sm text-slate-700 dark:text-slate-200"><span>Boosts à valider par Bendango</span><span class="font-semibold tabular-nums">{{ pending_boost_count }}</span></a></div></section>
+        <section class="pro-section"><div class="pro-section-title"><h2>Votre présence professionnelle</h2></div><div class="p-5"><div class="flex justify-between gap-3 items-center mb-3"><span class="text-xs text-slate-500 dark:text-slate-400">Complétude du profil</span><strong class="text-sm">{{ profile_completion }} %</strong></div><div class="progress h-1.5" role="progressbar" aria-label="Complétude du profil" aria-valuenow="{{ profile_completion }}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:{{ profile_completion }}%"></div></div><ul class="mt-5 space-y-3">{% for check in profile_checklist %}<li class="flex items-center gap-2 text-xs {% if check.done %}text-slate-700 dark:text-slate-200{% else %}text-slate-500 dark:text-slate-400{% endif %}"><span class="flex size-4 items-center justify-center rounded-full {% if check.done %}bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300{% else %}border border-slate-300 dark:border-slate-600{% endif %}" aria-hidden="true">{% if check.done %}✓{% endif %}</span>{{ check.label }}<span class="sr-only">{% if check.done %}renseigné{% else %}à compléter{% endif %}</span></li>{% endfor %}</ul><a href="{% url 'pro_dashboard' %}?section=profile" class="button button-outline-secondary w-full mt-6">{% if profile_completion == 100 %}Modifier le profil{% else %}Compléter le profil{% endif %}</a></div></section>
+        <div class="border-l-2 border-brand-600 pl-4 text-sm"><div class="font-semibold mb-2">{% if profile.is_public and profile.is_active %}Votre page est publique{% else %}Votre page n’est pas visible{% endif %}</div><p class="text-xs text-slate-500 dark:text-slate-400 mb-0">{% if profile.is_public and profile.is_active %}Les clients peuvent consulter votre entreprise et ses offres actives sur Bendango.{% else %}Contactez l’équipe Bendango pour vérifier l’état de votre compte.{% endif %}</p></div>
     </div>
 </div>
+{% endif %}
 {% endblock %}
